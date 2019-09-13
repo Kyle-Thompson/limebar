@@ -22,6 +22,9 @@
 #include <X11/Xft/Xft.h>
 #include <X11/Xlib-xcb.h>
 
+#include <iostream>
+#include <fstream>
+
 // Here bet  dragons
 
 #define max(a,b) ((a) > (b) ? (a) : (b))
@@ -129,6 +132,51 @@ static XftDraw *xft_draw;
 static wchar_t xft_char[MAX_WIDTHS];
 static char    xft_width[MAX_WIDTHS];
 
+static xcb_atom_t intern_atom(xcb_connection_t *conn, const char *atom)
+{
+    xcb_atom_t result = XCB_NONE;
+    xcb_intern_atom_reply_t *r = xcb_intern_atom_reply(conn,
+            xcb_intern_atom(conn, 0, strlen(atom), atom), NULL);
+    if (r)
+        result = r->atom;
+    free(r);
+    return result;
+}
+
+void
+active_window_daemon()
+{
+    xcb_connection_t* conn = xcb_connect(NULL, NULL);
+    if (xcb_connection_has_error(conn)) {
+        printf("Cannot open daemon connection.");
+        return;
+    }
+
+    xcb_atom_t active_window = intern_atom(conn, "_NET_ACTIVE_WINDOW");
+    xcb_screen_t* screen = xcb_setup_roots_iterator(xcb_get_setup(conn)).data;
+
+    uint32_t values[] = { XCB_EVENT_MASK_PROPERTY_CHANGE };
+    xcb_change_window_attributes(
+        conn,
+        screen->root,
+        XCB_CW_EVENT_MASK,
+        values);
+
+    xcb_flush(conn);
+
+    xcb_generic_event_t *ev;
+    while ((ev = xcb_wait_for_event(conn))) {
+        if ((ev->response_type & 0x7F) == XCB_PROPERTY_NOTIFY 
+                && reinterpret_cast<xcb_property_notify_event_t *>(ev)->atom == active_window) {
+            // TODO
+            continue;
+        }
+        free(ev);
+    }
+
+    return;
+}
+
 void
 update_gc (void)
 {
@@ -145,16 +193,16 @@ update_gc (void)
 }
 
 void
-fill_gradient (xcb_drawable_t d, int x, int y, int width, int height, rgba_t start, rgba_t stop)
+fill_gradient (xcb_drawable_t d, int16_t x, int y, uint16_t width, int height, rgba_t start, rgba_t stop)
 {
     float i;
     const int K = 25; // The number of steps
 
     for (i = 0.; i < 1.; i += (1. / K)) {
         // Perform the linear interpolation magic
-        unsigned int rr = i * stop.r + (1. - i) * start.r;
-        unsigned int gg = i * stop.g + (1. - i) * start.g;
-        unsigned int bb = i * stop.b + (1. - i) * start.b;
+        uint8_t rr = i * stop.r + (1. - i) * start.r;
+        uint8_t gg = i * stop.g + (1. - i) * start.g;
+        uint8_t bb = i * stop.b + (1. - i) * start.b;
 
         // The alpha is ignored here
         rgba_t step = {
@@ -166,14 +214,14 @@ fill_gradient (xcb_drawable_t d, int x, int y, int width, int height, rgba_t sta
 
         xcb_change_gc(c, gc[GC_DRAW], XCB_GC_FOREGROUND, (const uint32_t []){ step.v });
         xcb_poly_fill_rectangle(c, d, gc[GC_DRAW], 1,
-                               (const xcb_rectangle_t []){ { x, i * bh, width, bh / K + 1 } });
+                               (const xcb_rectangle_t []){ { x, static_cast<int16_t>(i * bh), width, static_cast<uint16_t>(bh / K + 1) } });
     }
 
     xcb_change_gc(c, gc[GC_DRAW], XCB_GC_FOREGROUND, (const uint32_t []){ fgc.v });
 }
 
 void
-fill_rect (xcb_drawable_t d, xcb_gcontext_t _gc, int x, int y, int width, int height)
+fill_rect (xcb_drawable_t d, xcb_gcontext_t _gc, int16_t x, int16_t y, uint16_t width, uint16_t height)
 {
     xcb_poly_fill_rectangle(c, d, _gc, 1, (const xcb_rectangle_t []){ { x, y, width, height } });
 }
@@ -355,7 +403,7 @@ parse_color (const char *str, char **end, const rgba_t def)
     }
 
     errno = 0;
-    rgba_t tmp = (rgba_t)(uint32_t)strtoul(str + 1, &ep, 16);
+    rgba_t tmp { .v = (uint32_t)strtoul(str + 1, &ep, 16) };
 
     if (end)
         *end = ep;
@@ -391,14 +439,14 @@ parse_color (const char *str, char **end, const rgba_t def)
     if (tmp.a) {
         // The components are clamped automagically as the rgba_t is made of uint8_t
         return (rgba_t){
-            .r = (tmp.r * tmp.a) / 255,
-            .g = (tmp.g * tmp.a) / 255,
-            .b = (tmp.b * tmp.a) / 255,
+            .r = static_cast<uint8_t>((tmp.r * tmp.a) / 255),
+            .g = static_cast<uint8_t>((tmp.g * tmp.a) / 255),
+            .b = static_cast<uint8_t>((tmp.b * tmp.a) / 255),
             .a = tmp.a,
         };
     }
 
-    return (rgba_t)0U;
+    return { .v = 0U };
 }
 
 void
@@ -777,7 +825,7 @@ font_load (const char *pattern)
 
     font = xcb_generate_id(c);
 
-    font_t *ret = calloc(1, sizeof(font_t));
+    font_t *ret = (font_t *) calloc(1, sizeof(font_t));
 
     if (!ret)
         return;
@@ -797,7 +845,7 @@ font_load (const char *pattern)
         // Copy over the width lut as it's part of font_info
         int lut_size = sizeof(xcb_charinfo_t) * xcb_query_font_char_infos_length(font_info);
         if (lut_size) {
-            ret->width_lut = malloc(lut_size);
+            ret->width_lut = (xcb_charinfo_t *) malloc(lut_size);
             memcpy(ret->width_lut, xcb_query_font_char_infos(font_info), lut_size);
         }
         free(font_info);
@@ -904,7 +952,7 @@ monitor_new (int x, int y, int width, int height)
 {
     monitor_t *ret;
 
-    ret = calloc(1, sizeof(monitor_t));
+    ret = (monitor_t *) calloc(1, sizeof(monitor_t));
     if (!ret) {
         fprintf(stderr, "Failed to allocate new monitor\n");
         exit(EXIT_FAILURE);
@@ -921,7 +969,7 @@ monitor_new (int x, int y, int width, int height)
                       XCB_WINDOW_CLASS_INPUT_OUTPUT, visual,
                       XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL | XCB_CW_OVERRIDE_REDIRECT | XCB_CW_EVENT_MASK | XCB_CW_COLORMAP,
     (const uint32_t []) {
-        bgc.v, bgc.v, dock, XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS, colormap
+        bgc.v, bgc.v, dock, XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE, colormap
     });
 
     ret->pixmap = xcb_generate_id(c);
@@ -1342,11 +1390,11 @@ init (char *wm_name, char *wm_instance)
 
         // Make sure that the window really gets in the place it's supposed to be
         // Some WM such as Openbox need this
-        xcb_configure_window(c, mon->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, (const uint32_t []){ mon->x, mon->y });
+        xcb_configure_window(c, mon->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, (const uint32_t []){ static_cast<uint32_t>(mon->x), static_cast<uint32_t>(mon->y) });
 
         // Set the WM_NAME atom to the user specified value
         if (wm_name)
-            xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon->window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8 ,strlen(wm_name), wm_name);
+            xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon->window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, strlen(wm_name), wm_name);
 
         // set the WM_CLASS atom instance to the executable name
         if (wm_instance) {
@@ -1357,7 +1405,7 @@ init (char *wm_name, char *wm_instance)
             wm_class_offset = strlen(wm_instance) + 1;
             wm_class_len = wm_class_offset + 4;
 
-            wm_class = calloc(1, wm_class_len + 1);
+            wm_class = (char *) calloc(1, wm_class_len + 1);
             strcpy(wm_class, wm_instance);
             strcpy(wm_class+wm_class_offset, "Bar");
 
@@ -1445,6 +1493,7 @@ main (int argc, char **argv)
     xcb_generic_event_t *ev;
     xcb_expose_event_t *expose_ev;
     xcb_button_press_event_t *press_ev;
+    // xcb_focus_in_event_t *focus_ev;
     char input[4096] = {0, };
     bool permanent = false;
     int geom_v[4] = { -1, -1, 0, 0 };
@@ -1458,8 +1507,8 @@ main (int argc, char **argv)
     signal(SIGTERM, sighandle);
 
     // B/W combo
-    dbgc = bgc = (rgba_t)0x00000000U;
-    dfgc = fgc = (rgba_t)0xffffffffU;
+    dbgc = bgc = { .v = 0x00000000U };
+    dfgc = fgc = { .v = 0xffffffffU };
 
     dugc = ugc = fgc;
 
@@ -1475,7 +1524,7 @@ main (int argc, char **argv)
     while ((ch = getopt(argc, argv, "hg:bdf:a:pu:B:F:U:n:o:")) != -1) {
         switch (ch) {
             case 'h':
-                printf ("lemonbar version %s patched with XFT support\n", VERSION);
+                printf ("limebar\n");
                 printf ("usage: %s [-h | -g | -b | -d | -f | -a | -p | -n | -u | -B | -F]\n"
                         "\t-h Show this help\n"
                         "\t-g Set the bar geometry {width}x{height}+{xoffset}+{yoffset}\n"
@@ -1498,18 +1547,22 @@ main (int argc, char **argv)
             case 'f': font_load(optarg); break;
             case 'u': bu = strtoul(optarg, NULL, 10); break;
             case 'o': add_y_offset(strtol(optarg, NULL, 10)); break;
-            case 'B': dbgc = bgc = parse_color(optarg, NULL, (rgba_t)0x00000000U); break;
-            case 'F': dfgc = fgc = parse_color(optarg, NULL, (rgba_t)0xffffffffU); break;
+            case 'B': dbgc = bgc = parse_color(optarg, NULL, { .v = 0x00000000U }); break;
+            case 'F': dfgc = fgc = parse_color(optarg, NULL, { .v = 0xffffffffU }); break;
             case 'U': dugc = ugc = parse_color(optarg, NULL, fgc); break;
             case 'a': areas = strtoul(optarg, NULL, 10); break;
         }
     }
 
+    // launch daemons
+    /* pthread_t active_window; */
+    /* pthread_create(&clock, NULL, active_window_daemon, NULL); */
+
     // Initialize the stack holding the clickable areas
     area_stack.at = 0;
     area_stack.max = areas;
     if (areas) {
-        area_stack.area = calloc(areas, sizeof(area_t));
+        area_stack.area = (area_t *) calloc(areas, sizeof(area_t));
 
         if (!area_stack.area) {
             fprintf(stderr, "Could not allocate enough memory for %d clickable areas, try lowering the number\n", areas);
@@ -1562,20 +1615,20 @@ main (int argc, char **argv)
                     expose_ev = (xcb_expose_event_t *)ev;
 
                     switch (ev->response_type & 0x7F) {
-                        case XCB_EXPOSE:
-                            if (expose_ev->count == 0)
-                                redraw = true;
-                            break;
-                        case XCB_BUTTON_PRESS:
-                            press_ev = (xcb_button_press_event_t *)ev;
-                            {
-                                area_t *area = area_get(press_ev->event, press_ev->detail, press_ev->event_x);
-                                // Respond to the click
-                                if (area) {
-                                    (void)write(STDOUT_FILENO, area->cmd, strlen(area->cmd));
-                                    (void)write(STDOUT_FILENO, "\n", 1);
-                                }
+                    case XCB_EXPOSE:
+                        if (expose_ev->count == 0)
+                            redraw = true;
+                        break;
+                    case XCB_BUTTON_PRESS:
+                        press_ev = (xcb_button_press_event_t *)ev;
+                        {
+                            area_t *area = area_get(press_ev->event, press_ev->detail, press_ev->event_x);
+                            // Respond to the click
+                            if (area) {
+                                (void)write(STDOUT_FILENO, area->cmd, strlen(area->cmd));
+                                (void)write(STDOUT_FILENO, "\n", 1);
                             }
+                        }
                         break;
                     }
 

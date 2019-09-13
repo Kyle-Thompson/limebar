@@ -1,4 +1,6 @@
-lemonbar
+limebar
+*.1
 *.o
 *.swp
 *~
+.ccls-cache
