@@ -95,6 +95,7 @@ struct font_t {
   int descent, height, width;
   uint16_t char_max;
   uint16_t char_min;
+  int offset;
 };
 
 struct monitor_t {
@@ -141,8 +142,6 @@ enum {
   GC_MAX
 };
 
-#define MAX_FONT_COUNT 5
-
 // user configs
 static constexpr bool PERMANENT = true;
 static constexpr bool TOPBAR = true;
@@ -151,6 +150,8 @@ static constexpr int BAR_WIDTH = 5760, BAR_HEIGHT = 20, BAR_X_OFFSET = 0, BAR_Y_
 static constexpr const char* WM_NAME = nullptr;
 static constexpr const char* WM_CLASS = "limebar";
 static constexpr int UNDERLINE_HEIGHT = 1;
+
+// font name, y offset
 static std::array<std::tuple<const char*, int>, 1> FONTS = {
   std::make_tuple("Gohu GohuFont", 0) };
 
@@ -171,12 +172,8 @@ static Visual *visual_ptr;
 static xcb_colormap_t colormap;
 
 
-static font_t *font_list[MAX_FONT_COUNT];
-static int font_count = 0;
+static std::array<font_t, FONTS.size()> font_list;
 static int font_index = -1;
-static int offsets_y[MAX_FONT_COUNT];
-static int offset_y_count = 0;
-static int offset_y_index = 0;
 
 static uint32_t attrs = 0;
 static rgba_t fgc, bgc, ugc;
@@ -373,7 +370,7 @@ draw_char (monitor_t *mon, font_t *cur_font, int x, int align, uint16_t ch)
 
   x = shift(mon, x, align, ch_width);
 
-  int y = BAR_HEIGHT / 2 + cur_font->height / 2- cur_font->descent + offsets_y[offset_y_index];
+  int y = BAR_HEIGHT / 2 + cur_font->height / 2- cur_font->descent + font_list[font_index].offset;
   if (cur_font->xft_ft) {
     XftDrawString16 (xft_draw, &sel_fg, cur_font->xft_ft, x,y, &ch, 1);
   } else {
@@ -612,17 +609,15 @@ font_t *
 select_drawable_font (const uint16_t c)
 {
   // If the user has specified a font to use, try that first.
-  if (font_index != -1 && font_has_glyph(font_list[font_index - 1], c)) {
-    offset_y_index = font_index - 1;
-    return font_list[font_index - 1];
+  if (font_index != -1 && font_has_glyph(&font_list[font_index], c)) {
+    return &font_list[font_index];
   }
 
   // If the end is reached without finding an appropriate font, return nullptr.
   // If the font can draw the character, return it.
-  for (int i = 0; i < font_count; i++) {
-    if (font_has_glyph(font_list[i], c)) {
-      offset_y_index = i;
-      return font_list[i];
+  for (auto& font : font_list) {
+    if (font_has_glyph(&font, c)) {
+      return &font;
     }
   }
   return nullptr;
@@ -736,7 +731,7 @@ parse (char *text)
               font_index = (int)strtoul(p, &ep, 10);
               // User-specified 'font_index' ∊ (0,font_count]
               // Otherwise just fallback to the automatic font selection
-              if (!font_index || font_index > font_count)
+              if (font_index < 0 || font_index > FONTS.size())
                 font_index = -1;
               p = ep;
               break;
@@ -809,8 +804,8 @@ parse (char *text)
   XftDrawDestroy (xft_draw);
 }
 
-std::unique_ptr<font_t>
-font_load2 (const char *pattern)
+font_t
+font_load (const char *pattern, int offset)
 {
   xcb_query_font_cookie_t queryreq;
   xcb_query_font_reply_t *font_info;
@@ -819,103 +814,40 @@ font_load2 (const char *pattern)
 
   font = xcb_generate_id(c);
 
-  std::unique_ptr<font_t> ret = std::make_unique<font_t>();
+  font_t ret;
 
   cookie = xcb_open_font_checked(c, font, strlen(pattern), pattern);
   if (!xcb_request_check (c, cookie)) {
     queryreq = xcb_query_font(c, font);
     font_info = xcb_query_font_reply(c, queryreq, nullptr);
 
-    ret->xft_ft = nullptr;
-    ret->ptr = font;
-    ret->descent = font_info->font_descent;
-    ret->height = font_info->font_ascent + font_info->font_descent;
-    ret->width = font_info->max_bounds.character_width;
-    ret->char_max = font_info->max_byte1 << 8 | font_info->max_char_or_byte2;
-    ret->char_min = font_info->min_byte1 << 8 | font_info->min_char_or_byte2;
+    ret.xft_ft = nullptr;
+    ret.ptr = font;
+    ret.descent = font_info->font_descent;
+    ret.height = font_info->font_ascent + font_info->font_descent;
+    ret.width = font_info->max_bounds.character_width;
+    ret.char_max = font_info->max_byte1 << 8 | font_info->max_char_or_byte2;
+    ret.char_min = font_info->min_byte1 << 8 | font_info->min_char_or_byte2;
+    ret.offset = offset;
     // Copy over the width lut as it's part of font_info
     int lut_size = sizeof(xcb_charinfo_t) * xcb_query_font_char_infos_length(font_info);
     if (lut_size) {
-      ret->width_lut = (xcb_charinfo_t *) malloc(lut_size);
-      memcpy(ret->width_lut, xcb_query_font_char_infos(font_info), lut_size);
+      ret.width_lut = (xcb_charinfo_t *) malloc(lut_size);
+      memcpy(ret.width_lut, xcb_query_font_char_infos(font_info), lut_size);
     }
     free(font_info);
-  } else if ((ret->xft_ft = XftFontOpenName (dpy, scr_nbr, pattern))) {
-    ret->ptr = 0;
-    ret->ascent = ret->xft_ft->ascent;
-    ret->descent = ret->xft_ft->descent;
-    ret->height = ret->ascent + ret->descent;
+  } else if ((ret.xft_ft = XftFontOpenName (dpy, scr_nbr, pattern))) {
+    ret.ptr = 0;
+    ret.ascent = ret.xft_ft->ascent;
+    ret.descent = ret.xft_ft->descent;
+    ret.height = ret.ascent + ret.descent;
+    ret.offset = offset;
   } else {
     fprintf(stderr, "Could not load font %s\n", pattern);
     exit(EXIT_FAILURE);
   }
 
   return ret;
-}
-
-void
-font_load (const char *pattern)
-{
-  if (font_count >= MAX_FONT_COUNT) {
-    fprintf(stderr, "Max font count reached. Could not load font \"%s\"\n", pattern);
-    return;
-  }
-
-  xcb_query_font_cookie_t queryreq;
-  xcb_query_font_reply_t *font_info;
-  xcb_void_cookie_t cookie;
-  xcb_font_t font;
-
-  font = xcb_generate_id(c);
-
-  font_t *ret = (font_t *) calloc(1, sizeof(font_t));
-
-  if (!ret)
-    return;
-
-  cookie = xcb_open_font_checked(c, font, strlen(pattern), pattern);
-  if (!xcb_request_check (c, cookie)) {
-    queryreq = xcb_query_font(c, font);
-    font_info = xcb_query_font_reply(c, queryreq, nullptr);
-
-    ret->xft_ft = nullptr;
-    ret->ptr = font;
-    ret->descent = font_info->font_descent;
-    ret->height = font_info->font_ascent + font_info->font_descent;
-    ret->width = font_info->max_bounds.character_width;
-    ret->char_max = font_info->max_byte1 << 8 | font_info->max_char_or_byte2;
-    ret->char_min = font_info->min_byte1 << 8 | font_info->min_char_or_byte2;
-    // Copy over the width lut as it's part of font_info
-    int lut_size = sizeof(xcb_charinfo_t) * xcb_query_font_char_infos_length(font_info);
-    if (lut_size) {
-      ret->width_lut = (xcb_charinfo_t *) malloc(lut_size);
-      memcpy(ret->width_lut, xcb_query_font_char_infos(font_info), lut_size);
-    }
-    free(font_info);
-  } else if ((ret->xft_ft = XftFontOpenName (dpy, scr_nbr, pattern))) {
-    ret->ptr = 0;
-    ret->ascent = ret->xft_ft->ascent;
-    ret->descent = ret->xft_ft->descent;
-    ret->height = ret->ascent + ret->descent;
-  } else {
-    fprintf(stderr, "Could not load font %s\n", pattern);
-    free(ret);
-    return;
-  }
-
-  font_list[font_count++] = ret;
-}
-
-void
-add_y_offset(int offset)
-{
-  offsets_y[offset_y_count] = offset;
-  if (offset_y_count == 0) {
-    for (int i = 1; i < MAX_FONT_COUNT; ++i) {
-      offsets_y[i] = offsets_y[0];
-    }
-  }
-  ++offset_y_count;
 }
 
 
@@ -1254,22 +1186,13 @@ xconn ()
 void
 init ()
 {
-  // Try to load a default font
-  if (!font_count)
-    font_load("fixed");
-
-  // We tried and failed hard, there's something wrong
-  if (!font_count)
-    exit(EXIT_FAILURE);
-
   // To make the alignment uniform, find maximum height
-  int maxh = font_list[0]->height;
-  for (int i = 1; i < font_count; i++)
-    maxh = std::max(maxh, font_list[i]->height);
+  const int maxh = std::max_element(font_list.begin(), font_list.end(),
+      [](const font_t& l, const font_t& r){ return l.height < r.height; })->height;
 
   // Set maximum height to all fonts
-  for (int i = 0; i < font_count; i++)
-    font_list[i]->height = maxh;
+  for (auto& font : font_list)
+    font.height = maxh;
 
   // Generate a list of screens
   const xcb_query_extension_reply_t *qe_reply;
@@ -1371,15 +1294,14 @@ init ()
 void
 cleanup ()
 {
-  for (int i = 0; font_list[i]; i++) {
-    if (font_list[i]->xft_ft) {
-      XftFontClose (dpy, font_list[i]->xft_ft);
+  for (const auto& font : font_list) {
+    if (font.xft_ft) {
+      XftFontClose (dpy, font.xft_ft);
     }
     else {
-      xcb_close_font(c, font_list[i]->ptr);
-      free(font_list[i]->width_lut);
+      xcb_close_font(c, font.ptr);
+      free(font.width_lut);
     }
-    free(font_list[i]);
   }
 
   for (const auto& mon : monitors) {
@@ -1429,10 +1351,11 @@ main ()
   // Connect to the Xserver and initialize scr
   xconn();
 
-  for (const auto& [font, offset] : FONTS) {
-    font_load(font);
-    add_y_offset(offset);
-  }
+  std::transform(FONTS.begin(), FONTS.end(), font_list.begin(),
+      [](const auto& f){
+        const auto& [font, offset] = f;
+        return font_load(font, offset);
+      });
 
   db = xcb_xrm_database_from_default(c);
 
