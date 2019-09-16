@@ -172,7 +172,7 @@ static Visual *visual_ptr;
 static xcb_colormap_t colormap;
 
 
-static std::array<font_t, FONTS.size()> font_list;
+static std::array<font_t, FONTS.size()> fonts;
 static int font_index = -1;
 
 static uint32_t attrs = 0;
@@ -370,7 +370,7 @@ draw_char (monitor_t *mon, font_t *cur_font, int x, int align, uint16_t ch)
 
   x = shift(mon, x, align, ch_width);
 
-  int y = BAR_HEIGHT / 2 + cur_font->height / 2- cur_font->descent + font_list[font_index].offset;
+  int y = BAR_HEIGHT / 2 + cur_font->height / 2- cur_font->descent + fonts[font_index].offset;
   if (cur_font->xft_ft) {
     XftDrawString16 (xft_draw, &sel_fg, cur_font->xft_ft, x,y, &ch, 1);
   } else {
@@ -609,13 +609,13 @@ font_t *
 select_drawable_font (const uint16_t c)
 {
   // If the user has specified a font to use, try that first.
-  if (font_index != -1 && font_has_glyph(&font_list[font_index], c)) {
-    return &font_list[font_index];
+  if (font_index != -1 && font_has_glyph(&fonts[font_index], c)) {
+    return &fonts[font_index];
   }
 
   // If the end is reached without finding an appropriate font, return nullptr.
   // If the font can draw the character, return it.
-  for (auto& font : font_list) {
+  for (auto& font : fonts) {
     if (font_has_glyph(&font, c)) {
       return &font;
     }
@@ -1187,11 +1187,11 @@ void
 init ()
 {
   // To make the alignment uniform, find maximum height
-  const int maxh = std::max_element(font_list.begin(), font_list.end(),
+  const int maxh = std::max_element(fonts.begin(), fonts.end(),
       [](const font_t& l, const font_t& r){ return l.height < r.height; })->height;
 
   // Set maximum height to all fonts
-  for (auto& font : font_list)
+  for (auto& font : fonts)
     font.height = maxh;
 
   // Generate a list of screens
@@ -1288,7 +1288,7 @@ init ()
 void
 cleanup ()
 {
-  for (const auto& font : font_list) {
+  for (const auto& font : fonts) {
     if (font.xft_ft) {
       XftFontClose (dpy, font.xft_ft);
     }
@@ -1345,7 +1345,7 @@ main ()
   // Connect to the Xserver and initialize scr
   xconn();
 
-  std::transform(FONTS.begin(), FONTS.end(), font_list.begin(),
+  std::transform(FONTS.begin(), FONTS.end(), fonts.begin(),
       [](const auto& f){
         const auto& [font, offset] = f;
         return font_load(font, offset);
