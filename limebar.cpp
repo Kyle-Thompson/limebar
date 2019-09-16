@@ -1,85 +1,89 @@
 // vim:sw=2:ts=2:et:
+#include <algorithm>
+#include <cerrno>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <cctype>
 #include <csignal>
-#include <poll.h>
 #include <fcntl.h>
-#include <unistd.h>
-#include <cerrno>
-#include <xcb/xcb.h>
-#include <xcb/xcbext.h>
-#include <xcb/randr.h>
-#include <xcb/xcb_xrm.h>
-
-#include <X11/Xft/Xft.h>
-#include <X11/Xlib-xcb.h>
-
-#include <algorithm>
 #include <functional>
 #include <iostream>
 #include <iterator>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <poll.h>
 #include <string>
 #include <thread>
+#include <unistd.h>
+#include <xcb/xcb.h>
+#include <xcb/xcbext.h>
+#include <xcb/randr.h>
+#include <xcb/xcb_xrm.h>
+#include <X11/Xft/Xft.h>
+#include <X11/Xlib-xcb.h>
 
 #define indexof(c,s) (strchr((s),(c))-(s))
 
-/* class module { */
-/*   public: */
-/*     module(std::string default_str) : _str(default_str) {} */
-/*     std::string str() { */
-/*       std::lock_guard<std::mutex> g(_mutex); */
-/*       return _str; */
-/*     } */
-/*     virtual void operator()() = 0; */
+class module {
+  public:
+    module(std::string default_str) : _str(default_str) {}
+    virtual ~module() {}
 
-/*   protected: */
-/*     std::mutex _mutex; */
-/*     std::string _str; */
-/* }; */
+    std::string str() {
+      std::lock_guard<std::mutex> g(_mutex);
+      return _str;
+    }
+    virtual void operator()(int unused) = 0;
 
-/* class workspaces : public module { */
-/*   public: */
-/*     workspaces(std::string s) : module(s) {} */
+  protected:
+    std::mutex _mutex;
+    std::string _str;
+};
 
-/*     void operator()() { */
-/*       xcb_connection_t* conn = xcb_connect(nullptr, nullptr); */
-/*       if (xcb_connection_has_error(conn)) { */
-/*         fprintf(stderr, "Cannot open daemon connection."); */
-/*         return; */
-/*       } */
+class workspaces : public module {
+  public:
+    workspaces(std::string s) : module(s) {
+      conn = xcb_connect(nullptr, nullptr);
+      if (xcb_connection_has_error(conn)) {
+        fprintf(stderr, "Cannot X connection for workspaces daemon.\n");
+        exit(EXIT_FAILURE);
+      }
 
-/*       const char *window = "_NET_ACTIVE_WINDOW"; */
-/*       xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(conn, */
-/*           xcb_intern_atom(conn, 0, strlen(window), window), nullptr); */
-/*       xcb_atom_t active_window = reply ? reply->atom : XCB_NONE; */
-/*       free(reply); */
+      const char *window = "_NET_ACTIVE_WINDOW";
+      xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(conn,
+          xcb_intern_atom(conn, 0, strlen(window), window), nullptr);
+      active_window = reply ? reply->atom : XCB_NONE;
+      free(reply);
 
-/*       uint32_t values[] = { XCB_EVENT_MASK_PROPERTY_CHANGE }; */
-/*       xcb_screen_t* screen = xcb_setup_roots_iterator(xcb_get_setup(conn)).data; */
-/*       xcb_change_window_attributes(conn, screen->root, XCB_CW_EVENT_MASK, values); */
-/*       xcb_flush(conn); */
+      uint32_t values = XCB_EVENT_MASK_PROPERTY_CHANGE;
+      xcb_screen_t* screen = xcb_setup_roots_iterator(xcb_get_setup(conn)).data;
+      xcb_change_window_attributes(conn, screen->root, XCB_CW_EVENT_MASK, &values);
+      xcb_flush(conn);
+    }
 
-/*       xcb_generic_event_t *ev; */
-/*       while ((ev = xcb_wait_for_event(conn))) { */
-/*         if ((ev->response_type & 0x7F) == XCB_PROPERTY_NOTIFY */ 
-/*             && reinterpret_cast<xcb_property_notify_event_t *>(ev)->atom */
-/*               == active_window) { */
-/*           // TODO */
-/*           _str = std::string("ayy"); */
-/*         } */
-/*         free(ev); */
-/*       } */
-/*     } */
-/* }; */
+    ~workspaces() {
+      xcb_disconnect(conn);
+    }
 
-/* workspaces w("ayy"); */
-/* std::thread test(w); */
+    void operator()(int _) {
+      fprintf(stderr, "IN THREAD!!\n");
+      for (xcb_generic_event_t *ev = nullptr; (ev = xcb_wait_for_event(conn)); free(ev)) {
+        if ((ev->response_type & 0x7F) == XCB_PROPERTY_NOTIFY
+            && reinterpret_cast<xcb_property_notify_event_t *>(ev)->atom
+              == active_window) {
+          // TODO
+          fprintf(stderr, "IN LOOP!!\n");
+        }
+      }
+    }
+
+  private:
+    xcb_connection_t* conn;
+    xcb_atom_t active_window;
+};
 
 struct font_t {
   xcb_font_t ptr;
@@ -154,6 +158,8 @@ static std::array<std::tuple<const char*, int>, 1> FONTS = {
 
 
 static std::vector<monitor_t> monitors;
+
+static std::array<std::unique_ptr<module>, 1> modules { std::make_unique<workspaces>("ayy") };
 
 
 static Display *dpy;
@@ -1294,7 +1300,7 @@ sighandle (int signal)
 int
 main ()
 {
-  fprintf(stderr, "TEST\n");
+  fprintf(stderr, "START OF MAIN\n");
   struct pollfd pollin[2] = {
     { .fd = STDIN_FILENO, .events = POLLIN },
     { .fd = -1          , .events = POLLIN },
@@ -1319,6 +1325,12 @@ main ()
 
   // Prevent fgets to block
   fcntl(STDIN_FILENO, F_SETFL, O_NONBLOCK);
+
+  std::vector<std::thread> threads;
+  for (const auto& mod : modules) {
+    // TODO: find way to clean up threads
+    threads.emplace_back(std::ref(*mod), 0);
+  }
 
   for (;;) {
     bool redraw = false;
