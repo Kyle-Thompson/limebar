@@ -32,13 +32,17 @@ class module {
     module(std::string default_str) : _str(default_str) {}
     virtual ~module() {}
 
-    std::string str() {
+    std::string get() {
       std::lock_guard<std::mutex> g(_mutex);
       return _str;
     }
     virtual void operator()(int unused) = 0;
 
   protected:
+    void set(std::string str) {
+      std::lock_guard<std::mutex> g(_mutex);
+      _str = str;
+    }
     std::mutex _mutex;
     std::string _str;
 };
@@ -54,7 +58,7 @@ class workspaces : public module {
 
       const char *window = "_NET_ACTIVE_WINDOW";
       xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(conn,
-          xcb_intern_atom(conn, 0, strlen(window), window), nullptr);
+          xcb_intern_atom(conn, 0, static_cast<uint16_t>(strlen(window)), window), nullptr);
       active_window = reply ? reply->atom : XCB_NONE;
       free(reply);
 
@@ -68,14 +72,12 @@ class workspaces : public module {
       xcb_disconnect(conn);
     }
 
-    void operator()(int _) {
-      fprintf(stderr, "IN THREAD!!\n");
+    void operator()(int) {
       for (xcb_generic_event_t *ev = nullptr; (ev = xcb_wait_for_event(conn)); free(ev)) {
         if ((ev->response_type & 0x7F) == XCB_PROPERTY_NOTIFY
             && reinterpret_cast<xcb_property_notify_event_t *>(ev)->atom
               == active_window) {
           // TODO
-          fprintf(stderr, "IN LOOP!!\n");
         }
       }
     }
@@ -115,14 +117,17 @@ struct area_t {
   char *cmd;
 };
 
-union rgba_t {
-  struct {
-    uint8_t b;
-    uint8_t g;
-    uint8_t r;
-    uint8_t a;
-  };
-  uint32_t v;
+struct rgba_t {
+  uint8_t r;
+  uint8_t g;
+  uint8_t b;
+  uint8_t a;
+
+  rgba_t() = default;
+  rgba_t(uint32_t v) { set(v); }
+  rgba_t(uint8_t r, uint8_t g, uint8_t b, uint8_t a) : r(r), g(g), b(b), a(a) {}
+  void set(uint32_t v) { memcpy(this, &v, sizeof(v)); }
+  uint32_t* val() { return reinterpret_cast<uint32_t*>(this); }
 };
 
 enum {
@@ -158,8 +163,8 @@ static std::array<std::tuple<const char*, int>, 1> FONTS = {
 
 
 static std::vector<monitor_t> monitors;
-
-static std::array<std::unique_ptr<module>, 1> modules { std::make_unique<workspaces>("ayy") };
+static std::array<std::unique_ptr<module>, 1> modules {
+  std::make_unique<workspaces>("ayy") };
 
 
 static Display *dpy;
@@ -194,12 +199,12 @@ static char    xft_width[MAX_WIDTHS];
 void
 update_gc ()
 {
-  xcb_change_gc(c, gc[GC_DRAW], XCB_GC_FOREGROUND, &fgc.v);
-  xcb_change_gc(c, gc[GC_CLEAR], XCB_GC_FOREGROUND, &bgc.v);
-  xcb_change_gc(c, gc[GC_ATTR], XCB_GC_FOREGROUND, &ugc.v);
+  xcb_change_gc(c, gc[GC_DRAW], XCB_GC_FOREGROUND, fgc.val());
+  xcb_change_gc(c, gc[GC_CLEAR], XCB_GC_FOREGROUND, bgc.val());
+  xcb_change_gc(c, gc[GC_ATTR], XCB_GC_FOREGROUND, ugc.val());
   XftColorFree(dpy, visual_ptr, colormap , &sel_fg);
   char color[] = "#ffffff";
-  uint32_t nfgc = fgc.v & 0x00ffffff;
+  uint32_t nfgc = *fgc.val() & 0x00ffffff;
   snprintf(color, sizeof(color), "#%06X", nfgc);
   if (!XftColorAllocName (dpy, visual_ptr, colormap, color, &sel_fg)) {
     fprintf(stderr, "Couldn't allocate xft font color '%s'\n", color);
@@ -219,19 +224,14 @@ fill_gradient (xcb_drawable_t d, int16_t x, int y, uint16_t width, int height, r
     uint8_t bb = i * stop.b + (1. - i) * start.b;
 
     // The alpha is ignored here
-    rgba_t step = {
-      .r = rr,
-      .g = gg,
-      .b = bb,
-      .a = 255,
-    };
+    rgba_t step(rr, gg, bb, 255);
 
-    xcb_change_gc(c, gc[GC_DRAW], XCB_GC_FOREGROUND, &step.v);
+    xcb_change_gc(c, gc[GC_DRAW], XCB_GC_FOREGROUND, step.val());
     const xcb_rectangle_t rect{ x, static_cast<int16_t>(i * BAR_HEIGHT), width, static_cast<uint16_t>(BAR_HEIGHT / K + 1) };
     xcb_poly_fill_rectangle(c, d, gc[GC_DRAW], 1, &rect);
   }
 
-  xcb_change_gc(c, gc[GC_DRAW], XCB_GC_FOREGROUND, &fgc.v);
+  xcb_change_gc(c, gc[GC_DRAW], XCB_GC_FOREGROUND, fgc.val());
 }
 
 void
@@ -395,7 +395,7 @@ draw_char (monitor_t *mon, font_t *cur_font, int x, int align, uint16_t ch)
 rgba_t
 parse_color (const char *str, char **end)
 {
-  static constexpr rgba_t ERR_COLOR = { .v = 0xffffffffU };
+  static const rgba_t ERR_COLOR { 0xffffffffU };
 
   int string_len;
   char *ep;
@@ -421,7 +421,7 @@ parse_color (const char *str, char **end)
   }
 
   errno = 0;
-  rgba_t tmp { .v = (uint32_t)strtoul(str + 1, &ep, 16) };
+  rgba_t tmp { (uint32_t)strtoul(str + 1, &ep, 16) };
 
   if (end)
     *end = ep;
@@ -437,9 +437,9 @@ parse_color (const char *str, char **end)
   switch (string_len) {
     case 3:
       // Expand the #rgb format into #rrggbb (aa is set to 0xff)
-      tmp.v = (tmp.v & 0xf00) * 0x1100
-              | (tmp.v & 0x0f0) * 0x0110
-              | (tmp.v & 0x00f) * 0x0011;
+      tmp.set((   *tmp.val() & 0xf00) * 0x1100
+               | (*tmp.val() & 0x0f0) * 0x0110
+               | (*tmp.val() & 0x00f) * 0x0011);
       [[fallthrough]];
     case 6:
       // If the code is in #rrggbb form then assume it's opaque
@@ -458,14 +458,14 @@ parse_color (const char *str, char **end)
   if (tmp.a) {
     // The components are clamped automagically as the rgba_t is made of uint8_t
     return {
-      .r = static_cast<uint8_t>((tmp.r * tmp.a) / 255),
-      .g = static_cast<uint8_t>((tmp.g * tmp.a) / 255),
-      .b = static_cast<uint8_t>((tmp.b * tmp.a) / 255),
-      .a = tmp.a,
+      static_cast<uint8_t>((tmp.r * tmp.a) / 255),
+      static_cast<uint8_t>((tmp.g * tmp.a) / 255),
+      static_cast<uint8_t>((tmp.b * tmp.a) / 255),
+      tmp.a,
     };
   }
 
-  return { .v = 0U };
+  return { 0U };
 }
 
 void
@@ -867,7 +867,8 @@ enum {
 void
 set_ewmh_atoms ()
 {
-  const char *atom_names[] = {
+  constexpr size_t size = 8;
+  constexpr std::array<const char *, size> atom_names {
     "_NET_WM_WINDOW_TYPE",
     "_NET_WM_WINDOW_TYPE_DOCK",
     "_NET_WM_DESKTOP",
@@ -878,18 +879,18 @@ set_ewmh_atoms ()
     "_NET_WM_STATE_STICKY",
     "_NET_WM_STATE_ABOVE",
   };
-  const int atoms = sizeof(atom_names)/sizeof(char *);
-  xcb_intern_atom_cookie_t atom_cookie[atoms];
-  xcb_atom_t atom_list[atoms];
+  std::array<xcb_intern_atom_cookie_t, size> atom_cookies;
+  std::array<xcb_atom_t, size> atom_list;
   xcb_intern_atom_reply_t *atom_reply;
 
   // As suggested fetch all the cookies first (yum!) and then retrieve the
   // atoms to exploit the async'ness
-  for (int i = 0; i < atoms; i++)
-    atom_cookie[i] = xcb_intern_atom(c, 0, strlen(atom_names[i]), atom_names[i]);
+  std::transform(atom_names.begin(), atom_names.end(), atom_cookies.begin(), [](auto name){
+    return xcb_intern_atom(c, 0, strlen(name), name);
+  });
 
-  for (int i = 0; i < atoms; i++) {
-    atom_reply = xcb_intern_atom_reply(c, atom_cookie[i], nullptr);
+  for (int i = 0; i < atom_names.size(); i++) {
+    atom_reply = xcb_intern_atom_reply(c, atom_cookies[i], nullptr);
     if (!atom_reply)
       return;
     atom_list[i] = atom_reply->atom;
@@ -929,7 +930,7 @@ monitor_new (int x, int y, int width, int height)
   ret.width = width;
   ret.window = xcb_generate_id(c);
   int depth = (visual == scr->root_visual) ? XCB_COPY_FROM_PARENT : 32;
-  const uint32_t mask[] { bgc.v, bgc.v, FORCE_DOCK,
+  const uint32_t mask[] { *bgc.val(), *bgc.val(), FORCE_DOCK,
     XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE, colormap };
   xcb_create_window(c, depth, ret.window, scr->root,
       ret.x, ret.y, width, BAR_HEIGHT, 0,
@@ -943,39 +944,23 @@ monitor_new (int x, int y, int width, int height)
   return ret;
 }
 
-int
-rect_sort_cb (const void *p1, const void *p2)
-{
-  const xcb_rectangle_t *r1 = (xcb_rectangle_t *)p1;
-  const xcb_rectangle_t *r2 = (xcb_rectangle_t *)p2;
-
-  if (r1->x < r2->x || r1->y + r1->height <= r2->y)
-  {
-    return -1;
-  }
-
-  if (r1->x > r2->x || r1->y + r1->height > r2->y)
-  {
-    return 1;
-  }
-
-  return 0;
-}
-
 void
-monitor_create_chain (xcb_rectangle_t *rects, const int num)
+monitor_create_chain (std::vector<xcb_rectangle_t>& rects)
 {
-  int i;
   int width = 0, height = 0;
   int left = BAR_X_OFFSET;
 
   // Sort before use
-  qsort(rects, num, sizeof(xcb_rectangle_t), rect_sort_cb);
+  std::sort(rects.begin(), rects.end(), [](const auto r1, const auto r2) {
+    if (r1.x < r2.x || r1.y + r1.height <= r2.y) return -1;
+    if (r1.x > r2.x || r1.y + r1.height > r2.y) return 1;
+    return 0;
+  });
 
-  for (i = 0; i < num; i++) {
-    int h = rects[i].y + rects[i].height;
+  for (const auto& rect : rects) {
+    int h = rect.y + rect.height;
     // Accumulated width of all monitors
-    width += rects[i].width;
+    width += rect.width;
     // Get height of screen from y_offset + height of lowest monitor
     if (h >= height)
       height = h;
@@ -989,23 +974,23 @@ monitor_create_chain (xcb_rectangle_t *rects, const int num)
 
   // Left is a positive number or zero therefore monitors with zero width are excluded
   width = BAR_WIDTH;
-  for (i = 0; i < num; i++) {
-    if (rects[i].y + rects[i].height < BAR_Y_OFFSET)
+  for (auto& rect : rects) {
+    if (rect.y + rect.height < BAR_Y_OFFSET)
       continue;
-    if (rects[i].width > left) {
+    if (rect.width > left) {
       monitors.emplace_back(monitor_new(
-          rects[i].x + left,
-          rects[i].y,
-          std::min(width, rects[i].width - left),
-          rects[i].height));
+          rect.x + left,
+          rect.y,
+          std::min(width, rect.width - left),
+          rect.height));
 
-      width -= rects[i].width - left;
+      width -= rect.width - left;
       // No need to check for other monitors
       if (width <= 0)
         break;
     }
 
-    left -= rects[i].width;
+    left -= rect.width;
 
     if (left < 0)
       left = 0;
@@ -1017,7 +1002,7 @@ get_randr_monitors ()
 {
   xcb_randr_get_screen_resources_current_reply_t *rres_reply;
   xcb_randr_output_t *outputs;
-  int i, j, num, valid = 0;
+  int num;
 
   rres_reply = xcb_randr_get_screen_resources_current_reply(c,
       xcb_randr_get_screen_resources_current(c, scr->root), nullptr);
@@ -1037,19 +1022,18 @@ get_randr_monitors ()
     return;
   }
 
-  xcb_rectangle_t rects[num];
+  std::vector<xcb_rectangle_t> rects;
 
   // Get all outputs
-  for (i = 0; i < num; i++) {
+  for (int i = 0; i < num; i++) {
     xcb_randr_get_output_info_reply_t *oi_reply;
     xcb_randr_get_crtc_info_reply_t *ci_reply;
 
     oi_reply = xcb_randr_get_output_info_reply(c, xcb_randr_get_output_info(c, outputs[i], XCB_CURRENT_TIME), nullptr);
 
-    // Output disconnected or not attached to any CRTC ?
+    // don't attach outputs that are disconnected or not attached to any CTRC
     if (!oi_reply || oi_reply->crtc == XCB_NONE || oi_reply->connection != XCB_RANDR_CONNECTION_CONNECTED) {
       free(oi_reply);
-      rects[i].width = 0;
       continue;
     }
 
@@ -1065,45 +1049,20 @@ get_randr_monitors ()
     }
 
     // There's no need to handle rotated screens here (see #69)
-    rects[i] = { ci_reply->x, ci_reply->y, ci_reply->width, ci_reply->height };
+    if (ci_reply->width > 0)
+      rects.push_back({ ci_reply->x, ci_reply->y, ci_reply->width, ci_reply->height });
 
     free(ci_reply);
-
-    valid++;
   }
 
   free(rres_reply);
 
-  // Check for clones and inactive outputs
-  for (i = 0; i < num; i++) {
-    if (rects[i].width == 0)
-      continue;
-
-    for (j = 0; j < num; j++) {
-      // Does I contain J ?
-
-      if (i != j && rects[j].width) {
-        if (rects[j].x >= rects[i].x && rects[j].x + rects[j].width <= rects[i].x + rects[i].width &&
-            rects[j].y >= rects[i].y && rects[j].y + rects[j].height <= rects[i].y + rects[i].height) {
-          rects[j].width = 0;
-          valid--;
-        }
-      }
-    }
-  }
-
-  if (valid < 1) {
+  if (rects.empty()) {
     fprintf(stderr, "No usable RandR output found\n");
     return;
   }
 
-  xcb_rectangle_t r[valid];
-
-  for (i = j = 0; i < num && j < valid; i++)
-    if (rects[i].width != 0)
-      r[j++] = rects[i];
-
-  monitor_create_chain(r, valid);
+  monitor_create_chain(rects);
 }
 
 xcb_visualid_t
@@ -1129,7 +1088,7 @@ get_visual ()
 void
 xconn ()
 {
-  if ((dpy = XOpenDisplay(0)) == nullptr) {
+  if ((dpy = XOpenDisplay(nullptr)) == nullptr) {
     fprintf (stderr, "Couldnt open display\n");
   }
 
@@ -1180,9 +1139,9 @@ init ()
     exit(EXIT_FAILURE);
   }
   char *val;
-  xcb_xrm_resource_get_string(db, "background", NULL, &val);
+  xcb_xrm_resource_get_string(db, "background", nullptr, &val);
   bgc = parse_color(val, nullptr);
-  xcb_xrm_resource_get_string(db, "foreground", NULL, &val);
+  xcb_xrm_resource_get_string(db, "foreground", nullptr, &val);
   ugc = fgc = parse_color(val, nullptr);
 
   // Generate a list of screens
@@ -1211,13 +1170,13 @@ init ()
 
   // Create the gc for drawing
   gc[GC_DRAW] = xcb_generate_id(c);
-  xcb_create_gc(c, gc[GC_DRAW], monitors.begin()->pixmap, XCB_GC_FOREGROUND, &fgc.v);
+  xcb_create_gc(c, gc[GC_DRAW], monitors.begin()->pixmap, XCB_GC_FOREGROUND, fgc.val());
 
   gc[GC_CLEAR] = xcb_generate_id(c);
-  xcb_create_gc(c, gc[GC_CLEAR], monitors.begin()->pixmap, XCB_GC_FOREGROUND, &bgc.v);
+  xcb_create_gc(c, gc[GC_CLEAR], monitors.begin()->pixmap, XCB_GC_FOREGROUND, bgc.val());
 
   gc[GC_ATTR] = xcb_generate_id(c);
-  xcb_create_gc(c, gc[GC_ATTR], monitors.begin()->pixmap, XCB_GC_FOREGROUND, &ugc.v);
+  xcb_create_gc(c, gc[GC_ATTR], monitors.begin()->pixmap, XCB_GC_FOREGROUND, ugc.val());
 
   // Make the bar visible and clear the pixmap
   for (const auto& mon : monitors) {
@@ -1248,7 +1207,7 @@ init ()
   }
 
   char color[] = "#ffffff";
-  uint32_t nfgc = fgc.v & 0x00ffffff;
+  uint32_t nfgc = *fgc.val() & 0x00ffffff;
   snprintf(color, sizeof(color), "#%06X", nfgc);
 
   if (!XftColorAllocName (dpy, visual_ptr, colormap, color, &sel_fg)) {
@@ -1296,17 +1255,14 @@ sighandle (int signal)
     exit(EXIT_SUCCESS);
 }
 
-
 int
 main ()
 {
-  fprintf(stderr, "START OF MAIN\n");
   struct pollfd pollin[2] = {
     { .fd = STDIN_FILENO, .events = POLLIN },
     { .fd = -1          , .events = POLLIN },
   };
   xcb_generic_event_t *ev;
-  xcb_expose_event_t *expose_ev;
   xcb_button_press_event_t *press_ev;
   char input[4096] = {0, };
 
@@ -1353,15 +1309,12 @@ main ()
       }
       if (pollin[1].revents & POLLIN) { // The event comes from the Xorg server
         while ((ev = xcb_poll_for_event(c))) {
-          expose_ev = (xcb_expose_event_t *)ev;
-
           switch (ev->response_type & 0x7F) {
             case XCB_EXPOSE:
-              if (expose_ev->count == 0)
-                redraw = true;
+              redraw = reinterpret_cast<xcb_expose_event_t*>(ev)->count == 0;
               break;
             case XCB_BUTTON_PRESS:
-              press_ev = (xcb_button_press_event_t *)ev;
+              press_ev = reinterpret_cast<xcb_button_press_event_t*>(ev);
               {
                 auto area = area_get(press_ev->event, press_ev->detail, press_ev->event_x);
                 // Respond to the click
@@ -1387,6 +1340,5 @@ main ()
     xcb_flush(c);
   }
 
-  fprintf(stderr, "EXIT SUCCESS\n");
   return EXIT_SUCCESS;
 }
