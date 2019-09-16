@@ -1261,7 +1261,6 @@ main ()
     { .fd = -1          , .events = POLLIN },
   };
   xcb_generic_event_t *ev;
-  xcb_button_press_event_t *press_ev;
   char input[4096] = {0, };
 
   // Install the parachute!
@@ -1312,15 +1311,9 @@ main ()
               redraw = reinterpret_cast<xcb_expose_event_t*>(ev)->count == 0;
               break;
             case XCB_BUTTON_PRESS:
-              press_ev = reinterpret_cast<xcb_button_press_event_t*>(ev);
-              {
-                auto area = area_get(press_ev->event, press_ev->detail, press_ev->event_x);
-                // Respond to the click
-                if (area) {
-                  (void)write(STDOUT_FILENO, area->cmd, strlen(area->cmd));
-                  (void)write(STDOUT_FILENO, "\n", 1);
-                }
-              }
+              xcb_button_press_event_t *press_ev = reinterpret_cast<xcb_button_press_event_t*>(ev);
+              auto area = area_get(press_ev->event, press_ev->detail, press_ev->event_x);
+              if (area) system(area->cmd);
               break;
           }
 
