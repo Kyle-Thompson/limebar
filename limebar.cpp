@@ -1059,7 +1059,7 @@ get_randr_monitors ()
     }
 
     // There's no need to handle rotated screens here (see #69)
-    rects[i] = (xcb_rectangle_t){ ci_reply->x, ci_reply->y, ci_reply->width, ci_reply->height };
+    rects[i] = { ci_reply->x, ci_reply->y, ci_reply->width, ci_reply->height };
 
     free(ci_reply);
 
