@@ -148,7 +148,7 @@ static constexpr bool TOPBAR = true;
 static constexpr bool FORCE_DOCK = false;
 static constexpr int BAR_WIDTH = 5760, BAR_HEIGHT = 20, BAR_X_OFFSET = 0, BAR_Y_OFFSET = 0;
 static constexpr const char* WM_NAME = nullptr;
-static constexpr const char* WM_CLASS = "limebar";
+static constexpr std::string_view WM_CLASS = "limebar";
 static constexpr int UNDERLINE_HEIGHT = 1;
 
 // font name, y offset
@@ -1263,21 +1263,15 @@ init ()
           XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, strlen(WM_NAME), WM_NAME);
 
     // set the WM_CLASS atom instance to the executable name
-    if (WM_CLASS) {
-      char *wm_class;
-      int wm_class_offset, wm_class_len;
+    if (WM_CLASS.size()) {
+      constexpr int size = WM_CLASS.size() + 6;
+      char wm_class[size] = {0};
 
       // WM_CLASS is nullbyte seperated: WM_CLASS + "\0Bar\0"
-      wm_class_offset = strlen(WM_CLASS) + 1;
-      wm_class_len = wm_class_offset + 4;
+      strncpy(wm_class, WM_CLASS.data(), WM_CLASS.size());
+      strcpy(wm_class + WM_CLASS.size(), "\0Bar");
 
-      wm_class = (char *) calloc(1, wm_class_len + 1);
-      strcpy(wm_class, WM_CLASS);
-      strcpy(wm_class+wm_class_offset, "Bar");
-
-      xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon.window, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, wm_class_len, wm_class);
-
-      free(wm_class);
+      xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon.window, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, size, wm_class);
     }
   }
 
