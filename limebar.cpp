@@ -221,8 +221,8 @@ fill_gradient (xcb_drawable_t d, int16_t x, int y, uint16_t width, int height, r
     };
 
     xcb_change_gc(c, gc[GC_DRAW], XCB_GC_FOREGROUND, &step.v);
-    xcb_poly_fill_rectangle(c, d, gc[GC_DRAW], 1,
-        (const xcb_rectangle_t []){ { x, static_cast<int16_t>(i * BAR_HEIGHT), width, static_cast<uint16_t>(BAR_HEIGHT / K + 1) } });
+    const xcb_rectangle_t rect{ x, static_cast<int16_t>(i * BAR_HEIGHT), width, static_cast<uint16_t>(BAR_HEIGHT / K + 1) };
+    xcb_poly_fill_rectangle(c, d, gc[GC_DRAW], 1, &rect);
   }
 
   xcb_change_gc(c, gc[GC_DRAW], XCB_GC_FOREGROUND, &fgc.v);
@@ -575,13 +575,13 @@ area_add (char *str, const char *optend, char **end, monitor_t *mon, const uint1
   }
 
   areas.push_back({
-    .cmd = str,
+    .begin = x,
     .active = true,
     .align = align,
-    .begin = x,
+    .button = button,
     .window = mon->window,
-    .button = button
-  }); 
+    .cmd = str,
+  });
 
   *end = trail + 1;
 
@@ -923,13 +923,13 @@ monitor_new (int x, int y, int width, int height)
   ret.width = width;
   ret.window = xcb_generate_id(c);
   int depth = (visual == scr->root_visual) ? XCB_COPY_FROM_PARENT : 32;
+  const uint32_t mask[] { bgc.v, bgc.v, FORCE_DOCK,
+    XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE, colormap };
   xcb_create_window(c, depth, ret.window, scr->root,
       ret.x, ret.y, width, BAR_HEIGHT, 0,
       XCB_WINDOW_CLASS_INPUT_OUTPUT, visual,
       XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL | XCB_CW_OVERRIDE_REDIRECT | XCB_CW_EVENT_MASK | XCB_CW_COLORMAP,
-      (const uint32_t []) {
-      bgc.v, bgc.v, FORCE_DOCK, XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE, colormap
-      });
+      mask);
 
   ret.pixmap = xcb_generate_id(c);
   xcb_create_pixmap(c, depth, ret.pixmap, ret.window, width, BAR_HEIGHT);
@@ -1220,8 +1220,8 @@ init ()
 
     // Make sure that the window really gets in the place it's supposed to be
     // Some WM such as Openbox need this
-    xcb_configure_window(c, mon.window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
-        (const uint32_t []){ static_cast<uint32_t>(mon.x), static_cast<uint32_t>(mon.y) });
+    const uint32_t xy[] { static_cast<uint32_t>(mon.x), static_cast<uint32_t>(mon.y) };
+    xcb_configure_window(c, mon.window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, xy);
 
     // Set the WM_NAME atom to the user specified value
     if constexpr (WM_NAME != nullptr)
