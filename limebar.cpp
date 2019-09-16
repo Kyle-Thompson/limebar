@@ -1152,6 +1152,13 @@ xconn ()
 void
 init ()
 {
+  // init fonts
+  std::transform(FONTS.begin(), FONTS.end(), fonts.begin(),
+      [](const auto& f){
+        const auto& [font, offset] = f;
+        return font_load(font, offset);
+      });
+
   // To make the alignment uniform, find maximum height
   const int maxh = std::max_element(fonts.begin(), fonts.end(),
       [](const font_t& l, const font_t& r){ return l.height < r.height; })->height;
@@ -1159,6 +1166,19 @@ init ()
   // Set maximum height to all fonts
   for (auto& font : fonts)
     font.height = maxh;
+
+  // connect to resource db
+  db = xcb_xrm_database_from_default(c);
+
+  if (!db) {
+    fprintf(stderr, "Could not connect to database\n");
+    exit(EXIT_FAILURE);
+  }
+  char *val;
+  xcb_xrm_resource_get_string(db, "background", NULL, &val);
+  bgc = parse_color(val, nullptr);
+  xcb_xrm_resource_get_string(db, "foreground", NULL, &val);
+  ugc = fgc = parse_color(val, nullptr);
 
   // Generate a list of screens
   const xcb_query_extension_reply_t *qe_reply;
@@ -1295,24 +1315,6 @@ main ()
 
   // Connect to the Xserver and initialize scr
   xconn();
-
-  std::transform(FONTS.begin(), FONTS.end(), fonts.begin(),
-      [](const auto& f){
-        const auto& [font, offset] = f;
-        return font_load(font, offset);
-      });
-
-  db = xcb_xrm_database_from_default(c);
-
-  if (!db) {
-    fprintf(stderr, "Could not connect to database\n");
-    return EXIT_FAILURE;
-  }
-  char *val;
-  xcb_xrm_resource_get_string(db, "background", NULL, &val);
-  bgc = parse_color(val, nullptr);
-  xcb_xrm_resource_get_string(db, "foreground", NULL, &val);
-  ugc = fgc = parse_color(val, nullptr);
     
   // Do the heavy lifting
   init();
