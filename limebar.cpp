@@ -11,9 +11,6 @@
 #include <cerrno>
 #include <xcb/xcb.h>
 #include <xcb/xcbext.h>
-#if WITH_XINERAMA
-#include <xcb/xinerama.h>
-#endif
 #include <xcb/randr.h>
 #include <xcb/xcb_xrm.h>
 
@@ -1104,37 +1101,6 @@ get_randr_monitors ()
   monitor_create_chain(r, valid);
 }
 
-#ifdef WITH_XINERAMA
-void
-get_xinerama_monitors ()
-{
-  xcb_xinerama_query_screens_reply_t *xqs_reply;
-  xcb_xinerama_screen_info_iterator_t iter;
-  int screens;
-
-  xqs_reply = xcb_xinerama_query_screens_reply(c,
-      xcb_xinerama_query_screens_unchecked(c), nullptr);
-
-  iter = xcb_xinerama_query_screens_screen_info_iterator(xqs_reply);
-  screens = iter.rem;
-
-  xcb_rectangle_t rects[screens];
-
-  // Fetch all the screens first
-  for (int i = 0; iter.rem; i++) {
-    rects[i].x = iter.data->x_org;
-    rects[i].y = iter.data->y_org;
-    rects[i].width = iter.data->width;
-    rects[i].height = iter.data->height;
-    xcb_xinerama_screen_info_next(&iter);
-  }
-
-  free(xqs_reply);
-
-  monitor_create_chain(rects, screens);
-}
-#endif
-
 xcb_visualid_t
 get_visual ()
 {
@@ -1203,22 +1169,6 @@ init ()
   if (qe_reply && qe_reply->present) {
     get_randr_monitors();
   }
-#if WITH_XINERAMA
-  else {
-    qe_reply = xcb_get_extension_data(c, &xcb_xinerama_id);
-
-    // Check if Xinerama extension is present and active
-    if (qe_reply && qe_reply->present) {
-      xcb_xinerama_is_active_reply_t *xia_reply;
-      xia_reply = xcb_xinerama_is_active_reply(c, xcb_xinerama_is_active(c), nullptr);
-
-      if (xia_reply && xia_reply->state)
-        get_xinerama_monitors();
-
-      free(xia_reply);
-    }
-  }
-#endif
 
   if (monitors.empty()) {
     // Check the geometry
@@ -1227,7 +1177,7 @@ init ()
       exit(EXIT_FAILURE);
     }
 
-    // If no RandR outputs or Xinerama screens, fall back to using whole screen
+    // If no RandR outputs, fall back to using whole screen
     monitors.emplace_back(monitor_new(0, 0, BAR_WIDTH, scr->height_in_pixels));
   }
 
@@ -1328,6 +1278,7 @@ sighandle (int signal)
 int
 main ()
 {
+  fprintf(stderr, "TEST\n");
   struct pollfd pollin[2] = {
     { .fd = STDIN_FILENO, .events = POLLIN },
     { .fd = -1          , .events = POLLIN },
