@@ -188,9 +188,9 @@ static char    xft_width[MAX_WIDTHS];
 void
 update_gc ()
 {
-  xcb_change_gc(c, gc[GC_DRAW], XCB_GC_FOREGROUND, (const uint32_t []){ fgc.v });
-  xcb_change_gc(c, gc[GC_CLEAR], XCB_GC_FOREGROUND, (const uint32_t []){ bgc.v });
-  xcb_change_gc(c, gc[GC_ATTR], XCB_GC_FOREGROUND, (const uint32_t []){ ugc.v });
+  xcb_change_gc(c, gc[GC_DRAW], XCB_GC_FOREGROUND, &fgc.v);
+  xcb_change_gc(c, gc[GC_CLEAR], XCB_GC_FOREGROUND, &bgc.v);
+  xcb_change_gc(c, gc[GC_ATTR], XCB_GC_FOREGROUND, &ugc.v);
   XftColorFree(dpy, visual_ptr, colormap , &sel_fg);
   char color[] = "#ffffff";
   uint32_t nfgc = fgc.v & 0x00ffffff;
@@ -220,18 +220,19 @@ fill_gradient (xcb_drawable_t d, int16_t x, int y, uint16_t width, int height, r
       .a = 255,
     };
 
-    xcb_change_gc(c, gc[GC_DRAW], XCB_GC_FOREGROUND, (const uint32_t []){ step.v });
+    xcb_change_gc(c, gc[GC_DRAW], XCB_GC_FOREGROUND, &step.v);
     xcb_poly_fill_rectangle(c, d, gc[GC_DRAW], 1,
         (const xcb_rectangle_t []){ { x, static_cast<int16_t>(i * BAR_HEIGHT), width, static_cast<uint16_t>(BAR_HEIGHT / K + 1) } });
   }
 
-  xcb_change_gc(c, gc[GC_DRAW], XCB_GC_FOREGROUND, (const uint32_t []){ fgc.v });
+  xcb_change_gc(c, gc[GC_DRAW], XCB_GC_FOREGROUND, &fgc.v);
 }
 
 void
 fill_rect (xcb_drawable_t d, xcb_gcontext_t _gc, int16_t x, int16_t y, uint16_t width, uint16_t height)
 {
-  xcb_poly_fill_rectangle(c, d, _gc, 1, (const xcb_rectangle_t []){ { x, y, width, height } });
+  xcb_rectangle_t rect = { x, y, width, height };
+  xcb_poly_fill_rectangle(c, d, _gc, 1, &rect);
 }
 
 // Apparently xcb cannot seem to compose the right request for this call, hence we have to do it by
@@ -789,9 +790,7 @@ parse (char *text)
         continue;
 
       if(cur_font->ptr)
-        xcb_change_gc(c, gc[GC_DRAW] , XCB_GC_FONT, (const uint32_t []) {
-            cur_font->ptr
-            });
+        xcb_change_gc(c, gc[GC_DRAW] , XCB_GC_FONT, &cur_font->ptr);
       int w = draw_char(&*mon_itr, cur_font, pos_x, align, ucs);
 
       pos_x += w;
@@ -1206,16 +1205,13 @@ init ()
 
   // Create the gc for drawing
   gc[GC_DRAW] = xcb_generate_id(c);
-  xcb_create_gc(c, gc[GC_DRAW], monitors.begin()->pixmap, XCB_GC_FOREGROUND,
-      (const uint32_t []){ fgc.v });
+  xcb_create_gc(c, gc[GC_DRAW], monitors.begin()->pixmap, XCB_GC_FOREGROUND, &fgc.v);
 
   gc[GC_CLEAR] = xcb_generate_id(c);
-  xcb_create_gc(c, gc[GC_CLEAR], monitors.begin()->pixmap, XCB_GC_FOREGROUND,
-      (const uint32_t []){ bgc.v });
+  xcb_create_gc(c, gc[GC_CLEAR], monitors.begin()->pixmap, XCB_GC_FOREGROUND, &bgc.v);
 
   gc[GC_ATTR] = xcb_generate_id(c);
-  xcb_create_gc(c, gc[GC_ATTR], monitors.begin()->pixmap, XCB_GC_FOREGROUND,
-      (const uint32_t []){ ugc.v });
+  xcb_create_gc(c, gc[GC_ATTR], monitors.begin()->pixmap, XCB_GC_FOREGROUND, &ugc.v);
 
   // Make the bar visible and clear the pixmap
   for (const auto& mon : monitors) {
