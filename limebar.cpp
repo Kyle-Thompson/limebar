@@ -1260,7 +1260,6 @@ main ()
     { .fd = STDIN_FILENO, .events = POLLIN },
     { .fd = -1          , .events = POLLIN },
   };
-  xcb_generic_event_t *ev;
   char input[4096] = {0, };
 
   // Install the parachute!
@@ -1305,7 +1304,7 @@ main ()
         redraw = true;
       }
       if (pollin[1].revents & POLLIN) { // The event comes from the Xorg server
-        while ((ev = xcb_poll_for_event(c))) {
+        for (xcb_generic_event_t *ev; (ev = xcb_poll_for_event(c)); free(ev)) {
           switch (ev->response_type & 0x7F) {
             case XCB_EXPOSE:
               redraw = reinterpret_cast<xcb_expose_event_t*>(ev)->count == 0;
@@ -1316,8 +1315,6 @@ main ()
               if (area) system(area->cmd);
               break;
           }
-
-          free(ev);
         }
       }
     }
