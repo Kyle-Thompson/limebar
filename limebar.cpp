@@ -151,7 +151,6 @@ static constexpr int BAR_WIDTH = 5760, BAR_HEIGHT = 20, BAR_X_OFFSET = 0, BAR_Y_
 static constexpr const char* WM_NAME = nullptr;
 static constexpr const char* WM_CLASS = "limebar";
 static constexpr int UNDERLINE_HEIGHT = 1;
-/* static constexpr bool CLICKABLE = true; */
 static std::array<std::tuple<const char*, int>, 1> FONTS = {
   std::make_tuple("Gohu GohuFont", 0) };
 
