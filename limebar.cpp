@@ -537,24 +537,22 @@ area_add (char *str, const char *optend, char **end, monitor_t *mon, const uint1
     }
 
     const int size = x - ritr->begin;
-
-    area_t area;
     switch (align) {
       case ALIGN_L:
-        area.end = x;
+        ritr->end = x;
         break;
       case ALIGN_C:
-        area.begin = mon->width / 2 - size / 2 + ritr->begin / 2;
-        area.end = area.begin + size;
+        ritr->begin = mon->width / 2 - size / 2 + ritr->begin / 2;
+        ritr->end = ritr->begin + size;
         break;
       case ALIGN_R:
         // The newest is the rightmost one
-        area.begin = mon->width - size;
-        area.end = mon->width;
+        ritr->begin = mon->width - size;
+        ritr->end = mon->width;
         break;
     }
 
-    area.active = false;
+    ritr->active = false;
     return true;
   }
 
