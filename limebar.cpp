@@ -15,6 +15,7 @@
 #include <mutex>
 #include <optional>
 #include <poll.h>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <unistd.h>
@@ -25,67 +26,9 @@
 #include <X11/Xft/Xft.h>
 #include <X11/Xlib-xcb.h>
 
+#include <X11/Xatom.h>
+
 #define indexof(c,s) (strchr((s),(c))-(s))
-
-class module {
-  public:
-    module(std::string default_str) : _str(default_str) {}
-    virtual ~module() {}
-
-    std::string get() {
-      std::lock_guard<std::mutex> g(_mutex);
-      return _str;
-    }
-    virtual void operator()(int unused) = 0;
-
-  protected:
-    void set(std::string str) {
-      std::lock_guard<std::mutex> g(_mutex);
-      _str = str;
-    }
-    std::mutex _mutex;
-    std::string _str;
-};
-
-class workspaces : public module {
-  public:
-    workspaces(std::string s) : module(s) {
-      conn = xcb_connect(nullptr, nullptr);
-      if (xcb_connection_has_error(conn)) {
-        fprintf(stderr, "Cannot X connection for workspaces daemon.\n");
-        exit(EXIT_FAILURE);
-      }
-
-      const char *window = "_NET_ACTIVE_WINDOW";
-      xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(conn,
-          xcb_intern_atom(conn, 0, static_cast<uint16_t>(strlen(window)), window), nullptr);
-      active_window = reply ? reply->atom : XCB_NONE;
-      free(reply);
-
-      uint32_t values = XCB_EVENT_MASK_PROPERTY_CHANGE;
-      xcb_screen_t* screen = xcb_setup_roots_iterator(xcb_get_setup(conn)).data;
-      xcb_change_window_attributes(conn, screen->root, XCB_CW_EVENT_MASK, &values);
-      xcb_flush(conn);
-    }
-
-    ~workspaces() {
-      xcb_disconnect(conn);
-    }
-
-    void operator()(int) {
-      for (xcb_generic_event_t *ev = nullptr; (ev = xcb_wait_for_event(conn)); free(ev)) {
-        if ((ev->response_type & 0x7F) == XCB_PROPERTY_NOTIFY
-            && reinterpret_cast<xcb_property_notify_event_t *>(ev)->atom
-              == active_window) {
-          // TODO
-        }
-      }
-    }
-
-  private:
-    xcb_connection_t* conn;
-    xcb_atom_t active_window;
-};
 
 struct font_t {
   xcb_font_t ptr;
@@ -163,8 +106,6 @@ static std::array<std::tuple<const char*, int>, 1> FONTS = {
 
 
 static std::vector<monitor_t> monitors;
-static std::array<std::unique_ptr<module>, 1> modules {
-  std::make_unique<workspaces>("ayy") };
 
 
 static Display *dpy;
@@ -195,6 +136,204 @@ static XftDraw *xft_draw;
 #define MAX_WIDTHS (1 << 16)
 static wchar_t xft_char[MAX_WIDTHS];
 static char    xft_width[MAX_WIDTHS];
+
+static char *get_property (Display *disp, Window win,
+        Atom xa_prop_type, const char *prop_name, unsigned long *size) {
+    Atom xa_prop_name;
+    Atom xa_ret_type;
+    int ret_format;
+    unsigned long ret_nitems;
+    unsigned long ret_bytes_after;
+    unsigned long tmp_size;
+    unsigned char *ret_prop;
+    char *ret;
+
+    xa_prop_name = XInternAtom(disp, prop_name, False);
+
+    if (XGetWindowProperty(disp, win, xa_prop_name, 0, 1024, False,
+        xa_prop_type, &xa_ret_type, &ret_format,
+        &ret_nitems, &ret_bytes_after, &ret_prop) != Success) {
+      return NULL;
+    }
+
+    if (xa_ret_type != xa_prop_type) {
+      XFree(ret_prop);
+      return NULL;
+    }
+
+    /* null terminate the result to make string handling easier */
+    tmp_size = (ret_format / (32 / sizeof(long))) * ret_nitems;
+    ret = (char *) malloc(tmp_size + 1);
+    memcpy(ret, ret_prop, tmp_size);
+    ret[tmp_size] = '\0';
+
+    if (size) {
+      *size = tmp_size;
+    }
+
+    XFree(ret_prop);
+    return ret;
+}
+
+static char *get_window_title (Display *disp, Window win) {
+    char *title_utf8 = nullptr;
+    char *wm_name = get_property(disp, win, XA_STRING, "WM_NAME", NULL);
+    char *net_wm_name = get_property(disp, win,
+        XInternAtom(disp, "UTF8_STRING", False), "_NET_WM_NAME", NULL);
+
+    if (net_wm_name) {
+      title_utf8 = strdup(net_wm_name);
+    }
+    /* else if (wm_name) { */
+    /*   title_utf8 = g_locale_to_utf8(wm_name, -1, NULL, NULL, NULL); */
+    /* } */
+
+    free(wm_name);
+    free(net_wm_name);
+
+    return title_utf8;
+}
+
+static Window *get_client_list (Display *disp, unsigned long *size) {
+    Window *client_list;
+
+    if ((client_list = (Window *)get_property(disp, DefaultRootWindow(disp),
+        XA_WINDOW, "_NET_CLIENT_LIST", size)) == NULL) {
+      if ((client_list = (Window *)get_property(disp, DefaultRootWindow(disp),
+          XA_CARDINAL, "_WIN_CLIENT_LIST", size)) == NULL) {
+        fprintf(stderr, "Cannot get client list properties. \n"
+            "(_NET_CLIENT_LIST or _WIN_CLIENT_LIST)\n");
+        return NULL;
+      }
+    }
+
+    return client_list;
+}
+
+static unsigned long get_current_workspace(Display *disp) {
+  unsigned long *cur_desktop = NULL;
+  Window root = DefaultRootWindow(disp);
+  if (! (cur_desktop = (unsigned long *)get_property(disp, root,
+      XA_CARDINAL, "_NET_CURRENT_DESKTOP", NULL))) {
+    if (! (cur_desktop = (unsigned long *)get_property(disp, root,
+        XA_CARDINAL, "_WIN_WORKSPACE", NULL))) {
+      fprintf(stderr, "Cannot get current desktop properties. "
+          "(_NET_CURRENT_DESKTOP or _WIN_WORKSPACE property)\n");
+      free(cur_desktop);
+      exit(EXIT_FAILURE);
+    }
+  }
+  return *cur_desktop;
+}
+
+class module {
+ public:
+  module() {}
+  virtual ~module() {}
+
+  std::string get() {
+    std::lock_guard<std::mutex> g(_mutex);
+    return _str;
+  }
+  /* virtual void operator()(int) = 0;  //TODO: remove need for param */
+  void operator()(int) {
+    update();
+    while (true) {
+      trigger();
+      update();
+    }
+  }
+
+ protected:
+  void set(std::string str) {
+    std::lock_guard<std::mutex> g(_mutex);
+    _str = str;
+  }
+  virtual void trigger() = 0;
+  virtual void update() = 0;
+  std::mutex _mutex;
+  std::string _str;
+};
+
+class windows : public module {
+ public:
+  windows() {
+    conn = xcb_connect(nullptr, nullptr);
+    if (xcb_connection_has_error(conn)) {
+      fprintf(stderr, "Cannot X connection for workspaces daemon.\n");
+      exit(EXIT_FAILURE);
+    }
+
+    if (!(disp = XOpenDisplay(nullptr))) {
+      fprintf(stderr, "Cannot open display.\n");
+      exit(EXIT_FAILURE);
+    }
+
+    const char *window = "_NET_ACTIVE_WINDOW";
+    xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(conn,
+        xcb_intern_atom(conn, 0, static_cast<uint16_t>(strlen(window)), window), nullptr);
+    active_window = reply ? reply->atom : XCB_NONE;
+    free(reply);
+
+    uint32_t values = XCB_EVENT_MASK_PROPERTY_CHANGE;
+    xcb_screen_t* screen = xcb_setup_roots_iterator(xcb_get_setup(conn)).data;
+    xcb_change_window_attributes(conn, screen->root, XCB_CW_EVENT_MASK, &values);
+    xcb_flush(conn);
+  }
+
+  ~windows() {
+    xcb_disconnect(conn);
+  }
+
+ private:
+  void trigger() {
+    for (xcb_generic_event_t *ev = nullptr; (ev = xcb_wait_for_event(conn)); free(ev)) {
+      if ((ev->response_type & 0x7F) == XCB_PROPERTY_NOTIFY
+          && reinterpret_cast<xcb_property_notify_event_t *>(ev)->atom == active_window) {
+        return;
+      }
+    }
+  }
+  void update() {
+    // unsigned long *workspace;
+    std::stringstream ss;
+    unsigned long client_list_size;
+    unsigned long current_workspace = get_current_workspace(disp);
+
+    const Window current_window = [this] {
+      unsigned long size;
+      char* prop = get_property(disp, DefaultRootWindow(disp), XA_WINDOW,
+                          "_NET_ACTIVE_WINDOW", &size);
+      Window ret = *((Window*)prop);
+      free(prop);
+      return ret;
+    }();
+
+    // TODO: how to capture windows that don't work here? (e.g. steam)
+    Window* windows = get_client_list(disp, &client_list_size);
+    for (int i = 0; i < client_list_size / sizeof(Window); ++i) {
+      unsigned long *workspace = (unsigned long *)get_property(disp, windows[i],
+          XA_CARDINAL, "_NET_WM_DESKTOP", nullptr);
+      char* title_cstr = get_window_title(disp, windows[i]);
+      if (!title_cstr || current_workspace != *workspace) continue;
+      std::string title(title_cstr);
+      if (windows[i] == current_window) ss << "%{F#257fad}";  // TODO: replace with general xres accent color
+      ss << title.substr(title.find_last_of(' ') + 1) << " ";
+      if (windows[i] == current_window) ss << "%{F#7ea2b4}";
+    }
+    set(ss.str());
+    fprintf(stderr, "testing %s\n", ss.str().c_str());
+    free(windows);
+  }
+
+  Display *disp;
+  xcb_connection_t* conn;
+  xcb_atom_t active_window;
+};
+
+
+static std::array<std::unique_ptr<module>, 1> modules {
+  std::make_unique<windows>() };
 
 void
 update_gc ()
@@ -1256,6 +1395,10 @@ sighandle (int signal)
 int
 main ()
 {
+  if (!XInitThreads()) {
+    fprintf(stderr, "Failed to initialize threading for Xlib\n");
+    exit(EXIT_FAILURE);
+  }
   struct pollfd pollin[2] = {
     { .fd = STDIN_FILENO, .events = POLLIN },
     { .fd = -1          , .events = POLLIN },
@@ -1310,7 +1453,7 @@ main ()
               redraw = reinterpret_cast<xcb_expose_event_t*>(ev)->count == 0;
               break;
             case XCB_BUTTON_PRESS:
-              xcb_button_press_event_t *press_ev = reinterpret_cast<xcb_button_press_event_t*>(ev);
+              auto *press_ev = reinterpret_cast<xcb_button_press_event_t*>(ev);
               auto area = area_get(press_ev->event, press_ev->detail, press_ev->event_x);
               if (area) system(area->cmd);
               break;
