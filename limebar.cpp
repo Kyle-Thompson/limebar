@@ -290,6 +290,7 @@ class windows : public module {
     for (xcb_generic_event_t *ev = nullptr; (ev = xcb_wait_for_event(conn)); free(ev)) {
       if ((ev->response_type & 0x7F) == XCB_PROPERTY_NOTIFY
           && reinterpret_cast<xcb_property_notify_event_t *>(ev)->atom == active_window) {
+        free(ev);
         return;
       }
     }
