@@ -1,12 +1,14 @@
 // vim:sw=2:ts=2:et:
 #include <algorithm>
+#include <cctype>
 #include <cerrno>
+#include <chrono>
+#include <csignal>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <cctype>
-#include <csignal>
+#include <ctime>
 #include <fcntl.h>
 #include <functional>
 #include <iostream>
@@ -332,9 +334,36 @@ class windows : public module {
   xcb_atom_t active_window;
 };
 
+class clock : public module {
+ public:
+  clock(int a) {}
+  ~clock() {}
 
-static std::array<std::unique_ptr<module>, 1> modules {
-  std::make_unique<windows>() };
+ private:
+  void trigger() {
+    std::this_thread::sleep_for(std::chrono::minutes(1));
+  }
+
+  void update() {
+    time_t t = time(NULL);
+    struct tm* local = localtime(&t);
+    // TODO: optimize for the fixed size nature of this string.
+    std::stringstream ss;
+    ss << "%{F257fad}" << local->tm_hour << ':' << local->tm_min << "%{F7ea2b4}"
+       << " " << months[local->tm_mon] << " " << local->tm_mday;
+    set(ss.str());
+  }
+
+  static constexpr std::array<const char*, 12> months {
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", };
+};
+
+
+static std::array<std::unique_ptr<module>, 2> modules {
+  std::make_unique<windows>(),
+  std::make_unique<clock>(),
+};
 
 void
 update_gc ()
