@@ -272,11 +272,6 @@ class mod_windows : public module {
       exit(EXIT_FAILURE);
     }
 
-    if (!(disp = XOpenDisplay(nullptr))) {
-      fprintf(stderr, "Cannot open display.\n");
-      exit(EXIT_FAILURE);
-    }
-
     const char *window = "_NET_ACTIVE_WINDOW";
     xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(conn,
         xcb_intern_atom(conn, 0, static_cast<uint16_t>(strlen(window)), window), nullptr);
@@ -318,11 +313,11 @@ class mod_windows : public module {
   void update() {
     std::stringstream ss;
     unsigned long client_list_size;
-    unsigned long current_workspace = get_current_workspace(disp);
+    unsigned long current_workspace = get_current_workspace(dpy);
 
-    const Window current_window = [this] {
+    const Window current_window = [] {
       unsigned long size;
-      char* prop = get_property(disp, DefaultRootWindow(disp), XA_WINDOW,
+      char* prop = get_property(dpy, DefaultRootWindow(dpy), XA_WINDOW,
                           "_NET_ACTIVE_WINDOW", &size);
       Window ret = *((Window*)prop);
       free(prop);
@@ -330,11 +325,11 @@ class mod_windows : public module {
     }();
 
     // TODO: how to capture windows that don't work here? (e.g. steam)
-    Window* windows = get_client_list(disp, &client_list_size);
+    Window* windows = get_client_list(dpy, &client_list_size);
     for (unsigned long i = 0; i < client_list_size / sizeof(Window); ++i) {
-      unsigned long *workspace = (unsigned long *)get_property(disp, windows[i],
+      unsigned long *workspace = (unsigned long *)get_property(dpy, windows[i],
           XA_CARDINAL, "_NET_WM_DESKTOP", nullptr);
-      char* title_cstr = get_window_title(disp, windows[i]);
+      char* title_cstr = get_window_title(dpy, windows[i]);
       if (!title_cstr || current_workspace != *workspace) continue;
       std::string title(title_cstr);
       if (windows[i] == current_window) ss << "%{F#257fad}";  // TODO: replace with general xres accent color
@@ -345,7 +340,6 @@ class mod_windows : public module {
     free(windows);
   }
 
-  Display *disp;
   xcb_connection_t* conn;
   xcb_atom_t current_desktop;
   xcb_atom_t active_window;
@@ -357,11 +351,6 @@ class mod_workspaces : public module {
     conn = xcb_connect(nullptr, nullptr);
     if (xcb_connection_has_error(conn)) {
       fprintf(stderr, "Cannot X connection for workspaces daemon.\n");
-      exit(EXIT_FAILURE);
-    }
-
-    if (!(disp = XOpenDisplay(nullptr))) {
-      fprintf(stderr, "Cannot open display.\n");
       exit(EXIT_FAILURE);
     }
 
@@ -393,15 +382,15 @@ class mod_workspaces : public module {
 
   void update() {
     unsigned long desktop_list_size = 0;
-    Window root = DefaultRootWindow(disp);
+    Window root = DefaultRootWindow(dpy);
 
-    unsigned long *num_desktops = (unsigned long *)get_property(disp, root,
+    unsigned long *num_desktops = (unsigned long *)get_property(dpy, root,
         XA_CARDINAL, "_NET_NUMBER_OF_DESKTOPS", NULL);
 
-    unsigned long *cur_desktop = (unsigned long *)get_property(disp, root,
+    unsigned long *cur_desktop = (unsigned long *)get_property(dpy, root,
         XA_CARDINAL, "_NET_CURRENT_DESKTOP", NULL);
 
-    char *list = get_property(disp, root, XInternAtom(disp, "UTF8_STRING", False),
+    char *list = get_property(dpy, root, XInternAtom(dpy, "UTF8_STRING", False),
         "_NET_DESKTOP_NAMES", &desktop_list_size);
 
     /* prepare the array of desktop names */
@@ -431,7 +420,6 @@ class mod_workspaces : public module {
     free(list);
   }
 
-  Display *disp;
   xcb_connection_t* conn;
   xcb_atom_t current_desktop;
 };
