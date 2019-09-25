@@ -3,6 +3,7 @@
 #include <cctype>
 #include <cerrno>
 #include <chrono>
+#include <condition_variable>
 #include <csignal>
 #include <cstddef>
 #include <cstdio>
@@ -21,6 +22,7 @@
 #include <string>
 #include <thread>
 #include <unistd.h>
+#include <unordered_map>
 #include <xcb/xcb.h>
 #include <xcb/xcbext.h>
 #include <xcb/randr.h>
@@ -94,7 +96,6 @@ enum {
 };
 
 // user configs
-static constexpr bool PERMANENT = true;
 static constexpr bool TOPBAR = true;
 static constexpr bool FORCE_DOCK = false;
 static constexpr int BAR_WIDTH = 5760, BAR_HEIGHT = 20, BAR_X_OFFSET = 0, BAR_Y_OFFSET = 0;
@@ -109,6 +110,8 @@ static std::array<std::tuple<const char*, int>, 1> FONTS = {
 
 static std::vector<monitor_t> monitors;
 
+static std::mutex mutex;
+static std::condition_variable condvar;
 
 static Display *dpy;
 static xcb_connection_t *c;
@@ -186,9 +189,6 @@ static char *get_window_title (Display *disp, Window win) {
     if (net_wm_name) {
       title_utf8 = strdup(net_wm_name);
     }
-    /* else if (wm_name) { */
-    /*   title_utf8 = g_locale_to_utf8(wm_name, -1, NULL, NULL, NULL); */
-    /* } */
 
     free(wm_name);
     free(net_wm_name);
@@ -237,8 +237,7 @@ class module {
     std::lock_guard<std::mutex> g(_mutex);
     return _str;
   }
-  /* virtual void operator()(int) = 0;  //TODO: remove need for param */
-  void operator()(int) {
+  void operator()(int) {  // TODO: remove param
     update();
     while (true) {
       trigger();
@@ -250,16 +249,17 @@ class module {
   void set(std::string str) {
     std::lock_guard<std::mutex> g(_mutex);
     _str = str;
+    condvar.notify_one();
   }
   virtual void trigger() = 0;
-  virtual void update() = 0;
+  virtual void update()  = 0;
   std::mutex _mutex;
   std::string _str;
 };
 
-class windows : public module {
+class mod_windows : public module {
  public:
-  windows() {
+  mod_windows() {
     conn = xcb_connect(nullptr, nullptr);
     if (xcb_connection_has_error(conn)) {
       fprintf(stderr, "Cannot X connection for workspaces daemon.\n");
@@ -281,24 +281,35 @@ class windows : public module {
     xcb_screen_t* screen = xcb_setup_roots_iterator(xcb_get_setup(conn)).data;
     xcb_change_window_attributes(conn, screen->root, XCB_CW_EVENT_MASK, &values);
     xcb_flush(conn);
+
+    const char *desktop = "_NET_CURRENT_DESKTOP";
+    reply = xcb_intern_atom_reply(conn,
+        xcb_intern_atom(conn, 0, static_cast<uint16_t>(strlen(desktop)), desktop), nullptr);
+    current_desktop = reply ? reply->atom : XCB_NONE;
+    free(reply);
+
+    screen = xcb_setup_roots_iterator(xcb_get_setup(conn)).data;
+    xcb_change_window_attributes(conn, screen->root, XCB_CW_EVENT_MASK, &values);
+    xcb_flush(conn);
   }
 
-  ~windows() {
+  ~mod_windows() {
     xcb_disconnect(conn);
   }
 
  private:
   void trigger() {
     for (xcb_generic_event_t *ev = nullptr; (ev = xcb_wait_for_event(conn)); free(ev)) {
-      if ((ev->response_type & 0x7F) == XCB_PROPERTY_NOTIFY
-          && reinterpret_cast<xcb_property_notify_event_t *>(ev)->atom == active_window) {
-        free(ev);
-        return;
+      if ((ev->response_type & 0x7F) == XCB_PROPERTY_NOTIFY) {
+        auto atom = reinterpret_cast<xcb_property_notify_event_t *>(ev)->atom;
+        if (atom == active_window || atom == current_desktop) {
+          free(ev);
+          return;
+        }
       }
     }
   }
   void update() {
-    // unsigned long *workspace;
     std::stringstream ss;
     unsigned long client_list_size;
     unsigned long current_workspace = get_current_workspace(disp);
@@ -314,7 +325,7 @@ class windows : public module {
 
     // TODO: how to capture windows that don't work here? (e.g. steam)
     Window* windows = get_client_list(disp, &client_list_size);
-    for (int i = 0; i < client_list_size / sizeof(Window); ++i) {
+    for (unsigned long i = 0; i < client_list_size / sizeof(Window); ++i) {
       unsigned long *workspace = (unsigned long *)get_property(disp, windows[i],
           XA_CARDINAL, "_NET_WM_DESKTOP", nullptr);
       char* title_cstr = get_window_title(disp, windows[i]);
@@ -325,19 +336,104 @@ class windows : public module {
       if (windows[i] == current_window) ss << "%{F#7ea2b4}";
     }
     set(ss.str());
-    fprintf(stderr, "testing %s\n", ss.str().c_str());
     free(windows);
   }
 
   Display *disp;
   xcb_connection_t* conn;
+  xcb_atom_t current_desktop;
   xcb_atom_t active_window;
 };
 
-class clock : public module {
+class mod_workspaces : public module {
  public:
-  clock(int a) {}
-  ~clock() {}
+  mod_workspaces() {
+    conn = xcb_connect(nullptr, nullptr);
+    if (xcb_connection_has_error(conn)) {
+      fprintf(stderr, "Cannot X connection for workspaces daemon.\n");
+      exit(EXIT_FAILURE);
+    }
+
+    if (!(disp = XOpenDisplay(nullptr))) {
+      fprintf(stderr, "Cannot open display.\n");
+      exit(EXIT_FAILURE);
+    }
+
+    const char *desktop = "_NET_CURRENT_DESKTOP";
+    xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(conn,
+        xcb_intern_atom(conn, 0, static_cast<uint16_t>(strlen(desktop)), desktop), nullptr);
+    current_desktop = reply ? reply->atom : XCB_NONE;
+    free(reply);
+
+    uint32_t values = XCB_EVENT_MASK_PROPERTY_CHANGE;
+    xcb_screen_t* screen = xcb_setup_roots_iterator(xcb_get_setup(conn)).data;
+    xcb_change_window_attributes(conn, screen->root, XCB_CW_EVENT_MASK, &values);
+    xcb_flush(conn);
+  }
+  ~mod_workspaces() {}
+
+ private:
+  void trigger() {
+    // TODO: this doesn't work if switching an empty workspace to an empty
+    // workspace.
+    for (xcb_generic_event_t *ev = nullptr; (ev = xcb_wait_for_event(conn)); free(ev)) {
+      if ((ev->response_type & 0x7F) == XCB_PROPERTY_NOTIFY
+          && reinterpret_cast<xcb_property_notify_event_t *>(ev)->atom == current_desktop) {
+        free(ev);
+        return;
+      }
+    }
+  }
+
+  void update() {
+    unsigned long desktop_list_size = 0;
+    Window root = DefaultRootWindow(disp);
+
+    unsigned long *num_desktops = (unsigned long *)get_property(disp, root,
+        XA_CARDINAL, "_NET_NUMBER_OF_DESKTOPS", NULL);
+
+    unsigned long *cur_desktop = (unsigned long *)get_property(disp, root,
+        XA_CARDINAL, "_NET_CURRENT_DESKTOP", NULL);
+
+    char *list = get_property(disp, root, XInternAtom(disp, "UTF8_STRING", False),
+        "_NET_DESKTOP_NAMES", &desktop_list_size);
+
+    /* prepare the array of desktop names */
+    char **names = (char **) malloc(*num_desktops * sizeof(char *));
+    int id = 0;
+    names[id++] = list;
+    for (int i = 0; i < desktop_list_size; i++) {
+      if (list[i] == '\0') {
+        if (id >= *num_desktops) {
+          break;
+        }
+        names[id++] = list + i + 1;
+      }
+    }
+
+    std::stringstream ss;
+    for (int i = 0; i < *num_desktops; ++i) {
+      if (i == *cur_desktop) ss << "%{F#257fad}";
+      ss << names[i] << " ";
+      if (i == *cur_desktop) ss << "%{F#7ea2b4}";
+    }
+    set(ss.str());
+
+    free(names);
+    free(num_desktops);
+    free(cur_desktop);
+    free(list);
+  }
+
+  Display *disp;
+  xcb_connection_t* conn;
+  xcb_atom_t current_desktop;
+};
+
+class mod_clock : public module {
+ public:
+  mod_clock() {}
+  ~mod_clock() {}
 
  private:
   void trigger() {
@@ -349,7 +445,7 @@ class clock : public module {
     struct tm* local = localtime(&t);
     // TODO: optimize for the fixed size nature of this string.
     std::stringstream ss;
-    ss << "%{F257fad}" << local->tm_hour << ':' << local->tm_min << "%{F7ea2b4}"
+    ss << "%{F#257fad}" << local->tm_hour << ':' << local->tm_min << "%{F#7ea2b4}"
        << " " << months[local->tm_mon] << " " << local->tm_mday;
     set(ss.str());
   }
@@ -360,10 +456,14 @@ class clock : public module {
 };
 
 
-static std::array<std::unique_ptr<module>, 2> modules {
-  std::make_unique<windows>(),
-  std::make_unique<clock>(),
-};
+static const auto modules = [] {
+  std::unordered_map<const char*, std::unique_ptr<module>> modules;
+  modules.emplace("workspaces", std::make_unique<mod_workspaces>());
+  modules.emplace("windows", std::make_unique<mod_windows>());
+  modules.emplace("clock", std::make_unique<mod_clock>());
+  return modules;
+}();
+
 
 void
 update_gc ()
@@ -1422,73 +1522,58 @@ sighandle (int signal)
     exit(EXIT_SUCCESS);
 }
 
-int
-main ()
-{
-  if (!XInitThreads()) {
-    fprintf(stderr, "Failed to initialize threading for Xlib\n");
-    exit(EXIT_FAILURE);
-  }
-  struct pollfd pollin[2] = {
-    { .fd = STDIN_FILENO, .events = POLLIN },
-    { .fd = -1          , .events = POLLIN },
-  };
+void
+main_loop() {
   char input[4096] = {0, };
 
-  // Install the parachute!
-  atexit(cleanup);
-  signal(SIGINT, sighandle);
-  signal(SIGTERM, sighandle);
-
-  // Connect to the Xserver and initialize scr
-  xconn();
-    
-  // Do the heavy lifting
-  init();
-  // Get the fd to Xserver
-  pollin[1].fd = xcb_get_file_descriptor(c);
-
-  // Prevent fgets to block
-  fcntl(STDIN_FILENO, F_SETFL, O_NONBLOCK);
-
-  std::vector<std::thread> threads;
-  for (const auto& mod : modules) {
-    // TODO: find way to clean up threads
-    threads.emplace_back(std::ref(*mod), 0);
-  }
-
-  for (;;) {
+  while (true) {
     bool redraw = false;
 
     // If connection is in error state, then it has been shut down.
     if (xcb_connection_has_error(c))
       break;
 
-    if (poll(pollin, 2, -1) > 0) {
-      if (pollin[0].revents & POLLHUP) {    // No more data...
-        if (PERMANENT) pollin[0].fd = -1;   // ...null the fd and continue polling :D
-        else break;                         // ...bail out
+    // a module has changed and the bar needs to be redrawn
+    // TODO: also check for click events while waiting. currently bar events
+    // won't get seen since we're stuck here waiting for this condvar. Maybe
+    // separate into two different threads with a condvar of its own to sync.
+    {
+      std::unique_lock<std::mutex> lock(mutex);
+      condvar.wait(lock);
+
+      std::stringstream ss;
+      ss << "%{l} ";
+      ss << modules.find("workspaces")->second->get();
+      ss << " ";
+      ss << modules.find("windows")->second->get();
+      ss << "%{c}";
+      ss << modules.find("clock")->second->get();
+      ss << "%{r}";
+
+      std::stringstream full_bar;
+      std::string bar_str(ss.str());
+      for (int i = 0; i < monitors.size(); ++i) {
+        full_bar << "%{S" << i << "}" << bar_str;
       }
-      if (pollin[0].revents & POLLIN) { // New input, process it
-        input[0] = '\0';
-        while (fgets(input, sizeof(input), stdin) != nullptr)
-          ; // Drain the buffer, the last line is actually used
-        parse(input);
-        redraw = true;
-      }
-      if (pollin[1].revents & POLLIN) { // The event comes from the Xorg server
-        for (xcb_generic_event_t *ev; (ev = xcb_poll_for_event(c)); free(ev)) {
-          switch (ev->response_type & 0x7F) {
-            case XCB_EXPOSE:
-              redraw = reinterpret_cast<xcb_expose_event_t*>(ev)->count == 0;
-              break;
-            case XCB_BUTTON_PRESS:
-              auto *press_ev = reinterpret_cast<xcb_button_press_event_t*>(ev);
-              auto area = area_get(press_ev->event, press_ev->detail, press_ev->event_x);
-              if (area) system(area->cmd);
-              break;
-          }
-        }
+      std::string full_bar_str(full_bar.str());
+
+      strncpy(input, full_bar_str.c_str(), full_bar_str.size());
+      input[full_bar_str.size()] = '\0';
+      parse(input);
+      redraw = true;
+    }
+
+    // handle bar related events
+    for (xcb_generic_event_t *ev; (ev = xcb_poll_for_event(c)); free(ev)) {
+      switch (ev->response_type & 0x7F) {
+        case XCB_EXPOSE:
+          redraw = reinterpret_cast<xcb_expose_event_t*>(ev)->count == 0;
+          break;
+        case XCB_BUTTON_PRESS:
+          auto *press_ev = reinterpret_cast<xcb_button_press_event_t*>(ev);
+          auto area = area_get(press_ev->event, press_ev->detail, press_ev->event_x);
+          if (area) system(area->cmd);
+          break;
       }
     }
 
@@ -1500,6 +1585,38 @@ main ()
 
     xcb_flush(c);
   }
+
+}
+
+int
+main ()
+{
+  if (!XInitThreads()) {
+    fprintf(stderr, "Failed to initialize threading for Xlib\n");
+    exit(EXIT_FAILURE);
+  }
+
+  // Install the parachute!
+  atexit(cleanup);
+  signal(SIGINT, sighandle);
+  signal(SIGTERM, sighandle);
+
+  // Connect to the Xserver and initialize scr
+  xconn();
+    
+  // Do the heavy lifting
+  init();
+
+  // Prevent fgets to block
+  fcntl(STDIN_FILENO, F_SETFL, O_NONBLOCK);
+
+  std::vector<std::thread> threads;
+  for (const auto& mod : modules) {
+    // TODO: find way to clean up threads
+    threads.emplace_back(std::ref(*mod.second), 0);
+  }
+
+  main_loop();
 
   return EXIT_SUCCESS;
 }
