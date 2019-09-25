@@ -144,7 +144,7 @@ static XftColor sel_fg;
 static XftDraw *xft_draw;
 
 //char width lookuptable
-#define MAX_WIDTHS (1 << 16)
+constexpr size_t MAX_WIDTHS {1 << 16};
 static wchar_t xft_char[MAX_WIDTHS];
 static char    xft_width[MAX_WIDTHS];
 
