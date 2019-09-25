@@ -1,4 +1,13 @@
 // vim:sw=2:ts=2:et:
+
+/** TODO
+ *
+ * 1. Convert global variables into Singletons.
+ * 2. Modules should return pixmaps or a format that does not need to be parsed
+ *    but is instead sent directly to the bar.
+ *
+ */
+
 #include <algorithm>
 #include <cctype>
 #include <cerrno>
