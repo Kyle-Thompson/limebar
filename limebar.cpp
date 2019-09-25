@@ -1,12 +1,15 @@
 // vim:sw=2:ts=2:et:
 
 /** TODO
- *
- * 1. Convert global variables into Singletons.
- * 2. Modules should return pixmaps or a format that does not need to be parsed
- *    but is instead sent directly to the bar.
- *
+ * - Convert global variables into Singletons.
+ * - Modules should return pixmaps or a format that does not need to be parsed
+ *   but is instead sent directly to the bar.
+ * - Find more ergonomic way to reference singletons.
+ * - Add more functions into DisplayManager singleton. Too many raw calls
+ *   happening here that should be members.
  */
+
+#include "DisplayManager.h"
 
 #include <algorithm>
 #include <cctype>
@@ -119,7 +122,6 @@ static std::vector<monitor_t> monitors;
 static std::mutex mutex;
 static std::condition_variable condvar;
 
-static Display *dpy;
 static xcb_connection_t *c;
 static xcb_xrm_database_t *db;
 
@@ -147,92 +149,6 @@ static XftDraw *xft_draw;
 constexpr size_t MAX_WIDTHS {1 << 16};
 static wchar_t xft_char[MAX_WIDTHS];
 static char    xft_width[MAX_WIDTHS];
-
-static char *get_property (Display *disp, Window win,
-        Atom xa_prop_type, const char *prop_name, unsigned long *size) {
-    Atom xa_prop_name;
-    Atom xa_ret_type;
-    int ret_format;
-    unsigned long ret_nitems;
-    unsigned long ret_bytes_after;
-    unsigned long tmp_size;
-    unsigned char *ret_prop;
-    char *ret;
-
-    xa_prop_name = XInternAtom(disp, prop_name, False);
-
-    if (XGetWindowProperty(disp, win, xa_prop_name, 0, 1024, False,
-        xa_prop_type, &xa_ret_type, &ret_format,
-        &ret_nitems, &ret_bytes_after, &ret_prop) != Success) {
-      return NULL;
-    }
-
-    if (xa_ret_type != xa_prop_type) {
-      XFree(ret_prop);
-      return NULL;
-    }
-
-    /* null terminate the result to make string handling easier */
-    tmp_size = (ret_format / (32 / sizeof(long))) * ret_nitems;
-    ret = (char *) malloc(tmp_size + 1);
-    memcpy(ret, ret_prop, tmp_size);
-    ret[tmp_size] = '\0';
-
-    if (size) {
-      *size = tmp_size;
-    }
-
-    XFree(ret_prop);
-    return ret;
-}
-
-static char *get_window_title (Display *disp, Window win) {
-    char *title_utf8 = nullptr;
-    char *wm_name = get_property(disp, win, XA_STRING, "WM_NAME", NULL);
-    char *net_wm_name = get_property(disp, win,
-        XInternAtom(disp, "UTF8_STRING", False), "_NET_WM_NAME", NULL);
-
-    if (net_wm_name) {
-      title_utf8 = strdup(net_wm_name);
-    }
-
-    free(wm_name);
-    free(net_wm_name);
-
-    return title_utf8;
-}
-
-static Window *get_client_list (Display *disp, unsigned long *size) {
-    Window *client_list;
-
-    if ((client_list = (Window *)get_property(disp, DefaultRootWindow(disp),
-        XA_WINDOW, "_NET_CLIENT_LIST", size)) == NULL) {
-      if ((client_list = (Window *)get_property(disp, DefaultRootWindow(disp),
-          XA_CARDINAL, "_WIN_CLIENT_LIST", size)) == NULL) {
-        fprintf(stderr, "Cannot get client list properties. \n"
-            "(_NET_CLIENT_LIST or _WIN_CLIENT_LIST)\n");
-        return NULL;
-      }
-    }
-
-    return client_list;
-}
-
-static unsigned long get_current_workspace(Display *disp) {
-  unsigned long *cur_desktop = NULL;
-  Window root = DefaultRootWindow(disp);
-  if (! (cur_desktop = (unsigned long *)get_property(disp, root,
-      XA_CARDINAL, "_NET_CURRENT_DESKTOP", NULL))) {
-    if (! (cur_desktop = (unsigned long *)get_property(disp, root,
-        XA_CARDINAL, "_WIN_WORKSPACE", NULL))) {
-      fprintf(stderr, "Cannot get current desktop properties. "
-          "(_NET_CURRENT_DESKTOP or _WIN_WORKSPACE property)\n");
-      free(cur_desktop);
-      exit(EXIT_FAILURE);
-    }
-  }
-  return *cur_desktop;
-}
 
 class module {
  public:
@@ -313,23 +229,22 @@ class mod_windows : public module {
   void update() {
     std::stringstream ss;
     unsigned long client_list_size;
-    unsigned long current_workspace = get_current_workspace(dpy);
+    unsigned long current_workspace = DisplayManager::Instance()->get_current_workspace();
 
     const Window current_window = [] {
       unsigned long size;
-      char* prop = get_property(dpy, DefaultRootWindow(dpy), XA_WINDOW,
-                          "_NET_ACTIVE_WINDOW", &size);
+      char* prop = DisplayManager::Instance()->get_property(DisplayManager::Instance()->get_default_root_window(), XA_WINDOW, "_NET_ACTIVE_WINDOW", &size);
       Window ret = *((Window*)prop);
       free(prop);
       return ret;
     }();
 
     // TODO: how to capture windows that don't work here? (e.g. steam)
-    Window* windows = get_client_list(dpy, &client_list_size);
+    Window* windows = DisplayManager::Instance()->get_client_list(&client_list_size);
     for (unsigned long i = 0; i < client_list_size / sizeof(Window); ++i) {
-      unsigned long *workspace = (unsigned long *)get_property(dpy, windows[i],
+      unsigned long *workspace = (unsigned long *)DisplayManager::Instance()->get_property(windows[i],
           XA_CARDINAL, "_NET_WM_DESKTOP", nullptr);
-      char* title_cstr = get_window_title(dpy, windows[i]);
+      char* title_cstr = DisplayManager::Instance()->get_window_title(windows[i]);
       if (!title_cstr || current_workspace != *workspace) continue;
       std::string title(title_cstr);
       if (windows[i] == current_window) ss << "%{F#257fad}";  // TODO: replace with general xres accent color
@@ -382,16 +297,13 @@ class mod_workspaces : public module {
 
   void update() {
     unsigned long desktop_list_size = 0;
-    Window root = DefaultRootWindow(dpy);
+    Window root = DisplayManager::Instance()->get_default_root_window();
 
-    unsigned long *num_desktops = (unsigned long *)get_property(dpy, root,
-        XA_CARDINAL, "_NET_NUMBER_OF_DESKTOPS", NULL);
+    unsigned long *num_desktops = (unsigned long *)DisplayManager::Instance()->get_property(root, XA_CARDINAL, "_NET_NUMBER_OF_DESKTOPS", NULL);
 
-    unsigned long *cur_desktop = (unsigned long *)get_property(dpy, root,
-        XA_CARDINAL, "_NET_CURRENT_DESKTOP", NULL);
+    unsigned long *cur_desktop = (unsigned long *)DisplayManager::Instance()->get_property(root, XA_CARDINAL, "_NET_CURRENT_DESKTOP", NULL);
 
-    char *list = get_property(dpy, root, XInternAtom(dpy, "UTF8_STRING", False),
-        "_NET_DESKTOP_NAMES", &desktop_list_size);
+    char *list = DisplayManager::Instance()->get_property(root, XInternAtom(DisplayManager::Instance()->get_display(), "UTF8_STRING", False), "_NET_DESKTOP_NAMES", &desktop_list_size);
 
     /* prepare the array of desktop names */
     char **names = (char **) malloc(*num_desktops * sizeof(char *));
@@ -465,11 +377,11 @@ update_gc ()
   xcb_change_gc(c, gc[GC_DRAW], XCB_GC_FOREGROUND, fgc.val());
   xcb_change_gc(c, gc[GC_CLEAR], XCB_GC_FOREGROUND, bgc.val());
   xcb_change_gc(c, gc[GC_ATTR], XCB_GC_FOREGROUND, ugc.val());
-  XftColorFree(dpy, visual_ptr, colormap , &sel_fg);
+  XftColorFree(DisplayManager::Instance()->get_display(), visual_ptr, colormap , &sel_fg);
   char color[] = "#ffffff";
   uint32_t nfgc = *fgc.val() & 0x00ffffff;
   snprintf(color, sizeof(color), "#%06X", nfgc);
-  if (!XftColorAllocName (dpy, visual_ptr, colormap, color, &sel_fg)) {
+  if (!XftColorAllocName (DisplayManager::Instance()->get_display(), visual_ptr, colormap, color, &sel_fg)) {
     fprintf(stderr, "Couldn't allocate xft font color '%s'\n", color);
   }
 }
@@ -567,10 +479,10 @@ xft_char_width (uint16_t ch, font_t *cur_font)
   int slot = xft_char_width_slot(ch);
   if (!xft_char[slot]) {
     XGlyphInfo gi;
-    FT_UInt glyph = XftCharIndex (dpy, cur_font->xft_ft, (FcChar32) ch);
-    XftFontLoadGlyphs (dpy, cur_font->xft_ft, FcFalse, &glyph, 1);
-    XftGlyphExtents (dpy, cur_font->xft_ft, &glyph, 1, &gi);
-    XftFontUnloadGlyphs (dpy, cur_font->xft_ft, &glyph, 1);
+    FT_UInt glyph = XftCharIndex (DisplayManager::Instance()->get_display(), cur_font->xft_ft, (FcChar32) ch);
+    XftFontLoadGlyphs (DisplayManager::Instance()->get_display(), cur_font->xft_ft, FcFalse, &glyph, 1);
+    XftGlyphExtents (DisplayManager::Instance()->get_display(), cur_font->xft_ft, &glyph, 1, &gi);
+    XftFontUnloadGlyphs (DisplayManager::Instance()->get_display(), cur_font->xft_ft, &glyph, 1);
     xft_char[slot] = ch;
     xft_width[slot] = gi.xOff;
     return gi.xOff;
@@ -860,7 +772,7 @@ bool
 font_has_glyph (font_t *font, const uint16_t c)
 {
   if (font->xft_ft)
-    return XftCharExists(dpy, font->xft_ft, (FcChar32) c);
+    return XftCharExists(DisplayManager::Instance()->get_display(), font->xft_ft, (FcChar32) c);
 
   if (c < font->char_min || c > font->char_max)
     return false;
@@ -908,7 +820,7 @@ parse (char *text)
     fill_rect(m.pixmap, gc[GC_CLEAR], 0, 0, m.width, BAR_HEIGHT);
 
   /* Create xft drawable */
-  if (!(xft_draw = XftDrawCreate (dpy, mon_itr->pixmap, visual_ptr , colormap))) {
+  if (!(xft_draw = XftDrawCreate (DisplayManager::Instance()->get_display(), mon_itr->pixmap, visual_ptr , colormap))) {
     fprintf(stderr, "Couldn't create xft drawable\n");
   }
 
@@ -969,7 +881,7 @@ parse (char *text)
             }
 
             XftDrawDestroy (xft_draw);
-            if (!(xft_draw = XftDrawCreate (dpy, mon_itr->pixmap, visual_ptr , colormap ))) {
+            if (!(xft_draw = XftDrawCreate (DisplayManager::Instance()->get_display(), mon_itr->pixmap, visual_ptr , colormap ))) {
               fprintf(stderr, "Couldn't create xft drawable\n");
             }
 
@@ -1100,7 +1012,7 @@ font_load (const char *pattern, int offset)
       memcpy(ret.width_lut, xcb_query_font_char_infos(font_info), lut_size);
     }
     free(font_info);
-  } else if ((ret.xft_ft = XftFontOpenName (dpy, scr_nbr, pattern))) {
+  } else if ((ret.xft_ft = XftFontOpenName (DisplayManager::Instance()->get_display(), scr_nbr, pattern))) {
     ret.ptr = 0;
     ret.ascent = ret.xft_ft->ascent;
     ret.descent = ret.xft_ft->descent;
@@ -1335,7 +1247,7 @@ get_visual ()
   xv.depth = 32;
   int result = 0;
   XVisualInfo* result_ptr = nullptr; 
-  result_ptr = XGetVisualInfo(dpy, VisualDepthMask, &xv, &result);
+  result_ptr = XGetVisualInfo(DisplayManager::Instance()->get_display(), VisualDepthMask, &xv, &result);
 
   if (result > 0) {
     visual_ptr = result_ptr->visual;
@@ -1343,23 +1255,19 @@ get_visual ()
   }
 
   //Fallback
-  visual_ptr = DefaultVisual(dpy, scr_nbr);	
+  visual_ptr = DefaultVisual(DisplayManager::Instance()->get_display(), scr_nbr);
   return scr->root_visual;
 }
 
 void
 xconn ()
 {
-  if ((dpy = XOpenDisplay(nullptr)) == nullptr) {
-    fprintf (stderr, "Couldnt open display\n");
-  }
-
-  if ((c = XGetXCBConnection(dpy)) == nullptr) {
+  if ((c = XGetXCBConnection(DisplayManager::Instance()->get_display())) == nullptr) {
     fprintf (stderr, "Couldnt connect to X\n");
     exit (EXIT_FAILURE);
   }
 
-  XSetEventQueueOwner(dpy, XCBOwnsEventQueue);
+  XSetEventQueueOwner(DisplayManager::Instance()->get_display(), XCBOwnsEventQueue);
 
   if (xcb_connection_has_error(c)) {
     fprintf(stderr, "Couldn't connect to X\n");
@@ -1472,7 +1380,7 @@ init ()
   uint32_t nfgc = *fgc.val() & 0x00ffffff;
   snprintf(color, sizeof(color), "#%06X", nfgc);
 
-  if (!XftColorAllocName (dpy, visual_ptr, colormap, color, &sel_fg)) {
+  if (!XftColorAllocName (DisplayManager::Instance()->get_display(), visual_ptr, colormap, color, &sel_fg)) {
     fprintf(stderr, "Couldn't allocate xft font color '%s'\n", color);
   }
   xcb_flush(c);
@@ -1483,7 +1391,7 @@ cleanup ()
 {
   for (const auto& font : fonts) {
     if (font.xft_ft) {
-      XftFontClose (dpy, font.xft_ft);
+      XftFontClose (DisplayManager::Instance()->get_display(), font.xft_ft);
     }
     else {
       xcb_close_font(c, font.ptr);
@@ -1496,7 +1404,7 @@ cleanup ()
     xcb_free_pixmap(c, mon.pixmap);
   }
 
-  XftColorFree(dpy, visual_ptr, colormap, &sel_fg);
+  XftColorFree(DisplayManager::Instance()->get_display(), visual_ptr, colormap, &sel_fg);
 
   if (gc[GC_DRAW])
     xcb_free_gc(c, gc[GC_DRAW]);

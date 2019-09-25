@@ -14,11 +14,11 @@ CFDEBUG = -g3 -pedantic -Wall -Wunused-parameter -Wlong-long \
 	  -Weverything -Wextra -Wno-c++98-compat -Wno-c++98-compat-pedantic
 
 EXEC = limebar
-SRCS = limebar.cpp
+SRCS = limebar.cpp DisplayManager.cpp
 OBJS = ${SRCS:.cpp=.o}
 
-PREFIX?=/usr
-BINDIR=${PREFIX}/bin
+PREFIX ?= /usr
+BINDIR  = ${PREFIX}/bin
 
 all: ${EXEC}
 
