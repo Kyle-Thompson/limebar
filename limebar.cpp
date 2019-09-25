@@ -29,10 +29,7 @@
 #include <xcb/xcb_xrm.h>
 #include <X11/Xft/Xft.h>
 #include <X11/Xlib-xcb.h>
-
 #include <X11/Xatom.h>
-
-#define indexof(c,s) (strchr((s),(c))-(s))
 
 struct font_t {
   xcb_font_t ptr;
@@ -740,7 +737,8 @@ parse_color (const char *str, char **end)
 void
 set_attribute (const char modifier, const char attribute)
 {
-  int pos = indexof(attribute, "ou");
+  // indexof
+  int pos = strchr("ou", attribute) - "ou";
 
   if (pos < 0) {
     fprintf(stderr, "Invalid attribute \"%c\" found\n", attribute);
