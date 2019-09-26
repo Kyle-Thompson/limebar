@@ -303,7 +303,7 @@ class mod_workspaces : public module {
 
     unsigned long *cur_desktop = (unsigned long *)DisplayManager::Instance()->get_property(root, XA_CARDINAL, "_NET_CURRENT_DESKTOP", NULL);
 
-    char *list = DisplayManager::Instance()->get_property(root, XInternAtom(DisplayManager::Instance()->get_display(), "UTF8_STRING", False), "_NET_DESKTOP_NAMES", &desktop_list_size);
+    char *list = DisplayManager::Instance()->get_property(root, DisplayManager::Instance()->get_intern_atom(), "_NET_DESKTOP_NAMES", &desktop_list_size);
 
     /* prepare the array of desktop names */
     char **names = (char **) malloc(*num_desktops * sizeof(char *));
@@ -351,6 +351,7 @@ class mod_clock : public module {
     struct tm* local = localtime(&t);
     // TODO: optimize for the fixed size nature of this string.
     std::stringstream ss;
+    // TODO: always show a 2 digit hour
     ss << "%{F#257fad}" << local->tm_hour << ':' << local->tm_min << "%{F#7ea2b4}"
        << " " << months[local->tm_mon] << " " << local->tm_mday;
     set(ss.str());
@@ -377,11 +378,11 @@ update_gc ()
   xcb_change_gc(c, gc[GC_DRAW], XCB_GC_FOREGROUND, fgc.val());
   xcb_change_gc(c, gc[GC_CLEAR], XCB_GC_FOREGROUND, bgc.val());
   xcb_change_gc(c, gc[GC_ATTR], XCB_GC_FOREGROUND, ugc.val());
-  XftColorFree(DisplayManager::Instance()->get_display(), visual_ptr, colormap , &sel_fg);
+  DisplayManager::Instance()->xft_color_free(visual_ptr, colormap, &sel_fg);
   char color[] = "#ffffff";
   uint32_t nfgc = *fgc.val() & 0x00ffffff;
   snprintf(color, sizeof(color), "#%06X", nfgc);
-  if (!XftColorAllocName (DisplayManager::Instance()->get_display(), visual_ptr, colormap, color, &sel_fg)) {
+  if (!DisplayManager::Instance()->xft_color_alloc_name(visual_ptr, colormap, color, &sel_fg)) {
     fprintf(stderr, "Couldn't allocate xft font color '%s'\n", color);
   }
 }
@@ -772,7 +773,7 @@ bool
 font_has_glyph (font_t *font, const uint16_t c)
 {
   if (font->xft_ft)
-    return XftCharExists(DisplayManager::Instance()->get_display(), font->xft_ft, (FcChar32) c);
+    return DisplayManager::Instance()->xft_char_exists(font->xft_ft, (FcChar32) c);
 
   if (c < font->char_min || c > font->char_max)
     return false;
@@ -820,7 +821,7 @@ parse (char *text)
     fill_rect(m.pixmap, gc[GC_CLEAR], 0, 0, m.width, BAR_HEIGHT);
 
   /* Create xft drawable */
-  if (!(xft_draw = XftDrawCreate (DisplayManager::Instance()->get_display(), mon_itr->pixmap, visual_ptr , colormap))) {
+  if (!(xft_draw = (DisplayManager::Instance()->xft_draw_create(mon_itr->pixmap, visual_ptr, colormap)))) {
     fprintf(stderr, "Couldn't create xft drawable\n");
   }
 
@@ -881,7 +882,7 @@ parse (char *text)
             }
 
             XftDrawDestroy (xft_draw);
-            if (!(xft_draw = XftDrawCreate (DisplayManager::Instance()->get_display(), mon_itr->pixmap, visual_ptr , colormap ))) {
+            if (!(xft_draw = DisplayManager::Instance()->xft_draw_create(mon_itr->pixmap, visual_ptr , colormap ))) {
               fprintf(stderr, "Couldn't create xft drawable\n");
             }
 
@@ -1012,7 +1013,7 @@ font_load (const char *pattern, int offset)
       memcpy(ret.width_lut, xcb_query_font_char_infos(font_info), lut_size);
     }
     free(font_info);
-  } else if ((ret.xft_ft = XftFontOpenName (DisplayManager::Instance()->get_display(), scr_nbr, pattern))) {
+  } else if ((ret.xft_ft = DisplayManager::Instance()->xft_font_open_name(scr_nbr, pattern))) {
     ret.ptr = 0;
     ret.ascent = ret.xft_ft->ascent;
     ret.descent = ret.xft_ft->descent;
@@ -1247,7 +1248,7 @@ get_visual ()
   xv.depth = 32;
   int result = 0;
   XVisualInfo* result_ptr = nullptr; 
-  result_ptr = XGetVisualInfo(DisplayManager::Instance()->get_display(), VisualDepthMask, &xv, &result);
+  result_ptr = DisplayManager::Instance()->get_visual_info(VisualDepthMask, &xv, &result);
 
   if (result > 0) {
     visual_ptr = result_ptr->visual;
@@ -1255,19 +1256,19 @@ get_visual ()
   }
 
   //Fallback
-  visual_ptr = DefaultVisual(DisplayManager::Instance()->get_display(), scr_nbr);
+  visual_ptr = DisplayManager::Instance()->xft_default_visual(scr_nbr);
   return scr->root_visual;
 }
 
 void
 xconn ()
 {
-  if ((c = XGetXCBConnection(DisplayManager::Instance()->get_display())) == nullptr) {
+  if ((c = DisplayManager::Instance()->get_xcb_connection()) == nullptr) {
     fprintf (stderr, "Couldnt connect to X\n");
     exit (EXIT_FAILURE);
   }
 
-  XSetEventQueueOwner(DisplayManager::Instance()->get_display(), XCBOwnsEventQueue);
+  DisplayManager::Instance()->set_event_queue_order(XCBOwnsEventQueue);
 
   if (xcb_connection_has_error(c)) {
     fprintf(stderr, "Couldn't connect to X\n");
@@ -1380,7 +1381,7 @@ init ()
   uint32_t nfgc = *fgc.val() & 0x00ffffff;
   snprintf(color, sizeof(color), "#%06X", nfgc);
 
-  if (!XftColorAllocName (DisplayManager::Instance()->get_display(), visual_ptr, colormap, color, &sel_fg)) {
+  if (!DisplayManager::Instance()->xft_color_alloc_name(visual_ptr, colormap, color, &sel_fg)) {
     fprintf(stderr, "Couldn't allocate xft font color '%s'\n", color);
   }
   xcb_flush(c);
@@ -1390,6 +1391,7 @@ void
 cleanup ()
 {
   for (const auto& font : fonts) {
+    // replace with ResourceManager::Instance()->font_close(font);
     if (font.xft_ft) {
       XftFontClose (DisplayManager::Instance()->get_display(), font.xft_ft);
     }
@@ -1404,7 +1406,7 @@ cleanup ()
     xcb_free_pixmap(c, mon.pixmap);
   }
 
-  XftColorFree(DisplayManager::Instance()->get_display(), visual_ptr, colormap, &sel_fg);
+  DisplayManager::Instance()->xft_color_free(visual_ptr, colormap, &sel_fg);
 
   if (gc[GC_DRAW])
     xcb_free_gc(c, gc[GC_DRAW]);

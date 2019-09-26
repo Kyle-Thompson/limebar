@@ -122,3 +122,56 @@ Window DisplayManager::get_default_root_window() {
 Display* DisplayManager::get_display() {
   return display;
 }
+
+xcb_connection_t *
+DisplayManager::get_xcb_connection() {
+  return XGetXCBConnection(display);
+}
+
+void
+DisplayManager::set_event_queue_order(enum XEventQueueOwner owner) {
+  XSetEventQueueOwner(display, owner);
+}
+
+bool
+DisplayManager::xft_color_alloc_name(_Xconst Visual *visual, Colormap cmap, _Xconst char *name, XftColor *result) {
+  return XftColorAllocName(display, visual, cmap, name, result);
+}
+
+XftDraw *
+DisplayManager::xft_draw_create(Drawable drawable, Visual *visual, Colormap colormap) {
+  return XftDrawCreate(display, drawable, visual, colormap);
+}
+
+XftFont *
+DisplayManager::xft_font_open_name(int screen, _Xconst char *name) {
+  return XftFontOpenName(display, screen, name);
+}
+
+void
+DisplayManager::xft_color_free(Visual *visual, Colormap cmap, XftColor *color) {
+  XftColorFree(display, visual, cmap, color);
+}
+
+Visual *
+DisplayManager::xft_default_visual(int screen) {
+  return DefaultVisual(display, screen);
+}
+
+/* int */
+/* DisplayManager::xft_char_width(uint16_t ch, XftFont *xft_ft) { */
+/*   int slot = xft_char_width_slot(ch); */
+/*   if (!xft_char[slot]) { */
+/*     XGlyphInfo gi; */
+/*     FT_UInt glyph = XftCharIndex (display, xft_ft, (FcChar32) ch); */
+/*     XftFontLoadGlyphs (display, xft_ft, FcFalse, &glyph, 1); */
+/*     XftGlyphExtents (display, xft_ft, &glyph, 1, &gi); */
+/*     XftFontUnloadGlyphs (display, xft_ft, &glyph, 1); */
+/*     xft_char[slot] = ch; */
+/*     xft_width[slot] = gi.xOff; */
+/*     return gi.xOff; */
+/*   } else if (xft_char[slot] == ch) */
+/*     return xft_width[slot]; */
+/*   else */
+/*     return 0; */
+/* } */
