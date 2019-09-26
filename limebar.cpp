@@ -527,7 +527,7 @@ draw_char (monitor_t *mon, font_t *cur_font, int x, int align, uint16_t ch)
 
   x = shift(mon, x, align, ch_width);
 
-  int y = BAR_HEIGHT / 2 + cur_font->height / 2- cur_font->descent + fonts[font_index].offset;
+  int y = BAR_HEIGHT / 2 + cur_font->height / 2 - cur_font->descent + fonts[font_index].offset;
   if (cur_font->xft_ft) {
     XftDrawString16 (xft_draw, &sel_fg, cur_font->xft_ft, x,y, &ch, 1);
   } else {
@@ -590,9 +590,9 @@ parse_color (const char *str, char **end)
   switch (string_len) {
     case 3:
       // Expand the #rgb format into #rrggbb (aa is set to 0xff)
-      tmp.set((   *tmp.val() & 0xf00) * 0x1100
-               | (*tmp.val() & 0x0f0) * 0x0110
-               | (*tmp.val() & 0x00f) * 0x0011);
+      tmp.set((*tmp.val() & 0xf00) * 0x1100
+            | (*tmp.val() & 0x0f0) * 0x0110
+            | (*tmp.val() & 0x00f) * 0x0011);
       [[fallthrough]];
     case 6:
       // If the code is in #rrggbb form then assume it's opaque
