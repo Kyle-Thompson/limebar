@@ -652,6 +652,7 @@ area_get (xcb_window_t win, const int btn, const int x)
   auto pred = [&](area_t a) {
     return (a.window == win && a.button == btn && x >= a.begin && x < a.end);
   };
+  // TODO: binary search?
   auto itr = std::find_if(areas.rbegin(), areas.rend(), pred);
   return (itr != areas.rend()) ? std::optional<area_t>{*itr} : std::nullopt;
 }
