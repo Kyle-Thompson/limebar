@@ -7,6 +7,8 @@
  * - Find more ergonomic way to reference singletons.
  * - Add more functions into DisplayManager singleton. Too many raw calls
  *   happening here that should be members.
+ * - Bitmap fonts seem to be deprecated. Figure out how to get correct
+ *   formatting with TTF.
  */
 
 #include "DisplayManager.h"
@@ -349,14 +351,13 @@ class mod_clock : public module {
   void update() {
     time_t t = time(NULL);
     struct tm* local = localtime(&t);
-    // TODO: optimize for the fixed size nature of this string.
-    std::stringstream ss;
-    // TODO: always show a 2 digit hour
-    ss << "%{F#257fad}" << local->tm_hour << ':' << local->tm_min << "%{F#7ea2b4}"
-       << " " << months[local->tm_mon] << " " << local->tm_mday;
-    set(ss.str());
+    snprintf(clock_str, 35, "%%{F#257fad}%02d:%02d%%{F#7ea2b4} %s %02d",
+        local->tm_hour, local->tm_min, months[local->tm_mon], local->tm_mday);
+    clock_str[34] = '\0';
+    set(clock_str);
   }
 
+  char clock_str[35];
   static constexpr std::array<const char*, 12> months {
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", };
