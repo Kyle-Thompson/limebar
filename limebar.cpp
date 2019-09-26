@@ -159,7 +159,7 @@ class module {
     std::lock_guard<std::mutex> g(_mutex);
     return _str;
   }
-  void operator()(int) {  // TODO: remove param
+  void operator()() {
     update();
     while (true) {
       trigger();
@@ -1496,7 +1496,7 @@ main ()
   std::vector<std::thread> threads;
   for (const auto& mod : modules) {
     // TODO: find way to clean up threads
-    threads.emplace_back(std::ref(*mod.second), 0);
+    threads.emplace_back(std::ref(*mod.second));
   }
 
   main_loop();
