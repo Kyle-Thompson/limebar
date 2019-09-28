@@ -116,7 +116,7 @@ static constexpr int UNDERLINE_HEIGHT = 1;
 
 // font name, y offset
 static std::array<std::tuple<const char*, int>, 1> FONTS = {
-  std::make_tuple("Gohu GohuFont", 0) };
+  std::make_tuple("-gohu-gohufont-medium-r-normal--11-80-100-100-c-60-iso10646-1", 0) };
 
 
 static std::vector<monitor_t> monitors;
@@ -301,11 +301,15 @@ class mod_workspaces : public module {
     unsigned long desktop_list_size = 0;
     Window root = DisplayManager::Instance()->get_default_root_window();
 
-    unsigned long *num_desktops = (unsigned long *)DisplayManager::Instance()->get_property(root, XA_CARDINAL, "_NET_NUMBER_OF_DESKTOPS", NULL);
-
-    unsigned long *cur_desktop = (unsigned long *)DisplayManager::Instance()->get_property(root, XA_CARDINAL, "_NET_CURRENT_DESKTOP", NULL);
-
-    char *list = DisplayManager::Instance()->get_property(root, DisplayManager::Instance()->get_intern_atom(), "_NET_DESKTOP_NAMES", &desktop_list_size);
+    unsigned long *num_desktops =
+      (unsigned long *)DisplayManager::Instance()->get_property(root,
+          XA_CARDINAL, "_NET_NUMBER_OF_DESKTOPS", NULL);
+    unsigned long *cur_desktop =
+      (unsigned long *)DisplayManager::Instance()->get_property(root,
+          XA_CARDINAL, "_NET_CURRENT_DESKTOP", NULL);
+    char *list = DisplayManager::Instance()->get_property(root,
+        DisplayManager::Instance()->get_intern_atom(),
+        "_NET_DESKTOP_NAMES", &desktop_list_size);
 
     /* prepare the array of desktop names */
     char **names = (char **) malloc(*num_desktops * sizeof(char *));
