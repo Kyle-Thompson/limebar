@@ -60,12 +60,6 @@ struct font_t {
   int offset;
 };
 
-struct monitor_t {
-  int x, y, width;
-  xcb_window_t window;
-  xcb_pixmap_t pixmap;
-};
-
 struct area_t {
   uint16_t begin;
   uint16_t end;
@@ -89,6 +83,31 @@ struct rgba_t {
   uint32_t* val() { return reinterpret_cast<uint32_t*>(this); }
 };
 
+struct Monitor {
+  Monitor(int x, int y, int width, int height, xcb_connection_t *conn, xcb_screen_t *scr, xcb_visualid_t visual, rgba_t bgc, xcb_colormap_t colormap)
+    : _x(x)
+    , _y((TOPBAR ? BAR_Y_OFFSET : height - BAR_HEIGHT - BAR_Y_OFFSET) + y)
+    , _width(width)
+    , _window(xcb_generate_id(conn))
+    , _pixmap(xcb_generate_id(conn))
+  {
+    int depth = (visual == scr->root_visual) ? XCB_COPY_FROM_PARENT : 32;
+    const uint32_t mask[] { *bgc.val(), *bgc.val(), FORCE_DOCK,
+      XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE, colormap };
+    xcb_create_window(conn, depth, _window, scr->root,
+        _x, _y, _width, BAR_HEIGHT, 0,
+        XCB_WINDOW_CLASS_INPUT_OUTPUT, visual,
+        XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL | XCB_CW_OVERRIDE_REDIRECT | XCB_CW_EVENT_MASK | XCB_CW_COLORMAP,
+        mask);
+
+    xcb_create_pixmap(conn, depth, _pixmap, _window, _width, BAR_HEIGHT);
+  }
+
+  int _x, _y, _width;
+  xcb_window_t _window;
+  xcb_pixmap_t _pixmap;
+};
+
 enum {
   ATTR_OVERL = (1<<0),
   ATTR_UNDERL = (1<<1),
@@ -108,7 +127,7 @@ enum {
 };
 
 
-static std::vector<monitor_t> monitors;
+static std::vector<Monitor> monitors;
 
 static std::mutex mutex;
 static std::condition_variable condvar;
@@ -461,49 +480,49 @@ xft_char_width (uint16_t ch, font_t *cur_font)
 }
 
 int
-shift (monitor_t *mon, int x, int align, int ch_width)
+shift (Monitor *mon, int x, int align, int ch_width)
 {
   switch (align) {
     case ALIGN_C:
-      xcb_copy_area(c, mon->pixmap, mon->pixmap, gc[GC_DRAW],
-          mon->width / 2 - x / 2, 0,
-          mon->width / 2 - (x + ch_width) / 2, 0,
+      xcb_copy_area(c, mon->_pixmap, mon->_pixmap, gc[GC_DRAW],
+          mon->_width / 2 - x / 2, 0,
+          mon->_width / 2 - (x + ch_width) / 2, 0,
           x, BAR_HEIGHT);
-      x = mon->width / 2 - (x + ch_width) / 2 + x;
+      x = mon->_width / 2 - (x + ch_width) / 2 + x;
       break;
     case ALIGN_R:
-      xcb_copy_area(c, mon->pixmap, mon->pixmap, gc[GC_DRAW],
-          mon->width - x, 0,
-          mon->width - x - ch_width, 0,
+      xcb_copy_area(c, mon->_pixmap, mon->_pixmap, gc[GC_DRAW],
+          mon->_width - x, 0,
+          mon->_width - x - ch_width, 0,
           x, BAR_HEIGHT);
-      x = mon->width - ch_width;
+      x = mon->_width - ch_width;
       break;
   }
 
   /* Draw the background first */
-  fill_rect(mon->pixmap, gc[GC_CLEAR], x, 0, ch_width, BAR_HEIGHT);
+  fill_rect(mon->_pixmap, gc[GC_CLEAR], x, 0, ch_width, BAR_HEIGHT);
   return x;
 }
 
 void
-draw_lines (monitor_t *mon, int x, int w)
+draw_lines (Monitor *mon, int x, int w)
 {
   /* We can render both at the same time */
   if (attrs & ATTR_OVERL)
-    fill_rect(mon->pixmap, gc[GC_ATTR], x, 0, w, UNDERLINE_HEIGHT);
+    fill_rect(mon->_pixmap, gc[GC_ATTR], x, 0, w, UNDERLINE_HEIGHT);
   if (attrs & ATTR_UNDERL)
-    fill_rect(mon->pixmap, gc[GC_ATTR], x, BAR_HEIGHT - UNDERLINE_HEIGHT, w, UNDERLINE_HEIGHT);
+    fill_rect(mon->_pixmap, gc[GC_ATTR], x, BAR_HEIGHT - UNDERLINE_HEIGHT, w, UNDERLINE_HEIGHT);
 }
 
 void
-draw_shift (monitor_t *mon, int x, int align, int w)
+draw_shift (Monitor *mon, int x, int align, int w)
 {
   x = shift(mon, x, align, w);
   draw_lines(mon, x, w);
 }
 
 int
-draw_char (monitor_t *mon, font_t *cur_font, int x, int align, uint16_t ch)
+draw_char (Monitor *mon, font_t *cur_font, int x, int align, uint16_t ch)
 {
   int ch_width;
 
@@ -525,7 +544,7 @@ draw_char (monitor_t *mon, font_t *cur_font, int x, int align, uint16_t ch)
     ch = (ch >> 8) | (ch << 8);
 
     // The coordinates here are those of the baseline
-    xcb_poly_text_16_simple(c, mon->pixmap, gc[GC_DRAW],
+    xcb_poly_text_16_simple(c, mon->_pixmap, gc[GC_DRAW],
         x, y,
         1, &ch);
   }
@@ -664,7 +683,7 @@ area_shift (xcb_window_t win, const int align, int delta)
 }
 
 bool
-area_add (char *str, const char *optend, char **end, monitor_t *mon, const uint16_t x, const int8_t align, const uint8_t button)
+area_add (char *str, const char *optend, char **end, Monitor *mon, const uint16_t x, const int8_t align, const uint8_t button)
 {
   // A wild close area tag appeared!
   if (*str != ':') {
@@ -676,7 +695,7 @@ area_add (char *str, const char *optend, char **end, monitor_t *mon, const uint1
       ++ritr;
 
     // Basic safety checks
-    if (!ritr->cmd || ritr->align != align || ritr->window != mon->window) {
+    if (!ritr->cmd || ritr->align != align || ritr->window != mon->_window) {
       fprintf(stderr, "Invalid geometry for the clickable area\n");
       return false;
     }
@@ -687,13 +706,13 @@ area_add (char *str, const char *optend, char **end, monitor_t *mon, const uint1
         ritr->end = x;
         break;
       case ALIGN_C:
-        ritr->begin = mon->width / 2 - size / 2 + ritr->begin / 2;
+        ritr->begin = mon->_width / 2 - size / 2 + ritr->begin / 2;
         ritr->end = ritr->begin + size;
         break;
       case ALIGN_R:
         // The newest is the rightmost one
-        ritr->begin = mon->width - size;
-        ritr->end = mon->width;
+        ritr->begin = mon->_width - size;
+        ritr->end = mon->_width;
         break;
     }
 
@@ -728,7 +747,7 @@ area_add (char *str, const char *optend, char **end, monitor_t *mon, const uint1
     .active = true,
     .align = align,
     .button = button,
-    .window = mon->window,
+    .window = mon->_window,
     .cmd = str,
   });
 
@@ -785,11 +804,11 @@ parse (char *text)
 
   areas.clear();
 
-  for (const monitor_t& m : monitors)
-    fill_rect(m.pixmap, gc[GC_CLEAR], 0, 0, m.width, BAR_HEIGHT);
+  for (const Monitor& m : monitors)
+    fill_rect(m._pixmap, gc[GC_CLEAR], 0, 0, m._width, BAR_HEIGHT);
 
   /* Create xft drawable */
-  if (!(xft_draw = (DisplayManager::Instance()->xft_draw_create(mon_itr->pixmap, visual_ptr, colormap)))) {
+  if (!(xft_draw = (DisplayManager::Instance()->xft_draw_create(mon_itr->_pixmap, visual_ptr, colormap)))) {
     fprintf(stderr, "Couldn't create xft drawable\n");
   }
 
@@ -850,7 +869,7 @@ parse (char *text)
             }
 
             XftDrawDestroy (xft_draw);
-            if (!(xft_draw = DisplayManager::Instance()->xft_draw_create(mon_itr->pixmap, visual_ptr , colormap ))) {
+            if (!(xft_draw = DisplayManager::Instance()->xft_draw_create(mon_itr->_pixmap, visual_ptr , colormap ))) {
               fprintf(stderr, "Couldn't create xft drawable\n");
             }
 
@@ -866,7 +885,7 @@ parse (char *text)
             draw_shift(&*mon_itr, pos_x, align, w);
 
             pos_x += w;
-            area_shift(mon_itr->window, align, w);
+            area_shift(mon_itr->_window, align, w);
             break;
 
           case 'T':
@@ -943,7 +962,7 @@ parse (char *text)
       int w = draw_char(&*mon_itr, cur_font, pos_x, align, ucs);
 
       pos_x += w;
-      area_shift(mon_itr->window, align, w);
+      area_shift(mon_itr->_window, align, w);
     }
   }
   XftDrawDestroy (xft_draw);
@@ -1045,46 +1064,22 @@ set_ewmh_atoms ()
     int strut[12] = {0};
     if (TOPBAR) {
       strut[2] = BAR_HEIGHT;
-      strut[8] = mon.x;
-      strut[9] = mon.x + mon.width;
+      strut[8] = mon._x;
+      strut[9] = mon._x + mon._width;
     } else {
       strut[3]  = BAR_HEIGHT;
-      strut[10] = mon.x;
-      strut[11] = mon.x + mon.width;
+      strut[10] = mon._x;
+      strut[11] = mon._x + mon._width;
     }
 
-    xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon.window, atom_list[NET_WM_WINDOW_TYPE], XCB_ATOM_ATOM, 32, 1, &atom_list[NET_WM_WINDOW_TYPE_DOCK]);
-    xcb_change_property(c, XCB_PROP_MODE_APPEND,  mon.window, atom_list[NET_WM_STATE], XCB_ATOM_ATOM, 32, 2, &atom_list[NET_WM_STATE_STICKY]);
-    xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon.window, atom_list[NET_WM_DESKTOP], XCB_ATOM_CARDINAL, 32, 1, (const uint32_t []) { 0u - 1u } );
-    xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon.window, atom_list[NET_WM_STRUT_PARTIAL], XCB_ATOM_CARDINAL, 32, 12, strut);
-    xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon.window, atom_list[NET_WM_STRUT], XCB_ATOM_CARDINAL, 32, 4, strut);
-    xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon.window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, 3, "bar");
-    xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon.window, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, 12, "lemonbar\0Bar");
+    xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon._window, atom_list[NET_WM_WINDOW_TYPE], XCB_ATOM_ATOM, 32, 1, &atom_list[NET_WM_WINDOW_TYPE_DOCK]);
+    xcb_change_property(c, XCB_PROP_MODE_APPEND,  mon._window, atom_list[NET_WM_STATE], XCB_ATOM_ATOM, 32, 2, &atom_list[NET_WM_STATE_STICKY]);
+    xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon._window, atom_list[NET_WM_DESKTOP], XCB_ATOM_CARDINAL, 32, 1, (const uint32_t []) { 0u - 1u } );
+    xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon._window, atom_list[NET_WM_STRUT_PARTIAL], XCB_ATOM_CARDINAL, 32, 12, strut);
+    xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon._window, atom_list[NET_WM_STRUT], XCB_ATOM_CARDINAL, 32, 4, strut);
+    xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon._window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, 3, "bar");
+    xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon._window, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, 12, "lemonbar\0Bar");
   }
-}
-
-monitor_t
-monitor_new (int x, int y, int width, int height)
-{
-  monitor_t ret;
-
-  ret.x = x;
-  ret.y = (TOPBAR ? BAR_Y_OFFSET : height - BAR_HEIGHT - BAR_Y_OFFSET) + y;
-  ret.width = width;
-  ret.window = xcb_generate_id(c);
-  int depth = (visual == scr->root_visual) ? XCB_COPY_FROM_PARENT : 32;
-  const uint32_t mask[] { *bgc.val(), *bgc.val(), FORCE_DOCK,
-    XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE, colormap };
-  xcb_create_window(c, depth, ret.window, scr->root,
-      ret.x, ret.y, width, BAR_HEIGHT, 0,
-      XCB_WINDOW_CLASS_INPUT_OUTPUT, visual,
-      XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL | XCB_CW_OVERRIDE_REDIRECT | XCB_CW_EVENT_MASK | XCB_CW_COLORMAP,
-      mask);
-
-  ret.pixmap = xcb_generate_id(c);
-  xcb_create_pixmap(c, depth, ret.pixmap, ret.window, width, BAR_HEIGHT);
-
-  return ret;
 }
 
 void
@@ -1121,11 +1116,17 @@ monitor_create_chain (std::vector<xcb_rectangle_t>& rects)
     if (rect.y + rect.height < BAR_Y_OFFSET)
       continue;
     if (rect.width > left) {
-      monitors.emplace_back(monitor_new(
+      monitors.emplace_back(
           rect.x + left,
           rect.y,
           std::min(width, rect.width - left),
-          rect.height));
+          rect.height,
+          c,
+          scr,
+          visual,
+          bgc,
+          colormap
+          );
 
       width -= rect.width - left;
       // No need to check for other monitors
@@ -1301,7 +1302,7 @@ init ()
     }
 
     // If no RandR outputs, fall back to using whole screen
-    monitors.emplace_back(monitor_new(0, 0, BAR_WIDTH, scr->height_in_pixels));
+    monitors.emplace_back(0, 0, BAR_WIDTH, scr->height_in_pixels, c, scr, visual, bgc, colormap);
   }
 
   // For WM that support EWMH atoms
@@ -1309,27 +1310,27 @@ init ()
 
   // Create the gc for drawing
   gc[GC_DRAW] = xcb_generate_id(c);
-  xcb_create_gc(c, gc[GC_DRAW], monitors.begin()->pixmap, XCB_GC_FOREGROUND, fgc.val());
+  xcb_create_gc(c, gc[GC_DRAW], monitors.begin()->_pixmap, XCB_GC_FOREGROUND, fgc.val());
 
   gc[GC_CLEAR] = xcb_generate_id(c);
-  xcb_create_gc(c, gc[GC_CLEAR], monitors.begin()->pixmap, XCB_GC_FOREGROUND, bgc.val());
+  xcb_create_gc(c, gc[GC_CLEAR], monitors.begin()->_pixmap, XCB_GC_FOREGROUND, bgc.val());
 
   gc[GC_ATTR] = xcb_generate_id(c);
-  xcb_create_gc(c, gc[GC_ATTR], monitors.begin()->pixmap, XCB_GC_FOREGROUND, ugc.val());
+  xcb_create_gc(c, gc[GC_ATTR], monitors.begin()->_pixmap, XCB_GC_FOREGROUND, ugc.val());
 
   // Make the bar visible and clear the pixmap
   for (const auto& mon : monitors) {
-    fill_rect(mon.pixmap, gc[GC_CLEAR], 0, 0, mon.width, BAR_HEIGHT);
-    xcb_map_window(c, mon.window);
+    fill_rect(mon._pixmap, gc[GC_CLEAR], 0, 0, mon._width, BAR_HEIGHT);
+    xcb_map_window(c, mon._window);
 
     // Make sure that the window really gets in the place it's supposed to be
     // Some WM such as Openbox need this
-    const uint32_t xy[] { static_cast<uint32_t>(mon.x), static_cast<uint32_t>(mon.y) };
-    xcb_configure_window(c, mon.window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, xy);
+    const uint32_t xy[] { static_cast<uint32_t>(mon._x), static_cast<uint32_t>(mon._y) };
+    xcb_configure_window(c, mon._window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, xy);
 
     // Set the WM_NAME atom to the user specified value
     if constexpr (WM_NAME != nullptr)
-      xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon.window,
+      xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon._window,
           XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, strlen(WM_NAME), WM_NAME);
 
     // set the WM_CLASS atom instance to the executable name
@@ -1341,7 +1342,7 @@ init ()
       strncpy(wm_class, WM_CLASS.data(), WM_CLASS.size());
       strcpy(wm_class + WM_CLASS.size(), "\0Bar");
 
-      xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon.window, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, size, wm_class);
+      xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon._window, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, size, wm_class);
     }
   }
 
@@ -1370,8 +1371,8 @@ cleanup ()
   }
 
   for (const auto& mon : monitors) {
-    xcb_destroy_window(c, mon.window);
-    xcb_free_pixmap(c, mon.pixmap);
+    xcb_destroy_window(c, mon._window);
+    xcb_free_pixmap(c, mon._pixmap);
   }
 
   DisplayManager::Instance()->xft_color_free(visual_ptr, colormap, &sel_fg);
@@ -1452,7 +1453,7 @@ main_loop() {
 
     if (redraw) { // Copy our temporary pixmap onto the window
       for (const auto& mon : monitors) {
-        xcb_copy_area(c, mon.pixmap, mon.window, gc[GC_DRAW], 0, 0, 0, 0, mon.width, BAR_HEIGHT);
+        xcb_copy_area(c, mon._pixmap, mon._window, gc[GC_DRAW], 0, 0, 0, 0, mon._width, BAR_HEIGHT);
       }
     }
 
