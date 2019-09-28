@@ -47,17 +47,17 @@
 #include <X11/Xatom.h>
 
 struct font_t {
-  xcb_font_t ptr;
-  xcb_charinfo_t *width_lut;
+  xcb_font_t ptr { 0 };
+  xcb_charinfo_t *width_lut { nullptr };
 
-  XftFont *xft_ft;
+  XftFont *xft_ft { nullptr };
 
-  int ascent;
+  int ascent { 0 };
 
-  int descent, height, width;
-  uint16_t char_max;
-  uint16_t char_min;
-  int offset;
+  int descent { 0 }, height { 0 }, width { 0 };
+  uint16_t char_max { 0 };
+  uint16_t char_min { 0 };
+  int offset { 0 };
 };
 
 struct area_t {
