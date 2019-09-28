@@ -33,7 +33,6 @@
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <poll.h>
 #include <sstream>
 #include <string>
 #include <thread>
