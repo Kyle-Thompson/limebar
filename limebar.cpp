@@ -1480,9 +1480,6 @@ main ()
   // Do the heavy lifting
   init();
 
-  // Prevent fgets to block
-  fcntl(STDIN_FILENO, F_SETFL, O_NONBLOCK);
-
   std::vector<std::thread> threads;
   for (const auto& mod : modules) {
     // TODO: find way to clean up threads
