@@ -103,6 +103,11 @@ struct Monitor {
     xcb_create_pixmap(conn, depth, _pixmap, _window, _width, BAR_HEIGHT);
   }
 
+  ~Monitor() {
+    // DisplayManager::Instance()->xcb_destroy_window(_window);
+    // DisplayManager::Instance()->xcb_destroy_window(_pixmap);
+  }
+
   int _x, _y, _width;
   xcb_window_t _window;
   xcb_pixmap_t _pixmap;
