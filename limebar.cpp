@@ -134,7 +134,7 @@ enum {
 
 static std::vector<Monitor> monitors;
 
-static std::mutex mutex;
+static std::mutex module_mutex;
 static std::condition_variable condvar;
 
 static xcb_connection_t *c;
@@ -1417,7 +1417,7 @@ main_loop() {
     // won't get seen since we're stuck here waiting for this condvar. Maybe
     // separate into two different threads with a condvar of its own to sync.
     {
-      std::unique_lock<std::mutex> lock(mutex);
+      std::unique_lock<std::mutex> lock(module_mutex);
       condvar.wait(lock);
 
       std::stringstream ss;
