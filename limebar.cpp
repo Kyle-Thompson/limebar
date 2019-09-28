@@ -12,6 +12,7 @@
  * - Use static polymorphism with modules.
  */
 
+#include "config.h"
 #include "DisplayManager.h"
 
 #include <algorithm>
@@ -106,18 +107,6 @@ enum {
   GC_ATTR,
   GC_MAX
 };
-
-// user configs
-static constexpr bool TOPBAR = true;
-static constexpr bool FORCE_DOCK = false;
-static constexpr int BAR_WIDTH = 5760, BAR_HEIGHT = 20, BAR_X_OFFSET = 0, BAR_Y_OFFSET = 0;
-static constexpr const char* WM_NAME = nullptr;
-static constexpr std::string_view WM_CLASS = "limebar";
-static constexpr int UNDERLINE_HEIGHT = 1;
-
-// font name, y offset
-static std::array<std::tuple<const char*, int>, 1> FONTS = {
-  std::make_tuple("-gohu-gohufont-medium-r-normal--11-80-100-100-c-60-iso10646-1", 0) };
 
 
 static std::vector<monitor_t> monitors;
