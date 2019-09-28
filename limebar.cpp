@@ -1402,20 +1402,14 @@ sighandle (int signal)
 }
 
 void
-main_loop() {
+module_events() {
   char input[4096] = {0, };
-
   while (true) {
-    bool redraw = false;
-
     // If connection is in error state, then it has been shut down.
     if (xcb_connection_has_error(c))
       break;
 
     // a module has changed and the bar needs to be redrawn
-    // TODO: also check for click events while waiting. currently bar events
-    // won't get seen since we're stuck here waiting for this condvar. Maybe
-    // separate into two different threads with a condvar of its own to sync.
     {
       std::unique_lock<std::mutex> lock(module_mutex);
       condvar.wait(lock);
@@ -1439,11 +1433,27 @@ main_loop() {
       strncpy(input, full_bar_str.c_str(), full_bar_str.size());
       input[full_bar_str.size()] = '\0';
       parse(input);
-      redraw = true;
     }
 
+    for (const auto& mon : monitors) {
+      xcb_copy_area(c, mon._pixmap, mon._window, gc[GC_DRAW], 0, 0, 0, 0, mon._width, BAR_HEIGHT);
+    }
+
+    xcb_flush(c);
+  }
+}
+
+void
+bar_events() {
+  while (true) {
+    bool redraw = false;
+
+    // If connection is in error state, then it has been shut down.
+    if (xcb_connection_has_error(c))
+      break;
+
     // handle bar related events
-    for (xcb_generic_event_t *ev; (ev = xcb_poll_for_event(c)); free(ev)) {
+    for (xcb_generic_event_t *ev; (ev = xcb_wait_for_event(c)); free(ev)) {
       switch (ev->response_type & 0x7F) {
         case XCB_EXPOSE:
           redraw = reinterpret_cast<xcb_expose_event_t*>(ev)->count == 0;
@@ -1488,11 +1498,14 @@ main ()
 
   std::vector<std::thread> threads;
   for (const auto& mod : modules) {
-    // TODO: find way to clean up threads
     threads.emplace_back(std::ref(*mod.second));
   }
+  threads.emplace_back(bar_events);
+  threads.emplace_back(module_events);
 
-  main_loop();
+  for (std::thread& thread : threads) {
+    thread.join();
+  }
 
   return EXIT_SUCCESS;
 }
