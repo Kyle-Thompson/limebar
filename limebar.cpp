@@ -444,22 +444,18 @@ xcb_poly_text_16_simple(xcb_connection_t * c, xcb_drawable_t drawable,
   return xcb_ret;
 }
 
-
-int
-xft_char_width_slot (uint16_t ch)
-{
-  int slot = ch % MAX_WIDTHS;
-  while (xft_char[slot] != 0 && xft_char[slot] != ch)
-  {
-    slot = (slot + 1) % MAX_WIDTHS;
-  }
-  return slot;
-}
-
 int
 xft_char_width (uint16_t ch, font_t *cur_font)
 {
-  int slot = xft_char_width_slot(ch);
+  const int slot = [](uint16_t ch) {
+    int slot = ch % MAX_WIDTHS;
+    while (xft_char[slot] != 0 && xft_char[slot] != ch)
+    {
+      slot = (slot + 1) % MAX_WIDTHS;
+    }
+    return slot;
+  }(ch);
+
   if (!xft_char[slot]) {
     XGlyphInfo gi;
     FT_UInt glyph = XftCharIndex (DisplayManager::Instance()->get_display(), cur_font->xft_ft, (FcChar32) ch);
