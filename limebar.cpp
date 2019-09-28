@@ -9,6 +9,7 @@
  *   happening here that should be members.
  * - Bitmap fonts seem to be deprecated. Figure out how to get correct
  *   formatting with TTF.
+ * - Use static polymorphism with modules.
  */
 
 #include "DisplayManager.h"
