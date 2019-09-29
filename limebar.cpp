@@ -13,6 +13,7 @@
 #include "config.h"
 #include "DisplayManager.h"
 #include "fonts.h"
+#include "x.h"
 
 #include <algorithm>
 #include <cctype>
@@ -71,23 +72,23 @@ struct rgba_t {
 
 struct monitor_t {
   // TODO: simplify constructor with internal references to singletons
-  monitor_t(int x, int y, int width, int height, xcb_connection_t *conn, xcb_screen_t *scr, xcb_visualid_t visual, rgba_t bgc, xcb_colormap_t colormap)
+  monitor_t(int x, int y, int width, int height, xcb_screen_t *scr, xcb_visualid_t visual, rgba_t bgc, xcb_colormap_t colormap)
     : _x(x)
     , _y((TOPBAR ? BAR_Y_OFFSET : height - BAR_HEIGHT - BAR_Y_OFFSET) + y)
     , _width(width)
-    , _window(xcb_generate_id(conn))
-    , _pixmap(xcb_generate_id(conn))
+    , _window(X::Instance()->generate_id())
+    , _pixmap(X::Instance()->generate_id())
   {
     int depth = (visual == scr->root_visual) ? XCB_COPY_FROM_PARENT : 32;
     const uint32_t mask[] { *bgc.val(), *bgc.val(), FORCE_DOCK,
       XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE, colormap };
-    xcb_create_window(conn, depth, _window, scr->root,
+    xcb_create_window(X::Instance()->get_connection(), depth, _window, scr->root,
         _x, _y, _width, BAR_HEIGHT, 0,
         XCB_WINDOW_CLASS_INPUT_OUTPUT, visual,
         XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL | XCB_CW_OVERRIDE_REDIRECT | XCB_CW_EVENT_MASK | XCB_CW_COLORMAP,
         mask);
 
-    xcb_create_pixmap(conn, depth, _pixmap, _window, _width, BAR_HEIGHT);
+    xcb_create_pixmap(X::Instance()->get_connection(), depth, _pixmap, _window, _width, BAR_HEIGHT);
   }
 
   ~monitor_t() {
@@ -121,9 +122,6 @@ enum {
 
 static std::mutex module_mutex;
 static std::condition_variable condvar;
-
-static xcb_connection_t *c;
-static xcb_xrm_database_t *db;
 
 static xcb_screen_t *scr;
 static int scr_nbr = 0;
@@ -197,7 +195,6 @@ void Monitors::init(std::vector<xcb_rectangle_t>& rects)
           rect.y,
           std::min(width, rect.width - left),
           rect.height,
-          c,
           scr,
           visual,
           bgc,
@@ -447,9 +444,9 @@ static const auto modules = [] {
 void
 update_gc ()
 {
-  xcb_change_gc(c, gc[GC_DRAW], XCB_GC_FOREGROUND, fgc.val());
-  xcb_change_gc(c, gc[GC_CLEAR], XCB_GC_FOREGROUND, bgc.val());
-  xcb_change_gc(c, gc[GC_ATTR], XCB_GC_FOREGROUND, ugc.val());
+  xcb_change_gc(X::Instance()->get_connection(), gc[GC_DRAW], XCB_GC_FOREGROUND, fgc.val());
+  xcb_change_gc(X::Instance()->get_connection(), gc[GC_CLEAR], XCB_GC_FOREGROUND, bgc.val());
+  xcb_change_gc(X::Instance()->get_connection(), gc[GC_ATTR], XCB_GC_FOREGROUND, ugc.val());
   DisplayManager::Instance()->xft_color_free(visual_ptr, colormap, &sel_fg);
   char color[] = "#ffffff";
   uint32_t nfgc = *fgc.val() & 0x00ffffff;
@@ -463,7 +460,7 @@ void
 fill_rect (xcb_drawable_t d, xcb_gcontext_t _gc, int16_t x, int16_t y, uint16_t width, uint16_t height)
 {
   xcb_rectangle_t rect = { x, y, width, height };
-  xcb_poly_fill_rectangle(c, d, _gc, 1, &rect);
+  xcb_poly_fill_rectangle(X::Instance()->get_connection(), d, _gc, 1, &rect);
 }
 
 // Apparently xcb cannot seem to compose the right request for this call, hence we have to do it by
@@ -543,14 +540,14 @@ shift (monitor_t *mon, int x, int align, int ch_width)
 {
   switch (align) {
     case ALIGN_C:
-      xcb_copy_area(c, mon->_pixmap, mon->_pixmap, gc[GC_DRAW],
+      xcb_copy_area(X::Instance()->get_connection(), mon->_pixmap, mon->_pixmap, gc[GC_DRAW],
           mon->_width / 2 - x / 2, 0,
           mon->_width / 2 - (x + ch_width) / 2, 0,
           x, BAR_HEIGHT);
       x = mon->_width / 2 - (x + ch_width) / 2 + x;
       break;
     case ALIGN_R:
-      xcb_copy_area(c, mon->_pixmap, mon->_pixmap, gc[GC_DRAW],
+      xcb_copy_area(X::Instance()->get_connection(), mon->_pixmap, mon->_pixmap, gc[GC_DRAW],
           mon->_width - x, 0,
           mon->_width - x - ch_width, 0,
           x, BAR_HEIGHT);
@@ -603,7 +600,7 @@ draw_char (monitor_t *mon, font_t *cur_font, int x, int align, uint16_t ch)
     ch = (ch >> 8) | (ch << 8);
 
     // The coordinates here are those of the baseline
-    xcb_poly_text_16_simple(c, mon->_pixmap, gc[GC_DRAW],
+    xcb_poly_text_16_simple(X::Instance()->get_connection(), mon->_pixmap, gc[GC_DRAW],
         x, y,
         1, &ch);
   }
@@ -983,7 +980,7 @@ parse (char *text)
         continue;
 
       if(cur_font->ptr)
-        xcb_change_gc(c, gc[GC_DRAW] , XCB_GC_FONT, &cur_font->ptr);
+        xcb_change_gc(X::Instance()->get_connection(), gc[GC_DRAW] , XCB_GC_FONT, &cur_font->ptr);
       int w = draw_char(&*mon_itr, cur_font, pos_x, align, ucs);
 
       pos_x += w;
@@ -1026,11 +1023,11 @@ set_ewmh_atoms ()
   // As suggested fetch all the cookies first (yum!) and then retrieve the
   // atoms to exploit the async'ness
   std::transform(atom_names.begin(), atom_names.end(), atom_cookies.begin(), [](auto name){
-    return xcb_intern_atom(c, 0, strlen(name), name);
+    return xcb_intern_atom(X::Instance()->get_connection(), 0, strlen(name), name);
   });
 
   for (int i = 0; i < atom_names.size(); i++) {
-    atom_reply = xcb_intern_atom_reply(c, atom_cookies[i], nullptr);
+    atom_reply = xcb_intern_atom_reply(X::Instance()->get_connection(), atom_cookies[i], nullptr);
     if (!atom_reply)
       return;
     atom_list[i] = atom_reply->atom;
@@ -1050,13 +1047,13 @@ set_ewmh_atoms ()
       strut[11] = mon._x + mon._width;
     }
 
-    xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon._window, atom_list[NET_WM_WINDOW_TYPE], XCB_ATOM_ATOM, 32, 1, &atom_list[NET_WM_WINDOW_TYPE_DOCK]);
-    xcb_change_property(c, XCB_PROP_MODE_APPEND,  mon._window, atom_list[NET_WM_STATE], XCB_ATOM_ATOM, 32, 2, &atom_list[NET_WM_STATE_STICKY]);
-    xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon._window, atom_list[NET_WM_DESKTOP], XCB_ATOM_CARDINAL, 32, 1, (const uint32_t []) { 0u - 1u } );
-    xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon._window, atom_list[NET_WM_STRUT_PARTIAL], XCB_ATOM_CARDINAL, 32, 12, strut);
-    xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon._window, atom_list[NET_WM_STRUT], XCB_ATOM_CARDINAL, 32, 4, strut);
-    xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon._window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, 3, "bar");
-    xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon._window, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, 12, "lemonbar\0Bar");
+    X::Instance()->change_property(XCB_PROP_MODE_REPLACE, mon._window, atom_list[NET_WM_WINDOW_TYPE], XCB_ATOM_ATOM, 32, 1, &atom_list[NET_WM_WINDOW_TYPE_DOCK]);
+    X::Instance()->change_property(XCB_PROP_MODE_APPEND,  mon._window, atom_list[NET_WM_STATE], XCB_ATOM_ATOM, 32, 2, &atom_list[NET_WM_STATE_STICKY]);
+    X::Instance()->change_property(XCB_PROP_MODE_REPLACE, mon._window, atom_list[NET_WM_DESKTOP], XCB_ATOM_CARDINAL, 32, 1, (const uint32_t []) { 0u - 1u } );
+    X::Instance()->change_property(XCB_PROP_MODE_REPLACE, mon._window, atom_list[NET_WM_STRUT_PARTIAL], XCB_ATOM_CARDINAL, 32, 12, strut);
+    X::Instance()->change_property(XCB_PROP_MODE_REPLACE, mon._window, atom_list[NET_WM_STRUT], XCB_ATOM_CARDINAL, 32, 4, strut);
+    X::Instance()->change_property(XCB_PROP_MODE_REPLACE, mon._window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, 3, "bar");
+    X::Instance()->change_property(XCB_PROP_MODE_REPLACE, mon._window, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, 12, "lemonbar\0Bar");
   }
 }
 
@@ -1067,8 +1064,8 @@ get_randr_monitors ()
   xcb_randr_output_t *outputs;
   int num;
 
-  rres_reply = xcb_randr_get_screen_resources_current_reply(c,
-      xcb_randr_get_screen_resources_current(c, scr->root), nullptr);
+  rres_reply = xcb_randr_get_screen_resources_current_reply(X::Instance()->get_connection(),
+      xcb_randr_get_screen_resources_current(X::Instance()->get_connection(), scr->root), nullptr);
 
   if (!rres_reply) {
     fprintf(stderr, "Failed to get current randr screen resources\n");
@@ -1092,7 +1089,9 @@ get_randr_monitors ()
     xcb_randr_get_output_info_reply_t *oi_reply;
     xcb_randr_get_crtc_info_reply_t *ci_reply;
 
-    oi_reply = xcb_randr_get_output_info_reply(c, xcb_randr_get_output_info(c, outputs[i], XCB_CURRENT_TIME), nullptr);
+    oi_reply = xcb_randr_get_output_info_reply(X::Instance()->get_connection(),
+        xcb_randr_get_output_info(X::Instance()->get_connection(), outputs[i], XCB_CURRENT_TIME),
+        nullptr);
 
     // don't attach outputs that are disconnected or not attached to any CTRC
     if (!oi_reply || oi_reply->crtc == XCB_NONE || oi_reply->connection != XCB_RANDR_CONNECTION_CONNECTED) {
@@ -1100,8 +1099,8 @@ get_randr_monitors ()
       continue;
     }
 
-    ci_reply = xcb_randr_get_crtc_info_reply(c,
-        xcb_randr_get_crtc_info(c, oi_reply->crtc, XCB_CURRENT_TIME), nullptr);
+    ci_reply = xcb_randr_get_crtc_info_reply(X::Instance()->get_connection(),
+        xcb_randr_get_crtc_info(X::Instance()->get_connection(), oi_reply->crtc, XCB_CURRENT_TIME), nullptr);
 
     free(oi_reply);
 
@@ -1151,50 +1150,31 @@ get_visual ()
 void
 xconn ()
 {
-  if ((c = DisplayManager::Instance()->get_xcb_connection()) == nullptr) {
-    fprintf (stderr, "Couldnt connect to X\n");
-    exit (EXIT_FAILURE);
-  }
-
-  DisplayManager::Instance()->set_event_queue_order(XCBOwnsEventQueue);
-
-  if (xcb_connection_has_error(c)) {
-    fprintf(stderr, "Couldn't connect to X\n");
-    exit(EXIT_FAILURE);
-  }
-
   /* Grab infos from the first screen */
-  scr = xcb_setup_roots_iterator(xcb_get_setup(c)).data;
+  scr = xcb_setup_roots_iterator(xcb_get_setup(X::Instance()->get_connection())).data;
 
   /* Try to get a RGBA visual and build the colormap for that */
   visual = get_visual();
-  colormap = xcb_generate_id(c);
-  xcb_create_colormap(c, XCB_COLORMAP_ALLOC_NONE, colormap, scr->root, visual);
+  colormap = xcb_generate_id(X::Instance()->get_connection());
+  xcb_create_colormap(X::Instance()->get_connection(), XCB_COLORMAP_ALLOC_NONE, colormap, scr->root, visual);
 }
 
 void
 init ()
 {
-  fonts.init(c, scr_nbr);
+  fonts.init(X::Instance()->get_connection(), scr_nbr);
 
-  // connect to resource db
-  db = xcb_xrm_database_from_default(c);
-
-  if (!db) {
-    fprintf(stderr, "Could not connect to database\n");
-    exit(EXIT_FAILURE);
-  }
   char *val;
-  xcb_xrm_resource_get_string(db, "background", nullptr, &val);
+  X::Instance()->get_string_resource("background", &val);
   bgc = parse_color(val, nullptr);
-  xcb_xrm_resource_get_string(db, "foreground", nullptr, &val);
+  X::Instance()->get_string_resource("foreground", &val);
   ugc = fgc = parse_color(val, nullptr);
 
   // Generate a list of screens
   const xcb_query_extension_reply_t *qe_reply;
 
   // Check if RandR is present
-  qe_reply = xcb_get_extension_data(c, &xcb_randr_id);
+  qe_reply = xcb_get_extension_data(X::Instance()->get_connection(), &xcb_randr_id);
 
   if (qe_reply && qe_reply->present) {
     get_randr_monitors();
@@ -1204,28 +1184,28 @@ init ()
   set_ewmh_atoms();
 
   // Create the gc for drawing
-  gc[GC_DRAW] = xcb_generate_id(c);
-  xcb_create_gc(c, gc[GC_DRAW], monitors.begin()->_pixmap, XCB_GC_FOREGROUND, fgc.val());
+  gc[GC_DRAW] = xcb_generate_id(X::Instance()->get_connection());
+  xcb_create_gc(X::Instance()->get_connection(), gc[GC_DRAW], monitors.begin()->_pixmap, XCB_GC_FOREGROUND, fgc.val());
 
-  gc[GC_CLEAR] = xcb_generate_id(c);
-  xcb_create_gc(c, gc[GC_CLEAR], monitors.begin()->_pixmap, XCB_GC_FOREGROUND, bgc.val());
+  gc[GC_CLEAR] = xcb_generate_id(X::Instance()->get_connection());
+  xcb_create_gc(X::Instance()->get_connection(), gc[GC_CLEAR], monitors.begin()->_pixmap, XCB_GC_FOREGROUND, bgc.val());
 
-  gc[GC_ATTR] = xcb_generate_id(c);
-  xcb_create_gc(c, gc[GC_ATTR], monitors.begin()->_pixmap, XCB_GC_FOREGROUND, ugc.val());
+  gc[GC_ATTR] = xcb_generate_id(X::Instance()->get_connection());
+  xcb_create_gc(X::Instance()->get_connection(), gc[GC_ATTR], monitors.begin()->_pixmap, XCB_GC_FOREGROUND, ugc.val());
 
   // Make the bar visible and clear the pixmap
   for (const auto& mon : monitors) {
     fill_rect(mon._pixmap, gc[GC_CLEAR], 0, 0, mon._width, BAR_HEIGHT);
-    xcb_map_window(c, mon._window);
+    xcb_map_window(X::Instance()->get_connection(), mon._window);
 
     // Make sure that the window really gets in the place it's supposed to be
     // Some WM such as Openbox need this
     const uint32_t xy[] { static_cast<uint32_t>(mon._x), static_cast<uint32_t>(mon._y) };
-    xcb_configure_window(c, mon._window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, xy);
+    xcb_configure_window(X::Instance()->get_connection(), mon._window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, xy);
 
     // Set the WM_NAME atom to the user specified value
     if constexpr (WM_NAME != nullptr)
-      xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon._window,
+      X::Instance()->change_property(XCB_PROP_MODE_REPLACE, mon._window,
           XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, strlen(WM_NAME), WM_NAME);
 
     // set the WM_CLASS atom instance to the executable name
@@ -1237,7 +1217,8 @@ init ()
       strncpy(wm_class, WM_CLASS.data(), WM_CLASS.size());
       strcpy(wm_class + WM_CLASS.size(), "\0Bar");
 
-      xcb_change_property(c, XCB_PROP_MODE_REPLACE, mon._window, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, size, wm_class);
+      X::Instance()->change_property(XCB_PROP_MODE_REPLACE, mon._window,
+          XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, size, wm_class);
     }
   }
 
@@ -1248,7 +1229,7 @@ init ()
   if (!DisplayManager::Instance()->xft_color_alloc_name(visual_ptr, colormap, color, &sel_fg)) {
     fprintf(stderr, "Couldn't allocate xft font color '%s'\n", color);
   }
-  xcb_flush(c);
+  X::Instance()->flush();
 }
 
 void
@@ -1260,28 +1241,24 @@ cleanup ()
       XftFontClose (DisplayManager::Instance()->get_display(), font.xft_ft);
     }
     else {
-      xcb_close_font(c, font.ptr);
+      xcb_close_font(X::Instance()->get_connection(), font.ptr);
       free(font.width_lut);
     }
   }
 
   for (const auto& mon : monitors) {
-    xcb_destroy_window(c, mon._window);
-    xcb_free_pixmap(c, mon._pixmap);
+    xcb_destroy_window(X::Instance()->get_connection(), mon._window);
+    xcb_free_pixmap(X::Instance()->get_connection(), mon._pixmap);
   }
 
   DisplayManager::Instance()->xft_color_free(visual_ptr, colormap, &sel_fg);
 
   if (gc[GC_DRAW])
-    xcb_free_gc(c, gc[GC_DRAW]);
+    xcb_free_gc(X::Instance()->get_connection(), gc[GC_DRAW]);
   if (gc[GC_CLEAR])
-    xcb_free_gc(c, gc[GC_CLEAR]);
+    xcb_free_gc(X::Instance()->get_connection(), gc[GC_CLEAR]);
   if (gc[GC_ATTR])
-    xcb_free_gc(c, gc[GC_ATTR]);
-  if (c)
-    xcb_disconnect(c);
-  if (db)
-    xcb_xrm_database_free(db);
+    xcb_free_gc(X::Instance()->get_connection(), gc[GC_ATTR]);
 }
 
 void
@@ -1296,7 +1273,7 @@ module_events() {
   char input[4096] = {0, };
   while (true) {
     // If connection is in error state, then it has been shut down.
-    if (xcb_connection_has_error(c))
+    if (xcb_connection_has_error(X::Instance()->get_connection()))
       break;
 
     // a module has changed and the bar needs to be redrawn
@@ -1326,10 +1303,10 @@ module_events() {
     }
 
     for (const auto& mon : monitors) {
-      xcb_copy_area(c, mon._pixmap, mon._window, gc[GC_DRAW], 0, 0, 0, 0, mon._width, BAR_HEIGHT);
+      xcb_copy_area(X::Instance()->get_connection(), mon._pixmap, mon._window, gc[GC_DRAW], 0, 0, 0, 0, mon._width, BAR_HEIGHT);
     }
 
-    xcb_flush(c);
+    X::Instance()->flush();
   }
 }
 
@@ -1339,11 +1316,11 @@ bar_events() {
     bool redraw = false;
 
     // If connection is in error state, then it has been shut down.
-    if (xcb_connection_has_error(c))
+    if (xcb_connection_has_error(X::Instance()->get_connection()))
       break;
 
     // handle bar related events
-    for (xcb_generic_event_t *ev; (ev = xcb_wait_for_event(c)); free(ev)) {
+    for (xcb_generic_event_t *ev; (ev = xcb_wait_for_event(X::Instance()->get_connection())); free(ev)) {
       switch (ev->response_type & 0x7F) {
         case XCB_EXPOSE:
           redraw = reinterpret_cast<xcb_expose_event_t*>(ev)->count == 0;
@@ -1358,11 +1335,11 @@ bar_events() {
 
     if (redraw) { // Copy our temporary pixmap onto the window
       for (const auto& mon : monitors) {
-        xcb_copy_area(c, mon._pixmap, mon._window, gc[GC_DRAW], 0, 0, 0, 0, mon._width, BAR_HEIGHT);
+        xcb_copy_area(X::Instance()->get_connection(), mon._pixmap, mon._window, gc[GC_DRAW], 0, 0, 0, 0, mon._width, BAR_HEIGHT);
       }
     }
 
-    xcb_flush(c);
+    X::Instance()->flush();
   }
 
 }
