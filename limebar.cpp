@@ -923,23 +923,22 @@ parse (char *text)
   XftDrawDestroy (xft_draw);
 }
 
-
-enum {
-  NET_WM_WINDOW_TYPE,
-  NET_WM_WINDOW_TYPE_DOCK,
-  NET_WM_DESKTOP,
-  NET_WM_STRUT_PARTIAL,
-  NET_WM_STRUT,
-  NET_WM_STATE,
-  NET_WM_STATE_STICKY,
-  NET_WM_STATE_ABOVE,
-};
-
 void
 set_ewmh_atoms ()
 {
-  constexpr size_t size = 8;
-  constexpr std::array<const char *, size> atom_names {
+  enum {
+    NET_WM_WINDOW_TYPE,
+    NET_WM_WINDOW_TYPE_DOCK,
+    NET_WM_DESKTOP,
+    NET_WM_STRUT_PARTIAL,
+    NET_WM_STRUT,
+    NET_WM_STATE,
+    NET_WM_STATE_STICKY,
+    NET_WM_STATE_ABOVE,
+  };
+
+  static constexpr size_t size = 8;
+  static constexpr std::array<const char *, size> atom_names {
     "_NET_WM_WINDOW_TYPE",
     "_NET_WM_WINDOW_TYPE_DOCK",
     "_NET_WM_DESKTOP",
