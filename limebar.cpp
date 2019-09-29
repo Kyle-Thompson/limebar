@@ -7,13 +7,12 @@
  * - Find more ergonomic way to reference singletons.
  * - Add more functions into DisplayManager singleton. Too many raw calls
  *   happening here that should be members.
- * - Bitmap fonts seem to be deprecated. Figure out how to get correct
- *   formatting with TTF.
  * - Use static polymorphism with modules.
  */
 
 #include "config.h"
 #include "DisplayManager.h"
+#include "fonts.h"
 
 #include <algorithm>
 #include <cctype>
@@ -46,62 +45,6 @@
 #include <X11/Xlib-xcb.h>
 #include <X11/Xatom.h>
 
-struct font_t {
-  font_t() = default;
-  font_t(const char* pattern, int offset, xcb_connection_t *c, int scr_nbr);
-
-  xcb_font_t ptr { 0 };
-  xcb_charinfo_t *width_lut { nullptr };
-
-  XftFont *xft_ft { nullptr };
-
-  int ascent { 0 };
-
-  int descent { 0 }, height { 0 }, width { 0 };
-  uint16_t char_max { 0 };
-  uint16_t char_min { 0 };
-  int offset { 0 };
-};
-
-font_t::font_t(const char* pattern, int offset, xcb_connection_t *c, int scr_nbr) {
-  xcb_query_font_cookie_t queryreq;
-  xcb_query_font_reply_t *font_info;
-  xcb_void_cookie_t cookie;
-  xcb_font_t font;
-
-  font = xcb_generate_id(c);
-
-  cookie = xcb_open_font_checked(c, font, strlen(pattern), pattern);
-  if (!xcb_request_check (c, cookie)) {
-    queryreq = xcb_query_font(c, font);
-    font_info = xcb_query_font_reply(c, queryreq, nullptr);
-
-    xft_ft = nullptr;
-    ptr = font;
-    descent = font_info->font_descent;
-    height = font_info->font_ascent + font_info->font_descent;
-    width = font_info->max_bounds.character_width;
-    char_max = font_info->max_byte1 << 8 | font_info->max_char_or_byte2;
-    char_min = font_info->min_byte1 << 8 | font_info->min_char_or_byte2;
-    this->offset = offset;
-    // Copy over the width lut as it's part of font_info
-    int lut_size = sizeof(xcb_charinfo_t) * xcb_query_font_char_infos_length(font_info);
-    if (lut_size) {
-      width_lut = (xcb_charinfo_t *) malloc(lut_size);
-      memcpy(width_lut, xcb_query_font_char_infos(font_info), lut_size);
-    }
-    free(font_info);
-  } else if ((xft_ft = DisplayManager::Instance()->xft_font_open_name(scr_nbr, pattern))) {
-    ptr = 0;
-    ascent = xft_ft->ascent;
-    descent = xft_ft->descent;
-    height = ascent + descent;
-    this->offset = offset;
-  } else {
-    fprintf(stderr, "Could not load font %s\n", pattern);
-    exit(EXIT_FAILURE);
-  }
-}
 
 struct area_t {
   uint16_t begin;
@@ -191,10 +134,6 @@ static xcb_visualid_t visual;
 static Visual *visual_ptr;
 static xcb_colormap_t colormap;
 
-
-static std::array<font_t, FONTS.size()> fonts;
-static int font_index = -1;
-
 static uint32_t attrs = 0;
 static rgba_t fgc, bgc, ugc;
 
@@ -207,6 +146,8 @@ static XftDraw *xft_draw;
 constexpr size_t MAX_WIDTHS {1 << 16};
 static wchar_t xft_char[MAX_WIDTHS];
 static char    xft_width[MAX_WIDTHS];
+
+static Fonts fonts;
 
 class module {
  public:
@@ -584,7 +525,7 @@ draw_char (Monitor *mon, font_t *cur_font, int x, int align, uint16_t ch)
 
   x = shift(mon, x, align, ch_width);
 
-  int y = BAR_HEIGHT / 2 + cur_font->height / 2 - cur_font->descent + fonts[font_index].offset;
+  int y = BAR_HEIGHT / 2 + cur_font->height / 2 - cur_font->descent + fonts.current()->offset;
   if (cur_font->xft_ft) {
     XftDrawString16 (xft_draw, &sel_fg, cur_font->xft_ft, x,y, &ch, 1);
   } else {
@@ -804,40 +745,6 @@ area_add (char *str, const char *optend, char **end, Monitor *mon, const uint16_
   return true;
 }
 
-bool
-font_has_glyph (font_t *font, const uint16_t c)
-{
-  if (font->xft_ft)
-    return DisplayManager::Instance()->xft_char_exists(font->xft_ft, (FcChar32) c);
-
-  if (c < font->char_min || c > font->char_max)
-    return false;
-
-  if (font->width_lut && font->width_lut[c - font->char_min].character_width == 0)
-    return false;
-
-  return true;
-}
-
-font_t *
-select_drawable_font (const uint16_t c)
-{
-  // If the user has specified a font to use, try that first.
-  if (font_index != -1 && font_has_glyph(&fonts[font_index], c)) {
-    return &fonts[font_index];
-  }
-
-  // If the end is reached without finding an appropriate font, return nullptr.
-  // If the font can draw the character, return it.
-  for (auto& font : fonts) {
-    if (font_has_glyph(&font, c)) {
-      return &font;
-    }
-  }
-  return nullptr;
-}
-
-
 void
 parse (char *text)
 {
@@ -938,15 +845,15 @@ parse (char *text)
 
           case 'T':
             if (*p == '-') { //Reset to automatic font selection
-              font_index = -1;
+              fonts._index = -1;
               p++;
               break;
             } else if (isdigit(*p)) {
-              font_index = (int)strtoul(p, &ep, 10);
+              fonts._index = (int)strtoul(p, &ep, 10);
               // User-specified 'font_index' ∊ (0,font_count]
               // Otherwise just fallback to the automatic font selection
-              if (font_index < 0 || font_index > FONTS.size())
-                font_index = -1;
+              if (fonts._index < 0 || fonts._index > FONTS.size())
+                fonts._index = -1;
               p = ep;
               break;
             } else {
@@ -1001,7 +908,7 @@ parse (char *text)
         p += 1;
       }
 
-      cur_font = select_drawable_font(ucs);
+      cur_font = fonts.select_drawable_font(ucs);
       if (!cur_font)
         continue;
 
@@ -1258,20 +1165,7 @@ xconn ()
 void
 init ()
 {
-  // init fonts
-  std::transform(FONTS.begin(), FONTS.end(), fonts.begin(),
-      [](const auto& f) -> font_t {
-        const auto& [font, offset] = f;
-        return { font, offset, c, scr_nbr };
-      });
-
-  // To make the alignment uniform, find maximum height
-  const int maxh = std::max_element(fonts.begin(), fonts.end(),
-      [](const font_t& l, const font_t& r){ return l.height < r.height; })->height;
-
-  // Set maximum height to all fonts
-  for (auto& font : fonts)
-    font.height = maxh;
+  fonts.init(c, scr_nbr);
 
   // connect to resource db
   db = xcb_xrm_database_from_default(c);
@@ -1361,7 +1255,7 @@ init ()
 void
 cleanup ()
 {
-  for (const auto& font : fonts) {
+  for (const auto& font : fonts._fonts) {
     // replace with ResourceManager::Instance()->font_close(font);
     if (font.xft_ft) {
       XftFontClose (DisplayManager::Instance()->get_display(), font.xft_ft);
