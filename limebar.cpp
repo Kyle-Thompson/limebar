@@ -69,8 +69,9 @@ struct rgba_t {
   uint32_t* val() { return reinterpret_cast<uint32_t*>(this); }
 };
 
-struct Monitor {
-  Monitor(int x, int y, int width, int height, xcb_connection_t *conn, xcb_screen_t *scr, xcb_visualid_t visual, rgba_t bgc, xcb_colormap_t colormap)
+struct monitor_t {
+  // TODO: simplify constructor with internal references to singletons
+  monitor_t(int x, int y, int width, int height, xcb_connection_t *conn, xcb_screen_t *scr, xcb_visualid_t visual, rgba_t bgc, xcb_colormap_t colormap)
     : _x(x)
     , _y((TOPBAR ? BAR_Y_OFFSET : height - BAR_HEIGHT - BAR_Y_OFFSET) + y)
     , _width(width)
@@ -89,7 +90,7 @@ struct Monitor {
     xcb_create_pixmap(conn, depth, _pixmap, _window, _width, BAR_HEIGHT);
   }
 
-  ~Monitor() {
+  ~monitor_t() {
     // DisplayManager::Instance()->xcb_destroy_window(_window);
     // DisplayManager::Instance()->xcb_destroy_window(_pixmap);
   }
@@ -117,8 +118,6 @@ enum {
   GC_MAX
 };
 
-
-static std::vector<Monitor> monitors;
 
 static std::mutex module_mutex;
 static std::condition_variable condvar;
@@ -148,6 +147,77 @@ static wchar_t xft_char[MAX_WIDTHS];
 static char    xft_width[MAX_WIDTHS];
 
 static Fonts fonts;
+
+struct Monitors {
+  void init(std::vector<xcb_rectangle_t>& rects);
+
+  std::vector<monitor_t>::iterator begin() { return _monitors.begin(); }
+  std::vector<monitor_t>::iterator end()   { return _monitors.end(); }
+  std::vector<monitor_t>::const_iterator cbegin() { return _monitors.cbegin(); }
+  std::vector<monitor_t>::const_iterator cend()   { return _monitors.cend(); }
+
+  std::vector<monitor_t> _monitors;
+};
+
+void Monitors::init(std::vector<xcb_rectangle_t>& rects)
+{
+  int width = 0, height = 0;
+  int left = BAR_X_OFFSET;
+
+  // Sort before use
+  std::sort(rects.begin(), rects.end(), [](const auto r1, const auto r2) {
+    if (r1.x < r2.x || r1.y + r1.height <= r2.y) return -1;
+    if (r1.x > r2.x || r1.y + r1.height > r2.y) return 1;
+    return 0;
+  });
+
+  for (const auto& rect : rects) {
+    int h = rect.y + rect.height;
+    // Accumulated width of all monitors
+    width += rect.width;
+    // Get height of screen from y_offset + height of lowest monitor
+    if (h >= height)
+      height = h;
+  }
+
+  // Check the geometry
+  if (BAR_X_OFFSET + BAR_WIDTH > width || BAR_Y_OFFSET + BAR_HEIGHT > height) {
+    fprintf(stderr, "The geometry specified doesn't fit the screen!\n");
+    exit(EXIT_FAILURE);
+  }
+
+  // Left is a positive number or zero therefore monitors with zero width are excluded
+  width = BAR_WIDTH;
+  for (auto& rect : rects) {
+    if (rect.y + rect.height < BAR_Y_OFFSET)
+      continue;
+    if (rect.width > left) {
+      _monitors.emplace_back(
+          rect.x + left,
+          rect.y,
+          std::min(width, rect.width - left),
+          rect.height,
+          c,
+          scr,
+          visual,
+          bgc,
+          colormap
+          );
+
+      width -= rect.width - left;
+      // No need to check for other monitors
+      if (width <= 0)
+        break;
+    }
+
+    left -= rect.width;
+
+    if (left < 0)
+      left = 0;
+  }
+}
+
+Monitors monitors;
 
 class module {
  public:
@@ -469,7 +539,7 @@ xft_char_width (uint16_t ch, font_t *cur_font)
 }
 
 int
-shift (Monitor *mon, int x, int align, int ch_width)
+shift (monitor_t *mon, int x, int align, int ch_width)
 {
   switch (align) {
     case ALIGN_C:
@@ -494,7 +564,7 @@ shift (Monitor *mon, int x, int align, int ch_width)
 }
 
 void
-draw_lines (Monitor *mon, int x, int w)
+draw_lines (monitor_t *mon, int x, int w)
 {
   /* We can render both at the same time */
   if (attrs & ATTR_OVERL)
@@ -504,14 +574,14 @@ draw_lines (Monitor *mon, int x, int w)
 }
 
 void
-draw_shift (Monitor *mon, int x, int align, int w)
+draw_shift (monitor_t *mon, int x, int align, int w)
 {
   x = shift(mon, x, align, w);
   draw_lines(mon, x, w);
 }
 
 int
-draw_char (Monitor *mon, font_t *cur_font, int x, int align, uint16_t ch)
+draw_char (monitor_t *mon, font_t *cur_font, int x, int align, uint16_t ch)
 {
   int ch_width;
 
@@ -672,7 +742,7 @@ area_shift (xcb_window_t win, const int align, int delta)
 }
 
 bool
-area_add (char *str, const char *optend, char **end, Monitor *mon, const uint16_t x, const int8_t align, const uint8_t button)
+area_add (char *str, const char *optend, char **end, monitor_t *mon, const uint16_t x, const int8_t align, const uint8_t button)
 {
   // A wild close area tag appeared!
   if (*str != ':') {
@@ -759,7 +829,7 @@ parse (char *text)
 
   areas.clear();
 
-  for (const Monitor& m : monitors)
+  for (const monitor_t& m : monitors)
     fill_rect(m._pixmap, gc[GC_CLEAR], 0, 0, m._width, BAR_HEIGHT);
 
   /* Create xft drawable */
@@ -991,65 +1061,6 @@ set_ewmh_atoms ()
 }
 
 void
-monitor_create_chain (std::vector<xcb_rectangle_t>& rects)
-{
-  int width = 0, height = 0;
-  int left = BAR_X_OFFSET;
-
-  // Sort before use
-  std::sort(rects.begin(), rects.end(), [](const auto r1, const auto r2) {
-    if (r1.x < r2.x || r1.y + r1.height <= r2.y) return -1;
-    if (r1.x > r2.x || r1.y + r1.height > r2.y) return 1;
-    return 0;
-  });
-
-  for (const auto& rect : rects) {
-    int h = rect.y + rect.height;
-    // Accumulated width of all monitors
-    width += rect.width;
-    // Get height of screen from y_offset + height of lowest monitor
-    if (h >= height)
-      height = h;
-  }
-
-  // Check the geometry
-  if (BAR_X_OFFSET + BAR_WIDTH > width || BAR_Y_OFFSET + BAR_HEIGHT > height) {
-    fprintf(stderr, "The geometry specified doesn't fit the screen!\n");
-    exit(EXIT_FAILURE);
-  }
-
-  // Left is a positive number or zero therefore monitors with zero width are excluded
-  width = BAR_WIDTH;
-  for (auto& rect : rects) {
-    if (rect.y + rect.height < BAR_Y_OFFSET)
-      continue;
-    if (rect.width > left) {
-      monitors.emplace_back(
-          rect.x + left,
-          rect.y,
-          std::min(width, rect.width - left),
-          rect.height,
-          c,
-          scr,
-          visual,
-          bgc,
-          colormap
-          );
-
-      width -= rect.width - left;
-      // No need to check for other monitors
-      if (width <= 0)
-        break;
-    }
-
-    left -= rect.width;
-
-    if (left < 0)
-      left = 0;
-  }
-}
-
-void
 get_randr_monitors ()
 {
   xcb_randr_get_screen_resources_current_reply_t *rres_reply;
@@ -1114,7 +1125,7 @@ get_randr_monitors ()
     return;
   }
 
-  monitor_create_chain(rects);
+  monitors.init(rects);
 }
 
 xcb_visualid_t
@@ -1187,17 +1198,6 @@ init ()
 
   if (qe_reply && qe_reply->present) {
     get_randr_monitors();
-  }
-
-  if (monitors.empty()) {
-    // Check the geometry
-    if (BAR_X_OFFSET + BAR_WIDTH > scr->width_in_pixels || BAR_Y_OFFSET + BAR_HEIGHT > scr->height_in_pixels) {
-      fprintf(stderr, "The geometry specified doesn't fit the screen!\n");
-      exit(EXIT_FAILURE);
-    }
-
-    // If no RandR outputs, fall back to using whole screen
-    monitors.emplace_back(0, 0, BAR_WIDTH, scr->height_in_pixels, c, scr, visual, bgc, colormap);
   }
 
   // For WM that support EWMH atoms
@@ -1315,7 +1315,7 @@ module_events() {
 
       std::stringstream full_bar;
       std::string bar_str(ss.str());
-      for (int i = 0; i < monitors.size(); ++i) {
+      for (int i = 0; i < monitors._monitors.size(); ++i) {
         full_bar << "%{S" << i << "}" << bar_str;
       }
       std::string full_bar_str(full_bar.str());
