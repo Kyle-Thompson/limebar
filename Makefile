@@ -14,7 +14,7 @@ CFDEBUG = -g3 -pedantic -Wall -Wunused-parameter -Wlong-long \
 	  -Weverything -Wextra -Wno-c++98-compat -Wno-c++98-compat-pedantic
 
 EXEC = limebar
-SRCS = limebar.cpp DisplayManager.cpp fonts.cpp x.cpp
+SRCS = limebar.cpp DisplayManager.cpp fonts.cpp x.cpp modules/module.cpp modules/windows.cpp modules/workspaces.cpp modules/clock.cpp
 OBJS = ${SRCS:.cpp=.o}
 
 PREFIX ?= /usr

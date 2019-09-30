@@ -14,18 +14,20 @@
 #include "DisplayManager.h"
 #include "fonts.h"
 #include "x.h"
+#include "modules/module.h"
+#include "modules/windows.h"
+#include "modules/workspaces.h"
+#include "modules/clock.h"
 
 #include <algorithm>
 #include <cctype>
 #include <cerrno>
-#include <chrono>
 #include <condition_variable>
 #include <csignal>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <ctime>
 #include <fcntl.h>
 #include <functional>
 #include <iostream>
@@ -120,9 +122,6 @@ enum {
 };
 
 
-static std::mutex module_mutex;
-static std::condition_variable condvar;
-
 static xcb_screen_t *scr;
 static int scr_nbr = 0;
 
@@ -215,221 +214,6 @@ void Monitors::init(std::vector<xcb_rectangle_t>& rects)
 }
 
 Monitors monitors;
-
-class module {
- public:
-  module() {}
-  virtual ~module() {}
-
-  std::string get() {
-    std::lock_guard<std::mutex> g(_mutex);
-    return _str;
-  }
-  void operator()() {
-    update();
-    while (true) {
-      trigger();
-      update();
-    }
-  }
-
- protected:
-  void set(std::string str) {
-    std::lock_guard<std::mutex> g(_mutex);
-    _str = str;
-    condvar.notify_one();
-  }
-  virtual void trigger() = 0;
-  virtual void update()  = 0;
-  std::mutex _mutex;
-  std::string _str;
-};
-
-class mod_windows : public module {
- public:
-  mod_windows() {
-    conn = xcb_connect(nullptr, nullptr);
-    if (xcb_connection_has_error(conn)) {
-      fprintf(stderr, "Cannot X connection for workspaces daemon.\n");
-      exit(EXIT_FAILURE);
-    }
-
-    const char *window = "_NET_ACTIVE_WINDOW";
-    xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(conn,
-        xcb_intern_atom(conn, 0, static_cast<uint16_t>(strlen(window)), window), nullptr);
-    active_window = reply ? reply->atom : XCB_NONE;
-    free(reply);
-
-    uint32_t values = XCB_EVENT_MASK_PROPERTY_CHANGE;
-    xcb_screen_t* screen = xcb_setup_roots_iterator(xcb_get_setup(conn)).data;
-    xcb_change_window_attributes(conn, screen->root, XCB_CW_EVENT_MASK, &values);
-    xcb_flush(conn);
-
-    const char *desktop = "_NET_CURRENT_DESKTOP";
-    reply = xcb_intern_atom_reply(conn,
-        xcb_intern_atom(conn, 0, static_cast<uint16_t>(strlen(desktop)), desktop), nullptr);
-    current_desktop = reply ? reply->atom : XCB_NONE;
-    free(reply);
-
-    screen = xcb_setup_roots_iterator(xcb_get_setup(conn)).data;
-    xcb_change_window_attributes(conn, screen->root, XCB_CW_EVENT_MASK, &values);
-    xcb_flush(conn);
-  }
-
-  ~mod_windows() {
-    xcb_disconnect(conn);
-  }
-
- private:
-  void trigger() {
-    for (xcb_generic_event_t *ev = nullptr; (ev = xcb_wait_for_event(conn)); free(ev)) {
-      if ((ev->response_type & 0x7F) == XCB_PROPERTY_NOTIFY) {
-        auto atom = reinterpret_cast<xcb_property_notify_event_t *>(ev)->atom;
-        if (atom == active_window || atom == current_desktop) {
-          free(ev);
-          return;
-        }
-      }
-    }
-  }
-  void update() {
-    std::stringstream ss;
-    unsigned long client_list_size;
-    unsigned long current_workspace = DisplayManager::Instance()->get_current_workspace();
-
-    const Window current_window = [] {
-      unsigned long size;
-      char* prop = DisplayManager::Instance()->get_property(DisplayManager::Instance()->get_default_root_window(), XA_WINDOW, "_NET_ACTIVE_WINDOW", &size);
-      Window ret = *((Window*)prop);
-      free(prop);
-      return ret;
-    }();
-
-    // TODO: how to capture windows that don't work here? (e.g. steam)
-    Window* windows = DisplayManager::Instance()->get_client_list(&client_list_size);
-    for (unsigned long i = 0; i < client_list_size / sizeof(Window); ++i) {
-      unsigned long *workspace = (unsigned long *)DisplayManager::Instance()->get_property(windows[i],
-          XA_CARDINAL, "_NET_WM_DESKTOP", nullptr);
-      char* title_cstr = DisplayManager::Instance()->get_window_title(windows[i]);
-      if (!title_cstr || current_workspace != *workspace) continue;
-      std::string title(title_cstr);
-      if (windows[i] == current_window) ss << "%{F#257fad}";  // TODO: replace with general xres accent color
-      ss << title.substr(title.find_last_of(' ') + 1) << " ";
-      if (windows[i] == current_window) ss << "%{F#7ea2b4}";
-    }
-    set(ss.str());
-    free(windows);
-  }
-
-  xcb_connection_t* conn;
-  xcb_atom_t current_desktop;
-  xcb_atom_t active_window;
-};
-
-class mod_workspaces : public module {
- public:
-  mod_workspaces() {
-    conn = xcb_connect(nullptr, nullptr);
-    if (xcb_connection_has_error(conn)) {
-      fprintf(stderr, "Cannot X connection for workspaces daemon.\n");
-      exit(EXIT_FAILURE);
-    }
-
-    const char *desktop = "_NET_CURRENT_DESKTOP";
-    xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(conn,
-        xcb_intern_atom(conn, 0, static_cast<uint16_t>(strlen(desktop)), desktop), nullptr);
-    current_desktop = reply ? reply->atom : XCB_NONE;
-    free(reply);
-
-    uint32_t values = XCB_EVENT_MASK_PROPERTY_CHANGE;
-    xcb_screen_t* screen = xcb_setup_roots_iterator(xcb_get_setup(conn)).data;
-    xcb_change_window_attributes(conn, screen->root, XCB_CW_EVENT_MASK, &values);
-    xcb_flush(conn);
-  }
-  ~mod_workspaces() {}
-
- private:
-  void trigger() {
-    // TODO: this doesn't work if switching an empty workspace to an empty
-    // workspace.
-    for (xcb_generic_event_t *ev = nullptr; (ev = xcb_wait_for_event(conn)); free(ev)) {
-      if ((ev->response_type & 0x7F) == XCB_PROPERTY_NOTIFY
-          && reinterpret_cast<xcb_property_notify_event_t *>(ev)->atom == current_desktop) {
-        free(ev);
-        return;
-      }
-    }
-  }
-
-  void update() {
-    unsigned long desktop_list_size = 0;
-    Window root = DisplayManager::Instance()->get_default_root_window();
-
-    unsigned long *num_desktops =
-      (unsigned long *)DisplayManager::Instance()->get_property(root,
-          XA_CARDINAL, "_NET_NUMBER_OF_DESKTOPS", NULL);
-    unsigned long *cur_desktop =
-      (unsigned long *)DisplayManager::Instance()->get_property(root,
-          XA_CARDINAL, "_NET_CURRENT_DESKTOP", NULL);
-    char *list = DisplayManager::Instance()->get_property(root,
-        DisplayManager::Instance()->get_intern_atom(),
-        "_NET_DESKTOP_NAMES", &desktop_list_size);
-
-    /* prepare the array of desktop names */
-    char **names = (char **) malloc(*num_desktops * sizeof(char *));
-    int id = 0;
-    names[id++] = list;
-    for (int i = 0; i < desktop_list_size; i++) {
-      if (list[i] == '\0') {
-        if (id >= *num_desktops) {
-          break;
-        }
-        names[id++] = list + i + 1;
-      }
-    }
-
-    std::stringstream ss;
-    for (int i = 0; i < *num_desktops; ++i) {
-      if (i == *cur_desktop) ss << "%{F#257fad}";
-      ss << names[i] << " ";
-      if (i == *cur_desktop) ss << "%{F#7ea2b4}";
-    }
-    set(ss.str());
-
-    free(names);
-    free(num_desktops);
-    free(cur_desktop);
-    free(list);
-  }
-
-  xcb_connection_t* conn;
-  xcb_atom_t current_desktop;
-};
-
-class mod_clock : public module {
- public:
-  mod_clock() {}
-  ~mod_clock() {}
-
- private:
-  void trigger() {
-    std::this_thread::sleep_for(std::chrono::minutes(1));
-  }
-
-  void update() {
-    time_t t = time(NULL);
-    struct tm* local = localtime(&t);
-    snprintf(clock_str, 35, "%%{F#257fad}%02d:%02d%%{F#7ea2b4} %s %02d",
-        local->tm_hour, local->tm_min, months[local->tm_mon], local->tm_mday);
-    clock_str[34] = '\0';
-    set(clock_str);
-  }
-
-  char clock_str[35];
-  static constexpr std::array<const char*, 12> months {
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", };
-};
 
 
 static const auto modules = [] {
@@ -1278,8 +1062,9 @@ module_events() {
 
     // a module has changed and the bar needs to be redrawn
     {
-      std::unique_lock<std::mutex> lock(module_mutex);
-      condvar.wait(lock);
+      std::mutex mutex;
+      std::unique_lock<std::mutex> lock(mutex);
+      module::condvar.wait(lock);
 
       std::stringstream ss;
       ss << "%{l} ";
