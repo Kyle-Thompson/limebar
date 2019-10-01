@@ -35,7 +35,7 @@ debug: ${EXEC}
 debug: CC += ${CFDEBUG}
 
 clean:
-	rm -f ./*.o ./*.1
+	rm -f ./*.o ./modules/*.o ./*.1
 	rm -f ./${EXEC}
 
 install: limebar doc
