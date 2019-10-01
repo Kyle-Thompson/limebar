@@ -12,4 +12,4 @@ constexpr int UNDERLINE_HEIGHT = 1;
 
 // font name, y offset
 constexpr std::array<std::tuple<const char*, int>, 1> FONTS = {
-  std::make_tuple("-gohu-gohufont-medium-r-normal--11-80-100-100-c-60-iso10646-1", 0) };
+  std::make_tuple("GohuFont:pixelsize=11", 0) };
