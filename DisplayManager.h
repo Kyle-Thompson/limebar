@@ -58,6 +58,9 @@ class DisplayManager {
   XftFont *xft_font_open_name(int screen, _Xconst char *name) {
     return XftFontOpenName(display, screen, name);
   }
+  void xft_font_close(XftFont *xft) {
+    XftFontClose (display, xft);
+  }
   
 
  private:

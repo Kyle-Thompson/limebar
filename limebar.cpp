@@ -947,11 +947,6 @@ init ()
 void
 cleanup ()
 {
-  for (const auto& font : fonts._fonts) {
-    // replace with ResourceManager::Instance()->font_close(font);
-    XftFontClose (DisplayManager::Instance()->get_display(), font.xft_ft);
-  }
-
   for (const auto& mon : monitors) {
     xcb_destroy_window(X::Instance()->get_connection(), mon._window);
     xcb_free_pixmap(X::Instance()->get_connection(), mon._pixmap);
