@@ -21,6 +21,7 @@ X::X() {
     fprintf(stderr, "Could not connect to database\n");
     exit(EXIT_FAILURE);
   }
+  screen = xcb_setup_roots_iterator(xcb_get_setup(connection)).data;
 }
 
 X::~X() {

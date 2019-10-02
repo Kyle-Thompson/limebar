@@ -74,13 +74,14 @@ struct rgba_t {
 
 struct monitor_t {
   // TODO: simplify constructor with internal references to singletons
-  monitor_t(int x, int y, int width, int height, xcb_screen_t *scr, xcb_visualid_t visual, rgba_t bgc, xcb_colormap_t colormap)
+  monitor_t(int x, int y, int width, int height, xcb_visualid_t visual, rgba_t bgc, xcb_colormap_t colormap)
     : _x(x)
     , _y((TOPBAR ? BAR_Y_OFFSET : height - BAR_HEIGHT - BAR_Y_OFFSET) + y)
     , _width(width)
     , _window(X::Instance()->generate_id())
     , _pixmap(X::Instance()->generate_id())
   {
+    auto *scr = X::Instance()->get_screen();
     int depth = (visual == scr->root_visual) ? XCB_COPY_FROM_PARENT : 32;
     const uint32_t mask[] { *bgc.val(), *bgc.val(), FORCE_DOCK,
       XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE, colormap };
@@ -122,7 +123,6 @@ enum {
 };
 
 
-static xcb_screen_t *scr;
 static int scr_nbr = 0;
 
 static xcb_gcontext_t gc[GC_MAX];
@@ -194,7 +194,6 @@ void Monitors::init(std::vector<xcb_rectangle_t>& rects)
           rect.y,
           std::min(width, rect.width - left),
           rect.height,
-          scr,
           visual,
           bgc,
           colormap
@@ -786,7 +785,7 @@ get_randr_monitors ()
   int num;
 
   rres_reply = xcb_randr_get_screen_resources_current_reply(X::Instance()->get_connection(),
-      xcb_randr_get_screen_resources_current(X::Instance()->get_connection(), scr->root), nullptr);
+      xcb_randr_get_screen_resources_current(X::Instance()->get_connection(), X::Instance()->get_screen()->root), nullptr);
 
   if (!rres_reply) {
     fprintf(stderr, "Failed to get current randr screen resources\n");
@@ -864,24 +863,17 @@ get_visual ()
 
   //Fallback
   visual_ptr = DisplayManager::Instance()->xft_default_visual(scr_nbr);
-  return scr->root_visual;
-}
-
-void
-xconn ()
-{
-  /* Grab infos from the first screen */
-  scr = xcb_setup_roots_iterator(xcb_get_setup(X::Instance()->get_connection())).data;
-
-  /* Try to get a RGBA visual and build the colormap for that */
-  visual = get_visual();
-  colormap = xcb_generate_id(X::Instance()->get_connection());
-  xcb_create_colormap(X::Instance()->get_connection(), XCB_COLORMAP_ALLOC_NONE, colormap, scr->root, visual);
+  return X::Instance()->get_screen()->root_visual;
 }
 
 void
 init ()
 {
+  /* Try to get a RGBA visual and build the colormap for that */
+  visual = get_visual();
+  colormap = xcb_generate_id(X::Instance()->get_connection());
+  xcb_create_colormap(X::Instance()->get_connection(), XCB_COLORMAP_ALLOC_NONE, colormap, X::Instance()->get_screen()->root, visual);
+
   fonts.init(X::Instance()->get_connection(), scr_nbr);
 
   char *val;
@@ -1071,9 +1063,6 @@ main ()
   atexit(cleanup);
   signal(SIGINT, sighandle);
   signal(SIGTERM, sighandle);
-
-  // Connect to the Xserver and initialize scr
-  xconn();
     
   // Do the heavy lifting
   init();

@@ -18,6 +18,7 @@ class X {
   void flush() { xcb_flush(connection); }
 
   // temporary
+  xcb_screen_t *get_screen() { return screen; }
   xcb_connection_t *get_connection() { return connection; }
   xcb_xrm_database_t *get_database() { return database; }
   
@@ -25,6 +26,7 @@ class X {
   X();
   ~X();
 
+  xcb_screen_t *screen { nullptr };
   xcb_connection_t *connection { nullptr };
   xcb_xrm_database_t *database { nullptr };
   static X* instance;
