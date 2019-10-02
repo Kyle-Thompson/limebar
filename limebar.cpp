@@ -381,7 +381,6 @@ parse (char *text)
   font_t *cur_font;
   int pos_x, align, button;
   char *p = text, *block_end, *ep;
-  rgba_t tmp;
 
   pos_x = 0;
   align = ALIGN_L;
@@ -412,13 +411,6 @@ parse (char *text)
           case '+': set_attribute('+', *p++); break;
           case '-': set_attribute('-', *p++); break;
           case '!': set_attribute('!', *p++); break;
-
-          case 'R':
-            tmp = fgc;
-            fgc = bgc;
-            bgc = tmp;
-            update_gc();
-            break;
 
           case 'l': pos_x = 0; align = ALIGN_L; break;
           case 'c': pos_x = 0; align = ALIGN_C; break;
