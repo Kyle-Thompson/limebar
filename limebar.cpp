@@ -775,10 +775,11 @@ init ()
 
   // Check if RandR is present
   qe_reply = xcb_get_extension_data(X::Instance()->get_connection(), &xcb_randr_id);
-
-  if (qe_reply && qe_reply->present) {
-    get_randr_monitors();
+  if (!qe_reply || !qe_reply->present) {
+    fprintf(stderr, "Error with xcb_get_extension_data.\n");
+    exit(EXIT_FAILURE);
   }
+  get_randr_monitors();
 
   // For WM that support EWMH atoms
   set_ewmh_atoms();
