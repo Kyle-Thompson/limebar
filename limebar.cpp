@@ -95,7 +95,7 @@ struct monitor_t {
 
   ~monitor_t() {
     // DisplayManager::Instance()->xcb_destroy_window(_window);
-    // DisplayManager::Instance()->xcb_destroy_window(_pixmap);
+    // DisplayManager::Instance()->xcb_free_pixmap(_pixmap);
   }
 
   int _x, _y, _width;
