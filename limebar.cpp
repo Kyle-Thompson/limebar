@@ -716,11 +716,9 @@ init ()
   ugc = fgc = parse_color(val, nullptr);
 
   // Generate a list of screens
-  const xcb_query_extension_reply_t *qe_reply;
-
-  // Check if RandR is present
-  qe_reply = xcb_get_extension_data(X::Instance()->get_connection(), &xcb_randr_id);
+  const xcb_query_extension_reply_t *qe_reply = xcb_get_extension_data(X::Instance()->get_connection(), &xcb_randr_id);
   if (!qe_reply || !qe_reply->present) {
+    // Check if RandR is present
     fprintf(stderr, "Error with xcb_get_extension_data.\n");
     exit(EXIT_FAILURE);
   }
