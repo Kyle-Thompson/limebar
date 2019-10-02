@@ -11,10 +11,6 @@
 #include "color.h"
 #include "config.h"
 #include "fonts.h"
-#include "modules/module.h"
-#include "modules/windows.h"
-#include "modules/workspaces.h"
-#include "modules/clock.h"
 #include "monitors.h"
 #include "x.h"
 
@@ -94,14 +90,6 @@ static XftDraw *xft_draw;
 
 static Fonts fonts;
 static Monitors monitors;
-
-static const auto modules = [] {
-  std::unordered_map<const char*, std::unique_ptr<module>> modules;
-  modules.emplace("workspaces", std::make_unique<mod_workspaces>());
-  modules.emplace("windows", std::make_unique<mod_windows>());
-  modules.emplace("clock", std::make_unique<mod_clock>());
-  return modules;
-}();
 
 
 void
