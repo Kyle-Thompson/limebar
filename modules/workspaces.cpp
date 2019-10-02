@@ -1,5 +1,5 @@
 #include "workspaces.h"
-#include "../DisplayManager.h"
+#include "../x.h"
 
 #include <cstdlib>
 #include <cstdio>
@@ -45,16 +45,16 @@ void mod_workspaces::trigger()
 void mod_workspaces::update()
 {
   unsigned long desktop_list_size = 0;
-  Window root = DisplayManager::Instance()->get_default_root_window();
+  Window root = X::Instance()->get_default_root_window();
 
   unsigned long *num_desktops =
-    (unsigned long *)DisplayManager::Instance()->get_property(root,
+    (unsigned long *)X::Instance()->get_property(root,
         XA_CARDINAL, "_NET_NUMBER_OF_DESKTOPS", nullptr);
   unsigned long *cur_desktop =
-    (unsigned long *)DisplayManager::Instance()->get_property(root,
+    (unsigned long *)X::Instance()->get_property(root,
         XA_CARDINAL, "_NET_CURRENT_DESKTOP", nullptr);
-  char *list = DisplayManager::Instance()->get_property(root,
-      DisplayManager::Instance()->get_intern_atom(),
+  char *list = X::Instance()->get_property(root,
+      X::Instance()->get_intern_atom(),
       "_NET_DESKTOP_NAMES", &desktop_list_size);
 
   /* prepare the array of desktop names */

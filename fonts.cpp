@@ -1,7 +1,7 @@
 #include "fonts.h"
 
 font_t::font_t(const char* pattern, int offset, xcb_connection_t *c, int scr_nbr) {
-  if ((xft_ft = DisplayManager::Instance()->xft_font_open_name(scr_nbr, pattern))) {
+  if ((xft_ft = X::Instance()->xft_font_open_name(scr_nbr, pattern))) {
     descent = xft_ft->descent;
     height = xft_ft->ascent + descent;
     this->offset = offset;

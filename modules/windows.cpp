@@ -55,22 +55,22 @@ void mod_windows::trigger() {
 void mod_windows::update() {
   std::stringstream ss;
   unsigned long client_list_size;
-  unsigned long current_workspace = DisplayManager::Instance()->get_current_workspace();
+  unsigned long current_workspace = X::Instance()->get_current_workspace();
 
   const Window current_window = [] {
     unsigned long size;
-    char* prop = DisplayManager::Instance()->get_property(DisplayManager::Instance()->get_default_root_window(), XA_WINDOW, "_NET_ACTIVE_WINDOW", &size);
+    char* prop = X::Instance()->get_property(X::Instance()->get_default_root_window(), XA_WINDOW, "_NET_ACTIVE_WINDOW", &size);
     Window ret = *((Window*)prop);
     free(prop);
     return ret;
   }();
 
   // TODO: how to capture windows that don't work here? (e.g. steam)
-  Window* windows = DisplayManager::Instance()->get_client_list(&client_list_size);
+  Window* windows = X::Instance()->get_client_list(&client_list_size);
   for (unsigned long i = 0; i < client_list_size / sizeof(Window); ++i) {
-    unsigned long *workspace = (unsigned long *)DisplayManager::Instance()->get_property(windows[i],
+    unsigned long *workspace = (unsigned long *)X::Instance()->get_property(windows[i],
         XA_CARDINAL, "_NET_WM_DESKTOP", nullptr);
-    char* title_cstr = DisplayManager::Instance()->get_window_title(windows[i]);
+    char* title_cstr = X::Instance()->get_window_title(windows[i]);
     if (!title_cstr || current_workspace != *workspace) continue;
     std::string title(title_cstr);
     if (windows[i] == current_window) ss << "%{F#257fad}";  // TODO: replace with general xres accent color

@@ -5,14 +5,11 @@
  * - Modules should return pixmaps or a format that does not need to be parsed
  *   but is instead sent directly to the bar.
  * - Find more ergonomic way to reference singletons.
- * - Add more functions into DisplayManager singleton. Too many raw calls
- *   happening here that should be members.
  * - Use static polymorphism with modules.
  */
 
 #include "color.h"
 #include "config.h"
-#include "DisplayManager.h"
 #include "fonts.h"
 #include "modules/module.h"
 #include "modules/windows.h"
@@ -95,11 +92,6 @@ static std::vector<area_t> areas;
 static XftColor sel_fg;
 static XftDraw *xft_draw;
 
-//char width lookuptable
-constexpr size_t MAX_WIDTHS {1 << 16};
-static wchar_t xft_char[MAX_WIDTHS];
-static char    xft_width[MAX_WIDTHS];
-
 static Fonts fonts;
 static Monitors monitors;
 
@@ -118,11 +110,11 @@ update_gc ()
   xcb_change_gc(X::Instance()->get_connection(), gc[GC_DRAW], XCB_GC_FOREGROUND, fgc.val());
   xcb_change_gc(X::Instance()->get_connection(), gc[GC_CLEAR], XCB_GC_FOREGROUND, bgc.val());
   xcb_change_gc(X::Instance()->get_connection(), gc[GC_ATTR], XCB_GC_FOREGROUND, ugc.val());
-  DisplayManager::Instance()->xft_color_free(visual_ptr, colormap, &sel_fg);
+  X::Instance()->xft_color_free(visual_ptr, colormap, &sel_fg);
   char color[] = "#ffffff";
   uint32_t nfgc = *fgc.val() & 0x00ffffff;
   snprintf(color, sizeof(color), "#%06X", nfgc);
-  if (!DisplayManager::Instance()->xft_color_alloc_name(visual_ptr, colormap, color, &sel_fg)) {
+  if (!X::Instance()->xft_color_alloc_name(visual_ptr, colormap, color, &sel_fg)) {
     fprintf(stderr, "Couldn't allocate xft font color '%s'\n", color);
   }
 }
@@ -132,33 +124,6 @@ fill_rect (xcb_drawable_t d, xcb_gcontext_t _gc, int16_t x, int16_t y, uint16_t 
 {
   xcb_rectangle_t rect = { x, y, width, height };
   xcb_poly_fill_rectangle(X::Instance()->get_connection(), d, _gc, 1, &rect);
-}
-
-int
-xft_char_width (uint16_t ch, font_t *cur_font)
-{
-  const int slot = [](uint16_t ch) {
-    int slot = ch % MAX_WIDTHS;
-    while (xft_char[slot] != 0 && xft_char[slot] != ch)
-    {
-      slot = (slot + 1) % MAX_WIDTHS;
-    }
-    return slot;
-  }(ch);
-
-  if (!xft_char[slot]) {
-    XGlyphInfo gi;
-    FT_UInt glyph = XftCharIndex (DisplayManager::Instance()->get_display(), cur_font->xft_ft, (FcChar32) ch);
-    XftFontLoadGlyphs (DisplayManager::Instance()->get_display(), cur_font->xft_ft, FcFalse, &glyph, 1);
-    XftGlyphExtents (DisplayManager::Instance()->get_display(), cur_font->xft_ft, &glyph, 1, &gi);
-    XftFontUnloadGlyphs (DisplayManager::Instance()->get_display(), cur_font->xft_ft, &glyph, 1);
-    xft_char[slot] = ch;
-    xft_width[slot] = gi.xOff;
-    return gi.xOff;
-  } else if (xft_char[slot] == ch)
-    return xft_width[slot];
-  else
-    return 0;
 }
 
 int
@@ -206,7 +171,7 @@ draw_shift (monitor_t *mon, int x, int align, int w)
 int
 draw_char (monitor_t *mon, font_t *cur_font, int x, int align, uint16_t ch)
 {
-  int ch_width = xft_char_width(ch, cur_font);
+  int ch_width = X::Instance()->xft_char_width(ch, cur_font->xft_ft);
   x = shift(mon, x, align, ch_width);
 
   int y = BAR_HEIGHT / 2 + cur_font->height / 2 - cur_font->descent + cur_font->offset;
@@ -440,7 +405,7 @@ parse (char *text)
     fill_rect(m._pixmap, gc[GC_CLEAR], 0, 0, m._width, BAR_HEIGHT);
 
   /* Create xft drawable */
-  if (!(xft_draw = (DisplayManager::Instance()->xft_draw_create(mon_itr->_pixmap, visual_ptr, colormap)))) {
+  if (!(xft_draw = (X::Instance()->xft_draw_create(mon_itr->_pixmap, visual_ptr, colormap)))) {
     fprintf(stderr, "Couldn't create xft drawable\n");
   }
 
@@ -501,7 +466,7 @@ parse (char *text)
             }
 
             XftDrawDestroy (xft_draw);
-            if (!(xft_draw = DisplayManager::Instance()->xft_draw_create(mon_itr->_pixmap, visual_ptr , colormap ))) {
+            if (!(xft_draw = X::Instance()->xft_draw_create(mon_itr->_pixmap, visual_ptr , colormap ))) {
               fprintf(stderr, "Couldn't create xft drawable\n");
             }
 
@@ -742,7 +707,7 @@ get_visual ()
   XVisualInfo xv; 
   xv.depth = 32;
   int result = 0;
-  XVisualInfo* result_ptr = DisplayManager::Instance()->get_visual_info(VisualDepthMask, &xv, &result);
+  XVisualInfo* result_ptr = X::Instance()->get_visual_info(VisualDepthMask, &xv, &result);
 
   if (result > 0) {
     visual_ptr = result_ptr->visual;
@@ -750,7 +715,7 @@ get_visual ()
   }
 
   //Fallback
-  visual_ptr = DisplayManager::Instance()->xft_default_visual(scr_nbr);
+  visual_ptr = X::Instance()->xft_default_visual(scr_nbr);
   return X::Instance()->get_screen()->root_visual;
 }
 
@@ -827,7 +792,7 @@ init ()
   uint32_t nfgc = *fgc.val() & 0x00ffffff;
   snprintf(color, sizeof(color), "#%06X", nfgc);
 
-  if (!DisplayManager::Instance()->xft_color_alloc_name(visual_ptr, colormap, color, &sel_fg)) {
+  if (!X::Instance()->xft_color_alloc_name(visual_ptr, colormap, color, &sel_fg)) {
     fprintf(stderr, "Couldn't allocate xft font color '%s'\n", color);
   }
   X::Instance()->flush();
@@ -836,7 +801,7 @@ init ()
 void
 cleanup ()
 {
-  DisplayManager::Instance()->xft_color_free(visual_ptr, colormap, &sel_fg);
+  X::Instance()->xft_color_free(visual_ptr, colormap, &sel_fg);
 
   if (gc[GC_DRAW])
     xcb_free_gc(X::Instance()->get_connection(), gc[GC_DRAW]);

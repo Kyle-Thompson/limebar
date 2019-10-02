@@ -1,7 +1,7 @@
 #pragma once
 
 #include "module.h"
-#include "../DisplayManager.h"
+#include "../x.h"
 
 #include <xcb/xcb.h>
 

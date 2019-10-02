@@ -1,5 +1,7 @@
+#pragma once
+
 #include "config.h"
-#include "DisplayManager.h"
+#include "x.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -9,10 +11,10 @@
 struct font_t {
   font_t() = default;
   font_t(const char* pattern, int offset, xcb_connection_t *c, int scr_nbr);
-  ~font_t() { DisplayManager::Instance()->xft_font_close(xft_ft); }
+  ~font_t() { X::Instance()->xft_font_close(xft_ft); }
 
   bool font_has_glyph(const uint16_t c) {
-    return DisplayManager::Instance()->xft_char_exists(xft_ft, (FcChar32) c);
+    return X::Instance()->xft_char_exists(xft_ft, (FcChar32) c);
   }
 
   XftFont *xft_ft { nullptr };
