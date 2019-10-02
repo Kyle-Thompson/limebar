@@ -247,51 +247,6 @@ fill_rect (xcb_drawable_t d, xcb_gcontext_t _gc, int16_t x, int16_t y, uint16_t 
   xcb_poly_fill_rectangle(X::Instance()->get_connection(), d, _gc, 1, &rect);
 }
 
-// Apparently xcb cannot seem to compose the right request for this call, hence we have to do it by
-// ourselves.
-// The funcion is taken from 'wmdia' (http://wmdia.sourceforge.net/)
-xcb_void_cookie_t
-xcb_poly_text_16_simple(xcb_connection_t * c, xcb_drawable_t drawable,
-    xcb_gcontext_t gc, int16_t x, int16_t y, uint32_t len, const uint16_t *str)
-{
-  static const xcb_protocol_request_t xcb_req = {
-    5,                // count
-    nullptr,          // ext
-    XCB_POLY_TEXT_16, // opcode
-    1                 // isvoid
-  };
-  struct iovec xcb_parts[7];
-  uint8_t xcb_lendelta[2];
-  xcb_void_cookie_t xcb_ret;
-  xcb_poly_text_8_request_t xcb_out;
-
-  xcb_out.pad0 = 0;
-  xcb_out.drawable = drawable;
-  xcb_out.gc = gc;
-  xcb_out.x = x;
-  xcb_out.y = y;
-
-  xcb_lendelta[0] = len;
-  xcb_lendelta[1] = 0;
-
-  xcb_parts[2].iov_base = (char *)&xcb_out;
-  xcb_parts[2].iov_len = sizeof(xcb_out);
-  xcb_parts[3].iov_base = nullptr;
-  xcb_parts[3].iov_len = -xcb_parts[2].iov_len & 3;
-
-  xcb_parts[4].iov_base = xcb_lendelta;
-  xcb_parts[4].iov_len = sizeof(xcb_lendelta);
-  xcb_parts[5].iov_base = (char *)str;
-  xcb_parts[5].iov_len = len * sizeof(int16_t);
-
-  xcb_parts[6].iov_base = nullptr;
-  xcb_parts[6].iov_len = -(xcb_parts[4].iov_len + xcb_parts[5].iov_len) & 3;
-
-  xcb_ret.sequence = xcb_send_request(c, 0, xcb_parts + 2, &xcb_req);
-
-  return xcb_ret;
-}
-
 int
 xft_char_width (uint16_t ch, font_t *cur_font)
 {
@@ -364,30 +319,11 @@ draw_shift (monitor_t *mon, int x, int align, int w)
 int
 draw_char (monitor_t *mon, font_t *cur_font, int x, int align, uint16_t ch)
 {
-  int ch_width;
-
-  if (cur_font->xft_ft) {
-    ch_width = xft_char_width(ch, cur_font);
-  } else {
-    ch_width = (cur_font->width_lut) ?
-      cur_font->width_lut[ch - cur_font->char_min].character_width:
-      cur_font->width;
-  }
-
+  int ch_width = xft_char_width(ch, cur_font);
   x = shift(mon, x, align, ch_width);
 
-  int y = BAR_HEIGHT / 2 + cur_font->height / 2 - cur_font->descent + fonts.current()->offset;
-  if (cur_font->xft_ft) {
-    XftDrawString16 (xft_draw, &sel_fg, cur_font->xft_ft, x,y, &ch, 1);
-  } else {
-    /* xcb accepts string in UCS-2 BE, so swap */
-    ch = (ch >> 8) | (ch << 8);
-
-    // The coordinates here are those of the baseline
-    xcb_poly_text_16_simple(X::Instance()->get_connection(), mon->_pixmap, gc[GC_DRAW],
-        x, y,
-        1, &ch);
-  }
+  int y = BAR_HEIGHT / 2 + cur_font->height / 2 - cur_font->descent + cur_font->offset;
+  XftDrawString16 (xft_draw, &sel_fg, cur_font->xft_ft, x, y, &ch, 1);
 
   draw_lines(mon, x, ch_width);
 
@@ -766,8 +702,6 @@ parse (char *text)
       if (!cur_font)
         continue;
 
-      if(cur_font->ptr)
-        xcb_change_gc(X::Instance()->get_connection(), gc[GC_DRAW] , XCB_GC_FONT, &cur_font->ptr);
       int w = draw_char(&*mon_itr, cur_font, pos_x, align, ucs);
 
       pos_x += w;
@@ -1024,13 +958,7 @@ cleanup ()
 {
   for (const auto& font : fonts._fonts) {
     // replace with ResourceManager::Instance()->font_close(font);
-    if (font.xft_ft) {
-      XftFontClose (DisplayManager::Instance()->get_display(), font.xft_ft);
-    }
-    else {
-      xcb_close_font(X::Instance()->get_connection(), font.ptr);
-      free(font.width_lut);
-    }
+    XftFontClose (DisplayManager::Instance()->get_display(), font.xft_ft);
   }
 
   for (const auto& mon : monitors) {

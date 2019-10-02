@@ -11,19 +11,12 @@ struct font_t {
   font_t(const char* pattern, int offset, xcb_connection_t *c, int scr_nbr);
   bool font_has_glyph(const uint16_t c);
 
-  xcb_font_t ptr { 0 };
-  xcb_charinfo_t *width_lut { nullptr };
-
   XftFont *xft_ft { nullptr };
 
-  int ascent { 0 };
-
-  int descent { 0 }, height { 0 }, width { 0 };
-  uint16_t char_max { 0 };
-  uint16_t char_min { 0 };
+  int descent { 0 };
+  int height { 0 };
   int offset { 0 };
 };
-
 
 struct Fonts {
   void init(xcb_connection_t *c, int scr_nbr);
