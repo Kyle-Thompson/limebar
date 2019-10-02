@@ -523,7 +523,8 @@ area_shift (xcb_window_t win, const int align, int delta)
 }
 
 bool
-area_add (char *str, const char *optend, char **end, monitor_t *mon, const uint16_t x, const int8_t align, const uint8_t button)
+area_add (char *str, const char *optend, char **end, monitor_t *mon,
+    const uint16_t x, const int8_t align, const uint8_t button)
 {
   // A wild close area tag appeared!
   if (*str != ':') {
@@ -562,10 +563,12 @@ area_add (char *str, const char *optend, char **end, monitor_t *mon, const uint1
 
   // Found the closing : and check if it's just an escaped one
   char *trail;
-  for (trail = strchr(++str, ':'); trail && trail[-1] == '\\'; trail = strchr(trail + 1, ':'))
+  for (trail = strchr(++str, ':'); trail && trail[-1] == '\\';
+      trail = strchr(trail + 1, ':'))
     ;
 
-  // Find the trailing : and make sure it's within the formatting block, also reject empty commands
+  // Find the trailing : and make sure it's within the formatting block, also
+  // reject empty commands
   if (!trail || str == trail || trail > optend) {
     *end = str;
     return false;
