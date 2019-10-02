@@ -79,7 +79,6 @@ char* DisplayManager::get_window_title(Window win) {
 }
 
 
-// TODO: return string
 Window* DisplayManager::get_client_list(unsigned long *size) {
   Window *client_list;
 
@@ -157,21 +156,3 @@ Visual *
 DisplayManager::xft_default_visual(int screen) {
   return DefaultVisual(display, screen);
 }
-
-/* int */
-/* DisplayManager::xft_char_width(uint16_t ch, XftFont *xft_ft) { */
-/*   int slot = xft_char_width_slot(ch); */
-/*   if (!xft_char[slot]) { */
-/*     XGlyphInfo gi; */
-/*     FT_UInt glyph = XftCharIndex (display, xft_ft, (FcChar32) ch); */
-/*     XftFontLoadGlyphs (display, xft_ft, FcFalse, &glyph, 1); */
-/*     XftGlyphExtents (display, xft_ft, &glyph, 1, &gi); */
-/*     XftFontUnloadGlyphs (display, xft_ft, &glyph, 1); */
-/*     xft_char[slot] = ch; */
-/*     xft_width[slot] = gi.xOff; */
-/*     return gi.xOff; */
-/*   } else if (xft_char[slot] == ch) */
-/*     return xft_width[slot]; */
-/*   else */
-/*     return 0; */
-/* } */
