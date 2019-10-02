@@ -154,5 +154,6 @@ DisplayManager::xft_color_free(Visual *visual, Colormap cmap, XftColor *color) {
 
 Visual *
 DisplayManager::xft_default_visual(int screen) {
+  fprintf(stderr, "SCREEN IS %d\n", screen);
   return DefaultVisual(display, screen);
 }

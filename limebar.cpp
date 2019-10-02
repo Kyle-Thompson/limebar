@@ -855,8 +855,7 @@ get_visual ()
   XVisualInfo xv; 
   xv.depth = 32;
   int result = 0;
-  XVisualInfo* result_ptr = nullptr; 
-  result_ptr = DisplayManager::Instance()->get_visual_info(VisualDepthMask, &xv, &result);
+  XVisualInfo* result_ptr = DisplayManager::Instance()->get_visual_info(VisualDepthMask, &xv, &result);
 
   if (result > 0) {
     visual_ptr = result_ptr->visual;
