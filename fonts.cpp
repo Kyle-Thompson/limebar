@@ -11,12 +11,6 @@ font_t::font_t(const char* pattern, int offset, xcb_connection_t *c, int scr_nbr
   }
 }
 
-bool
-font_t::font_has_glyph (const uint16_t c)
-{
-  return DisplayManager::Instance()->xft_char_exists(xft_ft, (FcChar32) c);
-}
-
 void
 Fonts::init(xcb_connection_t *c, int scr_nbr) {
   // init fonts
