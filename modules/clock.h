@@ -5,7 +5,7 @@
 #include <array>
 
 
-class mod_clock : public module {
+class mod_clock : public Module {
  public:
   mod_clock() {}
   ~mod_clock() {}

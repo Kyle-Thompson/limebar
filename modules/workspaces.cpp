@@ -70,6 +70,7 @@ void mod_workspaces::update()
     }
   }
 
+  // %{A:wmctrl -s 1 && refbar workspaces windows:}2%{A}
   std::stringstream ss;
   for (int i = 0; i < *num_desktops; ++i) {
     if (i == *cur_desktop) ss << "%{F#257fad}";

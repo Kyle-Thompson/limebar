@@ -3,16 +3,16 @@
 #include <condition_variable>
 #include <mutex>
 
-class module {
+class Module {
  public:
-  module() {}
-  virtual ~module() {}
+  Module() {}
+  virtual ~Module() {}
 
   std::string get() {
     std::lock_guard<std::mutex> g(_mutex);
     return _str;
   }
-  void operator()() {
+  void operator()[[noreturn]] () {
     update();
     while (true) {
       trigger();

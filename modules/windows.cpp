@@ -53,6 +53,7 @@ void mod_windows::trigger() {
 }
 
 void mod_windows::update() {
+  // %{A:wmctrl -i -a 0x00c00003:}Firefox%{A}
   std::stringstream ss;
   unsigned long client_list_size;
   unsigned long current_workspace = X::Instance()->get_current_workspace();

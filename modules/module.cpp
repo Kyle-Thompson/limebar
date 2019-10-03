@@ -1,3 +1,3 @@
 #include "module.h"
 
-std::condition_variable module::condvar;
+std::condition_variable Module::condvar;

@@ -5,7 +5,7 @@
 
 #include <xcb/xcb.h>
 
-class mod_windows : public module {
+class mod_windows : public Module {
  public:
   mod_windows();
   ~mod_windows();
