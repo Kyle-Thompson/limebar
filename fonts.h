@@ -10,7 +10,7 @@
 
 struct font_t {
   font_t() = default;
-  font_t(const char* pattern, int offset, xcb_connection_t *c, int scr_nbr);
+  font_t(const char* pattern, int offset);
   ~font_t() { X::Instance()->xft_font_close(xft_ft); }
 
   bool font_has_glyph(const uint16_t c) {
@@ -24,7 +24,7 @@ struct font_t {
 };
 
 struct Fonts {
-  void init(xcb_connection_t *c, int scr_nbr);
+  void init();
   font_t& operator[](size_t index) { return _fonts[index]; }
   font_t *current() {
     return _index >= 0 && _index < FONTS.size() ? &_fonts[_index] : nullptr;

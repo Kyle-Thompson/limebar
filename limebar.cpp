@@ -346,7 +346,7 @@ bar_events() {
 int
 main ()
 {
-  fonts.init(X::Instance()->get_connection(), 0);
+  fonts.init();
 
   // For WM that support EWMH atoms
   set_ewmh_atoms();

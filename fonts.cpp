@@ -1,7 +1,7 @@
 #include "fonts.h"
 
-font_t::font_t(const char* pattern, int offset, xcb_connection_t *c, int scr_nbr) {
-  if ((xft_ft = X::Instance()->xft_font_open_name(scr_nbr, pattern))) {
+font_t::font_t(const char* pattern, int offset) {
+  if ((xft_ft = X::Instance()->xft_font_open_name(0, pattern))) {
     descent = xft_ft->descent;
     height = xft_ft->ascent + descent;
     this->offset = offset;
@@ -12,12 +12,12 @@ font_t::font_t(const char* pattern, int offset, xcb_connection_t *c, int scr_nbr
 }
 
 void
-Fonts::init(xcb_connection_t *c, int scr_nbr) {
+Fonts::init() {
   // init fonts
   std::transform(FONTS.begin(), FONTS.end(), _fonts.begin(),
       [&](const auto& f) -> font_t {
         const auto& [font, offset] = f;
-        return { font, offset, c, scr_nbr };
+        return { font, offset };
       });
 
   // To make the alignment uniform, find maximum height
