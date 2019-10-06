@@ -42,7 +42,7 @@ void mod_workspaces::trigger()
   }
 }
 
-void mod_workspaces::update()
+std::string mod_workspaces::update()
 {
   unsigned long desktop_list_size = 0;
   Window root = X::Instance()->get_default_root_window();
@@ -77,10 +77,10 @@ void mod_workspaces::update()
     ss << names[i] << " ";
     if (i == *cur_desktop) ss << "%{F#7ea2b4}";
   }
-  set(ss.str());
 
   free(names);
   free(num_desktops);
   free(cur_desktop);
   free(list);
+  return ss.str();
 }

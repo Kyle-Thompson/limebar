@@ -3,33 +3,35 @@
 #include <condition_variable>
 #include <mutex>
 
+static std::condition_variable condvar;
+
+template <typename Mod>
 class Module {
  public:
-  Module() {}
-  virtual ~Module() {}
+  Module() = default;
+  ~Module() = default;
 
   std::string get() {
     std::lock_guard<std::mutex> g(_mutex);
     return _str;
   }
+
   void operator()[[noreturn]] () {
     update();
     while (true) {
-      trigger();
+      _mod.trigger();
       update();
     }
   }
 
-  static std::condition_variable condvar;
-
- protected:
-  void set(std::string str) {
+ private:
+  void update() {
     std::lock_guard<std::mutex> g(_mutex);
-    _str = str;
+    _str = _mod.update();
     condvar.notify_one();
   }
-  virtual void trigger() = 0;
-  virtual void update()  = 0;
+
+  Mod _mod;
   std::mutex _mutex;
   std::string _str;
 };

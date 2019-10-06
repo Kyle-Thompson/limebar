@@ -52,7 +52,7 @@ void mod_windows::trigger() {
   }
 }
 
-void mod_windows::update() {
+std::string mod_windows::update() {
   // %{A:wmctrl -i -a 0x00c00003:}Firefox%{A}
   std::stringstream ss;
   unsigned long client_list_size;
@@ -78,6 +78,6 @@ void mod_windows::update() {
     ss << title.substr(title.find_last_of(' ') + 1) << " ";
     if (windows[i] == current_window) ss << "%{F#7ea2b4}";
   }
-  set(ss.str());
   free(windows);
+  return ss.str();
 }

@@ -4,7 +4,6 @@
  * - Modules should return pixmaps or a format that does not need to be parsed
  *   but is instead sent directly to the bar.
  * - Find more ergonomic way to reference singletons.
- * - Use static polymorphism with modules.
  * - Initial bar display is really buggy.
  * - Remove all init functions in favor of constructors.
  * - Can the call to system be avoided with direct calls to X instead?
@@ -14,6 +13,10 @@
 #include "config.h"
 #include "enums.h"
 #include "fonts.h"
+#include "modules/module_container.h"
+#include "modules/workspaces.h"
+#include "modules/windows.h"
+#include "modules/clock.h"
 #include "monitors.h"
 #include "x.h"
 
@@ -35,9 +38,12 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <unistd.h>
 #include <unordered_map>
 #include <xcb/randr.h>
+
+ModuleContainer<mod_clock, mod_windows, mod_workspaces> modules;
 
 static Fonts fonts;
 
@@ -275,16 +281,14 @@ module_events() {
     {
       std::mutex mutex;
       std::unique_lock<std::mutex> lock(mutex);
-      Module::condvar.wait(lock);
+      condvar.wait(lock);
 
       std::stringstream ss;
-      ss << "%{l} ";
-      ss << modules.find("workspaces")->second->get();
-      ss << " ";
-      ss << modules.find("windows")->second->get();
-      ss << "%{c}";
-      ss << modules.find("clock")->second->get();
-      ss << "%{r}";
+      ss << "%{l} " << std::get<2>(modules._modules).get()
+         << " " << std::get<1>(modules._modules).get()
+         << "%{c}"
+         << std::get<0>(modules._modules).get()
+         << "%{r}";
 
       std::stringstream full_bar;
       std::string bar_str(ss.str());
@@ -386,9 +390,10 @@ main ()
   X::Instance()->flush();
 
   std::vector<std::thread> threads;
-  for (const auto& mod : modules) {
-    threads.emplace_back(std::ref(*mod.second));
-  }
+  std::thread t1(std::ref(std::get<0>(modules._modules)));
+  std::thread t2(std::ref(std::get<1>(modules._modules)));
+  std::thread t3(std::ref(std::get<2>(modules._modules)));
+
   threads.emplace_back(bar_events);
   threads.emplace_back(module_events);
 

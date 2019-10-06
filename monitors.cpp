@@ -52,12 +52,16 @@ monitor_t::monitor_t(int x, int y, int width, int height,
 {
   auto *scr = X::Instance()->get_screen();
   int depth = (visual == scr->root_visual) ? XCB_COPY_FROM_PARENT : 32;
+
   const uint32_t mask[] { *bgc.val(), *bgc.val(), FORCE_DOCK,
-    XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE, colormap };
+    XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS |
+        XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE, colormap };
+
   xcb_create_window(X::Instance()->get_connection(), depth, _window, scr->root,
       _x, _y, _width, BAR_HEIGHT, 0,
       XCB_WINDOW_CLASS_INPUT_OUTPUT, visual,
-      XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL | XCB_CW_OVERRIDE_REDIRECT | XCB_CW_EVENT_MASK | XCB_CW_COLORMAP,
+      XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL | XCB_CW_OVERRIDE_REDIRECT |
+          XCB_CW_EVENT_MASK | XCB_CW_COLORMAP,
       mask);
 
   xcb_create_pixmap(X::Instance()->get_connection(), depth, _pixmap, _window, _width, BAR_HEIGHT);
@@ -89,7 +93,8 @@ monitor_t::draw_lines(int x, int w) {
   if (attrs & ATTR_OVERL)
     X::Instance()->fill_rect(_pixmap, GC_ATTR, x, 0, w, UNDERLINE_HEIGHT);
   if (attrs & ATTR_UNDERL)
-    X::Instance()->fill_rect(_pixmap, GC_ATTR, x, BAR_HEIGHT - UNDERLINE_HEIGHT, w, UNDERLINE_HEIGHT);
+    X::Instance()->fill_rect(_pixmap, GC_ATTR, x, BAR_HEIGHT - UNDERLINE_HEIGHT,
+                             w, UNDERLINE_HEIGHT);
 }
 
 void

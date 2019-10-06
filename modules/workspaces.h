@@ -1,18 +1,17 @@
 #pragma once
 
-#include "module.h"
-
+#include <string>
 #include <xcb/xcb.h>
 
-class mod_workspaces : public Module {
+class mod_workspaces {
  public:
   mod_workspaces();
   ~mod_workspaces() {}
 
- private:
   void trigger();
-  void update();
+  std::string update();
 
+ private:
   xcb_atom_t current_desktop;
   xcb_connection_t* conn;
 };
