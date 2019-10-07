@@ -32,7 +32,7 @@ Fonts::init() {
 }
 
 font_t&
-Fonts::select_drawable_font(const uint16_t c)
+Fonts::drawable_font(const uint16_t c)
 {
   // If the end is reached without finding an appropriate font, return nullptr.
   // If the font can draw the character, return it.

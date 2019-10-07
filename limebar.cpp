@@ -172,8 +172,7 @@ parse (char *text) {
         p += 1;
       }
 
-      font_t& cur_font = fonts.select_drawable_font(ucs);
-      int w = mon_itr->draw_char(&cur_font, pos_x, align, ucs);
+      int w = mon_itr->draw_char(&fonts.drawable_font(ucs), pos_x, align, ucs);
 
       pos_x += w;
       Monitors::Instance()->area_shift(mon_itr->_window, align, w);
