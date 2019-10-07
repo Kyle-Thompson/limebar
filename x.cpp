@@ -36,10 +36,10 @@ X::X() {
   }
 
   if (!(connection = XGetXCBConnection(display))) {
-    fprintf (stderr, "Couldnt connect to X\n");
+    fprintf (stderr, "Couldn't connect to X\n");
     exit (EXIT_FAILURE);
   }
-  if (xcb_connection_has_error(connection)) {
+  if (connection_has_error()) {
     fprintf(stderr, "X connection has error\n");
     exit(EXIT_FAILURE);
   }
@@ -154,11 +154,52 @@ X::update_gc () {
   }
 }
 
-void X::copy_area(xcb_drawable_t src, xcb_drawable_t dst, int16_t src_x,
-                  int16_t dst_x, uint16_t width)
+void
+X::copy_area(xcb_drawable_t src, xcb_drawable_t dst, int16_t src_x,
+             int16_t dst_x, uint16_t width)
 {
   xcb_copy_area(connection, src, dst, gc[GC_DRAW], src_x, 0, dst_x, 0, width,
                 BAR_HEIGHT);
+}
+
+void
+X::create_pixmap(xcb_pixmap_t pid, xcb_drawable_t drawable, uint16_t width)
+{
+  xcb_create_pixmap(connection, get_depth(), pid, drawable, width, BAR_HEIGHT);
+}
+
+void
+X::free_pixmap(xcb_pixmap_t pixmap) {
+  xcb_free_pixmap(connection, pixmap);
+}
+
+void
+X::create_window(xcb_window_t wid,
+    int16_t x, int16_t y, uint16_t width, uint16_t _class,
+    xcb_visualid_t visual, uint32_t value_mask, const void *value_list)
+{
+  xcb_create_window(connection, get_depth(), wid, screen->root, x, y, width,
+      BAR_HEIGHT, 0, _class, visual, value_mask, value_list);
+}
+
+void
+X::destroy_window(xcb_window_t window) {
+  xcb_destroy_window(connection, window);
+}
+
+void
+X::configure_window(xcb_window_t window, uint16_t mask, const void *list) {
+  xcb_configure_window(connection, window, mask, list);
+}
+
+void
+X::map_window(xcb_window_t window) {
+  xcb_map_window(connection, window);
+}
+
+xcb_generic_event_t*
+X::wait_for_event() {
+  return xcb_wait_for_event(connection);
 }
 
 void
@@ -254,6 +295,14 @@ X::get_randr_monitors () {
   Monitors::Instance()->init(rects, visual, bgc, colormap);
 }
 
+xcb_intern_atom_cookie_t X::get_atom_by_name(const char* name) {
+  return xcb_intern_atom(connection, 0, strlen(name), name);
+}
+
+xcb_intern_atom_reply_t* X::get_intern_atom_reply(const char *name) {
+  return xcb_intern_atom_reply(connection, get_atom_by_name(name), nullptr);
+}
+
 void
 X::set_ewmh_atoms () {
   // TODO: This doesn't work yet for some reason
@@ -325,6 +374,12 @@ X::set_ewmh_atoms () {
 void
 X::set_event_queue_order(enum XEventQueueOwner owner) {
   XSetEventQueueOwner(display, owner);
+}
+
+
+bool
+X::connection_has_error() {
+  return xcb_connection_has_error(connection);
 }
 
 
@@ -493,6 +548,18 @@ X::xft_font_open_name(_Xconst char *name) {
 }
 
 void
+X::xft_draw_string_16(XftFont* xft_ft, int x, int y, _Xconst FcChar16 *str,
+                      int len)
+{
+  XftDrawString16(xft_draw, &sel_fg, xft_ft, x, y, str, len);
+}
+
+void
 X::xft_font_close(XftFont *xft) {
   XftFontClose (display, xft);
+}
+
+uint8_t
+X::get_depth() {
+  return (visual == screen->root_visual) ? XCB_COPY_FROM_PARENT : 32;
 }

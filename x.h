@@ -27,6 +27,17 @@ class X {
   void     update_gc();
   void     copy_area(xcb_drawable_t src, xcb_drawable_t dst, int16_t src_x,
                      int16_t dst_x, uint16_t width);
+  void     create_pixmap(xcb_pixmap_t pid, xcb_drawable_t drawable,
+                         uint16_t width);
+  void     free_pixmap(xcb_pixmap_t pixmap);
+  void     create_window(xcb_window_t wid, int16_t x, int16_t y, uint16_t width,
+                         uint16_t _class, xcb_visualid_t visual,
+                         uint32_t value_mask, const void *value_list);
+  void     destroy_window(xcb_window_t window);
+  void     configure_window(xcb_window_t window, uint16_t value_mask,
+                            const void *value_list);
+  void     map_window(xcb_window_t window);
+  xcb_generic_event_t* wait_for_event();
 
   // TODO: label
   char*         get_property(Window win, Atom xa_prop_type,
@@ -39,18 +50,13 @@ class X {
   XVisualInfo*  get_visual_info(long vinfo_mask, XVisualInfo *vinfo_template,
                                 int *nitems_return);
   void          get_randr_monitors();
+  xcb_intern_atom_cookie_t get_atom_by_name(const char* name);
+  xcb_intern_atom_reply_t* get_intern_atom_reply(const char* name);
 
   void set_ewmh_atoms();
   void set_event_queue_order(enum XEventQueueOwner owner);
+  bool connection_has_error();
   auto get_gc() { return gc; }
-
-  // temporary
-  auto get_display()    { return display; }
-  auto get_screen()     { return screen; }
-  auto get_connection() { return connection; }
-  auto get_database()   { return database; }
-  auto get_selfg()      { return sel_fg; }
-  auto get_selfg_ptr()  { return &sel_fg; }
 
   xcb_visualid_t get_visual();
 
@@ -64,6 +70,7 @@ class X {
   XftDraw* xft_draw_create(Drawable drawable);
   void     xft_font_close(XftFont *xft);
   XftFont* xft_font_open_name(_Xconst char *name);
+  void     xft_draw_string_16(XftFont* xft_ft, int x, int y, _Xconst FcChar16 *str, int len);
 
   // TODO: make these private
   rgba_t fgc, bgc, ugc;
@@ -73,6 +80,7 @@ class X {
   X();
   ~X();
   void init();
+  uint8_t get_depth();
 
   Display            *display    { nullptr };
   xcb_screen_t       *screen     { nullptr };

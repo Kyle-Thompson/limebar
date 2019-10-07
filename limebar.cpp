@@ -7,6 +7,8 @@
  * - Initial bar display is really buggy.
  * - Remove all init functions in favor of constructors.
  * - Can the call to system be avoided with direct calls to X instead?
+ * - Create a pixmap and window class with constructors and destructors rather
+ *   than having the monitor class deal with it.
  */
 
 #include "color.h"
@@ -206,23 +208,23 @@ set_ewmh_atoms () {
     "_NET_WM_STATE_STICKY",
     "_NET_WM_STATE_ABOVE",
   };
-  std::array<xcb_intern_atom_cookie_t, size> atom_cookies;
   std::array<xcb_atom_t, size> atom_list;
-  xcb_intern_atom_reply_t *atom_reply;
 
+  // TODO: investigate if this should be redone per this leftover comment:
   // As suggested fetch all the cookies first (yum!) and then retrieve the
   // atoms to exploit the async'ness
-  std::transform(atom_names.begin(), atom_names.end(), atom_cookies.begin(), [](auto name){
-    return xcb_intern_atom(X::Instance()->get_connection(), 0, strlen(name), name);
-  });
-
-  for (int i = 0; i < atom_names.size(); i++) {
-    atom_reply = xcb_intern_atom_reply(X::Instance()->get_connection(), atom_cookies[i], nullptr);
-    if (!atom_reply)
-      return;
-    atom_list[i] = atom_reply->atom;
-    free(atom_reply);
-  }
+  std::transform(atom_names.begin(), atom_names.end(), atom_list.begin(),
+      [](auto name){
+        xcb_intern_atom_reply_t *atom_reply =
+            X::Instance()->get_intern_atom_reply(name);
+        if (!atom_reply) {
+          fprintf(stderr, "atom reply failed.\n");
+          exit(EXIT_FAILURE);
+        }
+        auto ret = atom_reply->atom;
+        free(atom_reply);  // TODO: use unique_ptr
+        return ret;
+      });
 
   // Prepare the strut array
   for (const auto& mon : *Monitors::Instance()) {
@@ -252,7 +254,7 @@ module_events() {
   char input[4096] = {0, };
   while (true) {
     // If connection is in error state, then it has been shut down.
-    if (xcb_connection_has_error(X::Instance()->get_connection()))
+    if (X::Instance()->connection_has_error())
       break;
 
     // a module has changed and the bar needs to be redrawn
@@ -293,11 +295,11 @@ bar_events() {
     bool redraw = false;
 
     // If connection is in error state, then it has been shut down.
-    if (xcb_connection_has_error(X::Instance()->get_connection()))
+    if (X::Instance()->connection_has_error())
       break;
 
     // handle bar related events
-    for (xcb_generic_event_t *ev; (ev = xcb_wait_for_event(X::Instance()->get_connection())); free(ev)) {
+    for (xcb_generic_event_t *ev; (ev = X::Instance()->wait_for_event()); free(ev)) {
       switch (ev->response_type & 0x7F) {
         case XCB_EXPOSE:
           redraw = reinterpret_cast<xcb_expose_event_t*>(ev)->count == 0;
@@ -332,12 +334,12 @@ main ()
   // Make the bar visible and clear the pixmap
   for (const auto& mon : *Monitors::Instance()) {
     X::Instance()->fill_rect(mon._pixmap, GC_CLEAR, 0, 0, mon._width, BAR_HEIGHT);
-    xcb_map_window(X::Instance()->get_connection(), mon._window);
+    X::Instance()->map_window(mon._window);
 
     // Make sure that the window really gets in the place it's supposed to be
     // Some WM such as Openbox need this
     const uint32_t xy[] { static_cast<uint32_t>(mon._x), static_cast<uint32_t>(mon._y) };
-    xcb_configure_window(X::Instance()->get_connection(), mon._window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, xy);
+    X::Instance()->configure_window(mon._window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, xy);
 
     // Set the WM_NAME atom to the user specified value
     if constexpr (WM_NAME != nullptr)

@@ -50,21 +50,16 @@ monitor_t::monitor_t(int x, int y, int width, int height,
   , _window(X::Instance()->generate_id())
   , _pixmap(X::Instance()->generate_id())
 {
-  auto *scr = X::Instance()->get_screen();
-  int depth = (visual == scr->root_visual) ? XCB_COPY_FROM_PARENT : 32;
-
   const uint32_t mask[] { *bgc.val(), *bgc.val(), FORCE_DOCK,
     XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS |
         XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE, colormap };
 
-  xcb_create_window(X::Instance()->get_connection(), depth, _window, scr->root,
-      _x, _y, _width, BAR_HEIGHT, 0,
+  X::Instance()->create_window(_window, _x, _y, _width,
       XCB_WINDOW_CLASS_INPUT_OUTPUT, visual,
       XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL | XCB_CW_OVERRIDE_REDIRECT |
-          XCB_CW_EVENT_MASK | XCB_CW_COLORMAP,
-      mask);
+          XCB_CW_EVENT_MASK | XCB_CW_COLORMAP, mask);
 
-  xcb_create_pixmap(X::Instance()->get_connection(), depth, _pixmap, _window, _width, BAR_HEIGHT);
+  X::Instance()->create_pixmap(_pixmap, _window, _width);
 }
 
 int
@@ -110,8 +105,7 @@ monitor_t::draw_char(font_t *cur_font, int x, int align, FcChar16 ch) {
 
   const int y = BAR_HEIGHT / 2 + cur_font->height / 2
                 - cur_font->descent + cur_font->offset;
-  XftDrawString16(X::Instance()->xft_draw, X::Instance()->get_selfg_ptr(),
-                  cur_font->xft_ft, x, y, &ch, 1);
+  X::Instance()->xft_draw_string_16(cur_font->xft_ft, x, y, &ch, 1);
   draw_lines(x, ch_width);
 
   return ch_width;
@@ -120,8 +114,8 @@ monitor_t::draw_char(font_t *cur_font, int x, int align, FcChar16 ch) {
 Monitors::~Monitors() {
   // TODO: destruct individual monitors in monitor_t destructor
   for (const auto& mon : _monitors) {
-    xcb_destroy_window(X::Instance()->get_connection(), mon._window);
-    xcb_free_pixmap(X::Instance()->get_connection(), mon._pixmap);
+    X::Instance()->destroy_window(mon._window);
+    X::Instance()->free_pixmap(mon._pixmap);
   }
 }
 
