@@ -26,11 +26,7 @@ struct font_t {
 struct Fonts {
   void init();
   font_t& operator[](size_t index) { return _fonts[index]; }
-  font_t *current() {
-    return _index >= 0 && _index < FONTS.size() ? &_fonts[_index] : nullptr;
-  }
-  font_t *select_drawable_font(const uint16_t c);
+  font_t& select_drawable_font(const uint16_t c);
 
   std::array<font_t, FONTS.size()> _fonts;
-  int _index;
 };

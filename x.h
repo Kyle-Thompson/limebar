@@ -63,7 +63,7 @@ class X {
   Visual*  xft_default_visual(int screen);
   XftDraw* xft_draw_create(Drawable drawable);
   void     xft_font_close(XftFont *xft);
-  XftFont* xft_font_open_name(int screen, _Xconst char *name);
+  XftFont* xft_font_open_name(_Xconst char *name);
 
   // TODO: make these private
   rgba_t fgc, bgc, ugc;

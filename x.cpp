@@ -488,8 +488,8 @@ X::xft_draw_create(Drawable drawable) {
 }
 
 XftFont *
-X::xft_font_open_name(int screen, _Xconst char *name) {
-  return XftFontOpenName(display, screen, name);
+X::xft_font_open_name(_Xconst char *name) {
+  return XftFontOpenName(display, 0, name);
 }
 
 void

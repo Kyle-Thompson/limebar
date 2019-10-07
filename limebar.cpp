@@ -51,7 +51,7 @@ void
 parse (char *text) {
   int pos_x = 0, align = ALIGN_L;
   int button;
-  char *p = text, *block_end, *ep;
+  char *p = text, *block_end;
 
   auto mon_itr = Monitors::Instance()->begin();
 
@@ -126,24 +126,6 @@ parse (char *text) {
             Monitors::Instance()->area_shift(mon_itr->_window, align, w);
             break;
 
-          case 'T':
-            if (*p == '-') { //Reset to automatic font selection
-              fonts._index = -1;
-              p++;
-              break;
-            } else if (isdigit(*p)) {
-              fonts._index = (int)strtoul(p, &ep, 10);
-              // User-specified 'font_index' ∊ (0,font_count]
-              // Otherwise just fallback to the automatic font selection
-              if (fonts._index < 0 || fonts._index > FONTS.size())
-                fonts._index = -1;
-              p = ep;
-              break;
-            } else {
-              fprintf(stderr, "Invalid font slot \"%c\"\n", *p++); //Swallow the token
-              break;
-            }
-
             // In case of error keep parsing after the closing }
           default:
             p = block_end;
@@ -190,11 +172,8 @@ parse (char *text) {
         p += 1;
       }
 
-      font_t *cur_font = fonts.select_drawable_font(ucs);
-      if (!cur_font)
-        continue;
-
-      int w = mon_itr->draw_char(cur_font, pos_x, align, ucs);
+      font_t& cur_font = fonts.select_drawable_font(ucs);
+      int w = mon_itr->draw_char(&cur_font, pos_x, align, ucs);
 
       pos_x += w;
       Monitors::Instance()->area_shift(mon_itr->_window, align, w);
