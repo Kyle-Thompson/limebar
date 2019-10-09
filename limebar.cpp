@@ -9,6 +9,9 @@
  * - Can the call to system be avoided with direct calls to X instead?
  * - Create a pixmap and window class with constructors and destructors rather
  *   than having the monitor class deal with it.
+ * - Refactor monitor class to represent one bar that is explicitly created with
+ *   its own size and modules. For the time being this config should be copy
+ *   pasted for multiple monitors to display the same thing.
  */
 
 #include "color.h"
@@ -22,28 +25,15 @@
 #include "monitors.h"
 #include "x.h"
 
-#include <algorithm>
-#include <cctype>
-#include <cerrno>
 #include <condition_variable>
-#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <fcntl.h>
-#include <functional>
-#include <iostream>
-#include <iterator>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <sstream>
 #include <string>
 #include <thread>
-#include <tuple>
-#include <unistd.h>
-#include <unordered_map>
-#include <xcb/randr.h>
 
 ModuleContainer<mod_clock, mod_windows, mod_workspaces> modules;
 
