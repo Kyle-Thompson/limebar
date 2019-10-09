@@ -24,6 +24,7 @@ struct font_t {
 };
 
 struct Fonts {
+  Fonts();
   void init();
   font_t& operator[](size_t index) { return _fonts[index]; }
   font_t& drawable_font(const uint16_t c);

@@ -316,8 +316,6 @@ bar_events() {
 int
 main ()
 {
-  fonts.init();
-
   // For WM that support EWMH atoms
   set_ewmh_atoms();
 

@@ -11,8 +11,7 @@ font_t::font_t(const char* pattern, int offset) {
   }
 }
 
-void
-Fonts::init() {
+Fonts::Fonts() {
   // init fonts
   std::transform(FONTS.begin(), FONTS.end(), _fonts.begin(),
       [&](const auto& f) -> font_t {
