@@ -230,7 +230,6 @@ X::get_visual_info(long vinfo_mask, XVisualInfo *vinfo_template,
 void
 X::get_randr_monitors () {
   xcb_randr_get_screen_resources_current_reply_t *rres_reply;
-  xcb_randr_output_t *outputs;
 
   rres_reply = xcb_randr_get_screen_resources_current_reply(connection,
       xcb_randr_get_screen_resources_current(connection, screen->root), nullptr);
@@ -241,7 +240,8 @@ X::get_randr_monitors () {
   }
 
   int num = xcb_randr_get_screen_resources_current_outputs_length(rres_reply);
-  outputs = xcb_randr_get_screen_resources_current_outputs(rres_reply);
+  xcb_randr_output_t *outputs =
+      xcb_randr_get_screen_resources_current_outputs(rres_reply);
 
 
   // There should be at least one output
@@ -262,13 +262,15 @@ X::get_randr_monitors () {
         nullptr);
 
     // don't attach outputs that are disconnected or not attached to any CTRC
-    if (!oi_reply || oi_reply->crtc == XCB_NONE || oi_reply->connection != XCB_RANDR_CONNECTION_CONNECTED) {
+    if (!oi_reply || oi_reply->crtc == XCB_NONE || oi_reply->connection !=
+        XCB_RANDR_CONNECTION_CONNECTED) {
       free(oi_reply);
       continue;
     }
 
     ci_reply = xcb_randr_get_crtc_info_reply(connection,
-        xcb_randr_get_crtc_info(connection, oi_reply->crtc, XCB_CURRENT_TIME), nullptr);
+        xcb_randr_get_crtc_info(connection, oi_reply->crtc, XCB_CURRENT_TIME),
+        nullptr);
 
     free(oi_reply);
 
@@ -280,7 +282,8 @@ X::get_randr_monitors () {
 
     // There's no need to handle rotated screens here (see #69)
     if (ci_reply->width > 0)
-      rects.push_back({ ci_reply->x, ci_reply->y, ci_reply->width, ci_reply->height });
+      rects.push_back(
+          { ci_reply->x, ci_reply->y, ci_reply->width, ci_reply->height });
 
     free(ci_reply);
   }

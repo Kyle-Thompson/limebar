@@ -13,13 +13,14 @@ mod_workspaces::mod_workspaces()
 {
   conn = xcb_connect(nullptr, nullptr);
   if (xcb_connection_has_error(conn)) {
-    fprintf(stderr, "Cannot X connection for workspaces daemon.\n");
+    fprintf(stderr, "Cannot create X connection for workspaces module.\n");
     exit(EXIT_FAILURE);
   }
 
   const char *desktop = "_NET_CURRENT_DESKTOP";
   xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(conn,
-      xcb_intern_atom(conn, 0, static_cast<uint16_t>(strlen(desktop)), desktop), nullptr);
+      xcb_intern_atom(conn, 0, static_cast<uint16_t>(strlen(desktop)), desktop),
+      nullptr);
   current_desktop = reply ? reply->atom : XCB_NONE;
   free(reply);
 
@@ -33,9 +34,11 @@ void mod_workspaces::trigger()
 {
   // TODO: this doesn't work if switching an empty workspace to an empty
   // workspace.
-  for (xcb_generic_event_t *ev = nullptr; (ev = xcb_wait_for_event(conn)); free(ev)) {
+  for (xcb_generic_event_t *ev = nullptr; (ev = xcb_wait_for_event(conn));
+      free(ev)) {
     if ((ev->response_type & 0x7F) == XCB_PROPERTY_NOTIFY
-        && reinterpret_cast<xcb_property_notify_event_t *>(ev)->atom == current_desktop) {
+        && reinterpret_cast<xcb_property_notify_event_t *>(ev)->atom
+            == current_desktop) {
       free(ev);
       return;
     }
