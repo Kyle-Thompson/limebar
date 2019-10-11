@@ -1,11 +1,11 @@
 #include "x.h"
 
-#include "monitors.h"
+#include "config.h"
 
+#include <X11/Xlib-xcb.h>
 #include <xcb/randr.h>
 #include <X11/Xatom.h>
-
-X* X::instance = nullptr;
+#include <xcb/xcb_xrm.h>
 
 xcb_visualid_t
 X::get_visual () {
@@ -19,23 +19,23 @@ X::get_visual () {
     return result_ptr->visualid;
   }
 
-  //Fallback
+  // Fallback
   visual_ptr = xft_default_visual(0);
   return screen->root_visual;
 }
 
-X::X() {
-  if (!XInitThreads()) {
-    fprintf(stderr, "Failed to initialize threading for Xlib\n");
-    exit(EXIT_FAILURE);
-  }
-
-  if (!(display = XOpenDisplay(nullptr))) {
+X::X()
+  : display(XOpenDisplay(nullptr))
+  , connection(XGetXCBConnection(display))
+  , database(xcb_xrm_database_from_default(connection))
+  , screen(xcb_setup_roots_iterator(xcb_get_setup(connection)).data)
+{
+  if (!display) {
     fprintf (stderr, "Couldnt open display\n");
     exit(EXIT_FAILURE);
   }
 
-  if (!(connection = XGetXCBConnection(display))) {
+  if (!connection) {
     fprintf (stderr, "Couldn't connect to X\n");
     exit (EXIT_FAILURE);
   }
@@ -46,11 +46,10 @@ X::X() {
 
   set_event_queue_order(XCBOwnsEventQueue);
 
-  if (!(database = xcb_xrm_database_from_default(connection))) {
+  if (!database) {
     fprintf(stderr, "Could not connect to database\n");
     exit(EXIT_FAILURE);
   }
-  screen = xcb_setup_roots_iterator(xcb_get_setup(connection)).data;
 
   /* Try to get a RGBA visual and build the colormap for that */
   visual = get_visual();
@@ -71,7 +70,16 @@ X::X() {
     exit(EXIT_FAILURE);
   }
 
-  // set_ewmh_atoms();
+  gc[GC_DRAW] = generate_id();
+  gc[GC_CLEAR] = generate_id();
+  gc[GC_ATTR] = generate_id();
+
+  /* char color[] = "#ffffff"; */
+  /* uint32_t nfgc = *fgc.val() & 0x00ffffff; */
+  /* snprintf(color, sizeof(color), "#%06X", nfgc); */
+  /* if (!xft_color_alloc_name(color)) { */
+  /*   fprintf(stderr, "Couldn't allocate xft font color '%s'\n", color); */
+  /* } */
 }
 
 X::~X() {
@@ -88,41 +96,15 @@ X::~X() {
     xcb_xrm_database_free(database);
 
   xft_color_free();
-
-  delete instance;
 }
 
-void
-X::init() {
-  // for the love of God, remove the requirement to indirectly initialize
-  // monitors from the X constructor... ugh...
-  get_randr_monitors();
-
-  // Create the gc for drawing
-  gc[GC_DRAW] = xcb_generate_id(connection);
-  xcb_create_gc(connection, gc[GC_DRAW], Monitors::Instance()->begin()->_pixmap, XCB_GC_FOREGROUND, fgc.val());
-
-  gc[GC_CLEAR] = xcb_generate_id(connection);
-  xcb_create_gc(connection, gc[GC_CLEAR], Monitors::Instance()->begin()->_pixmap, XCB_GC_FOREGROUND, bgc.val());
-
-  gc[GC_ATTR] = xcb_generate_id(connection);
-  xcb_create_gc(connection, gc[GC_ATTR], Monitors::Instance()->begin()->_pixmap, XCB_GC_FOREGROUND, ugc.val());
-}
-
-std::mutex _init_mutex;  // TODO: find a better way to do this.
-X*
+X&
 X::Instance() {
-  // TODO: this is disgusting
-  bool needs_init = false;
-  {
-    std::lock_guard<std::mutex> lock(_init_mutex);
-    if (!instance) {
-      instance = new X();
-      needs_init = true;
-    }
-  }
-  if (needs_init) {
-    instance->init();
+  static X instance;
+  static bool temp = true;
+  if (temp) {
+    instance.fonts.init(&instance);
+    temp = false;
   }
   return instance;
 }
@@ -160,6 +142,13 @@ X::copy_area(xcb_drawable_t src, xcb_drawable_t dst, int16_t src_x,
 {
   xcb_copy_area(connection, src, dst, gc[GC_DRAW], src_x, 0, dst_x, 0, width,
                 BAR_HEIGHT);
+}
+
+void
+X::create_gc(xcb_pixmap_t pixmap) {
+  xcb_create_gc(connection, gc[GC_DRAW],  pixmap, XCB_GC_FOREGROUND, fgc.val());
+  xcb_create_gc(connection, gc[GC_CLEAR], pixmap, XCB_GC_FOREGROUND, bgc.val());
+  xcb_create_gc(connection, gc[GC_ATTR],  pixmap, XCB_GC_FOREGROUND, ugc.val());
 }
 
 void
@@ -227,164 +216,25 @@ X::get_visual_info(long vinfo_mask, XVisualInfo *vinfo_template,
   return XGetVisualInfo(display, vinfo_mask, vinfo_template, nitems_return);
 }
 
-void
-X::get_randr_monitors () {
-  xcb_randr_get_screen_resources_current_reply_t *rres_reply;
-
-  rres_reply = xcb_randr_get_screen_resources_current_reply(connection,
-      xcb_randr_get_screen_resources_current(connection, screen->root), nullptr);
-
-  if (!rres_reply) {
-    fprintf(stderr, "Failed to get current randr screen resources\n");
-    return;
-  }
-
-  int num = xcb_randr_get_screen_resources_current_outputs_length(rres_reply);
-  xcb_randr_output_t *outputs =
-      xcb_randr_get_screen_resources_current_outputs(rres_reply);
-
-
-  // There should be at least one output
-  if (num < 1) {
-    free(rres_reply);
-    return;
-  }
-
-  std::vector<xcb_rectangle_t> rects;
-
-  // Get all outputs
-  for (int i = 0; i < num; i++) {
-    xcb_randr_get_output_info_reply_t *oi_reply;
-    xcb_randr_get_crtc_info_reply_t *ci_reply;
-
-    oi_reply = xcb_randr_get_output_info_reply(connection,
-        xcb_randr_get_output_info(connection, outputs[i], XCB_CURRENT_TIME),
-        nullptr);
-
-    // don't attach outputs that are disconnected or not attached to any CTRC
-    if (!oi_reply || oi_reply->crtc == XCB_NONE || oi_reply->connection !=
-        XCB_RANDR_CONNECTION_CONNECTED) {
-      free(oi_reply);
-      continue;
-    }
-
-    ci_reply = xcb_randr_get_crtc_info_reply(connection,
-        xcb_randr_get_crtc_info(connection, oi_reply->crtc, XCB_CURRENT_TIME),
-        nullptr);
-
-    free(oi_reply);
-
-    if (!ci_reply) {
-      fprintf(stderr, "Failed to get RandR ctrc info\n");
-      free(rres_reply);
-      return;
-    }
-
-    // There's no need to handle rotated screens here (see #69)
-    if (ci_reply->width > 0)
-      rects.push_back(
-          { ci_reply->x, ci_reply->y, ci_reply->width, ci_reply->height });
-
-    free(ci_reply);
-  }
-
-  free(rres_reply);
-
-  if (rects.empty()) {
-    fprintf(stderr, "No usable RandR output found\n");
-    return;
-  }
-
-  Monitors::Instance()->init(rects, visual, bgc, colormap);
-}
-
-xcb_intern_atom_cookie_t X::get_atom_by_name(const char* name) {
+xcb_intern_atom_cookie_t
+X::get_atom_by_name(const char* name) {
   return xcb_intern_atom(connection, 0, strlen(name), name);
 }
 
-xcb_intern_atom_reply_t* X::get_intern_atom_reply(const char *name) {
+xcb_intern_atom_reply_t*
+X::get_intern_atom_reply(const char *name) {
   return xcb_intern_atom_reply(connection, get_atom_by_name(name), nullptr);
 }
-
-void
-X::set_ewmh_atoms () {
-  // TODO: This doesn't work yet for some reason
-  enum {
-    NET_WM_WINDOW_TYPE,
-    NET_WM_WINDOW_TYPE_DOCK,
-    NET_WM_DESKTOP,
-    NET_WM_STRUT_PARTIAL,
-    NET_WM_STRUT,
-    NET_WM_STATE,
-    NET_WM_STATE_STICKY,
-    NET_WM_STATE_ABOVE,
-  };
-
-  static constexpr size_t size = 8;
-  static constexpr std::array<const char *, size> atom_names {
-    "_NET_WM_WINDOW_TYPE",
-    "_NET_WM_WINDOW_TYPE_DOCK",
-    "_NET_WM_DESKTOP",
-    "_NET_WM_STRUT_PARTIAL",
-    "_NET_WM_STRUT",
-    "_NET_WM_STATE",
-    // Leave those at the end since are batch-set
-    "_NET_WM_STATE_STICKY",
-    "_NET_WM_STATE_ABOVE",
-  };
-  std::array<xcb_intern_atom_cookie_t, size> atom_cookies;
-  std::array<xcb_atom_t, size> atom_list;
-  xcb_intern_atom_reply_t *atom_reply;
-
-  // As suggested fetch all the cookies first (yum!) and then retrieve the
-  // atoms to exploit the async'ness
-  std::transform(atom_names.begin(), atom_names.end(), atom_cookies.begin(), [this](auto name){
-    return xcb_intern_atom(connection, 0, strlen(name), name);
-  });
-
-  for (int i = 0; i < atom_names.size(); i++) {
-    atom_reply = xcb_intern_atom_reply(connection, atom_cookies[i], nullptr);
-    if (!atom_reply)
-      return;
-    atom_list[i] = atom_reply->atom;
-    free(atom_reply);
-  }
-
-  // Prepare the strut array
-  for (const auto& mon : *Monitors::Instance()) {
-    int strut[12] = {0};
-    if (TOPBAR) {
-      strut[2] = BAR_HEIGHT;
-      strut[8] = mon._x;
-      strut[9] = mon._x + mon._width;
-    } else {
-      strut[3]  = BAR_HEIGHT;
-      strut[10] = mon._x;
-      strut[11] = mon._x + mon._width;
-    }
-
-    change_property(XCB_PROP_MODE_REPLACE, mon._window, atom_list[NET_WM_WINDOW_TYPE], XCB_ATOM_ATOM, 32, 1, &atom_list[NET_WM_WINDOW_TYPE_DOCK]);
-    change_property(XCB_PROP_MODE_APPEND,  mon._window, atom_list[NET_WM_STATE], XCB_ATOM_ATOM, 32, 2, &atom_list[NET_WM_STATE_STICKY]);
-    change_property(XCB_PROP_MODE_REPLACE, mon._window, atom_list[NET_WM_DESKTOP], XCB_ATOM_CARDINAL, 32, 1, (const uint32_t []) { 0u - 1u } );
-    change_property(XCB_PROP_MODE_REPLACE, mon._window, atom_list[NET_WM_STRUT_PARTIAL], XCB_ATOM_CARDINAL, 32, 12, strut);
-    change_property(XCB_PROP_MODE_REPLACE, mon._window, atom_list[NET_WM_STRUT], XCB_ATOM_CARDINAL, 32, 4, strut);
-    change_property(XCB_PROP_MODE_REPLACE, mon._window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, 3, "bar");
-    change_property(XCB_PROP_MODE_REPLACE, mon._window, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, 12, "lemonbar\0Bar");
-  }
-}
-
 
 void
 X::set_event_queue_order(enum XEventQueueOwner owner) {
   XSetEventQueueOwner(display, owner);
 }
 
-
 bool
 X::connection_has_error() {
   return xcb_connection_has_error(connection);
 }
-
 
 // TODO: return string
 char *
@@ -498,7 +348,14 @@ X::xft_char_index(XftFont *pub, FcChar32 ucs4) {
 }
 
 int
-X::xft_char_width (uint16_t ch, XftFont *font) {
+X::xft_char_width (uint16_t ch) {
+  static bool temp_fix = true;
+  if (temp_fix) {
+    fonts.init(this);
+    temp_fix = false;
+  }
+
+  XftFont *font = fonts.drawable_font(ch).xft_ft;
   const int slot = [this](uint16_t ch) {
     int slot = ch % MAX_WIDTHS;
     while (xft_char[slot] != 0 && xft_char[slot] != ch) {
@@ -555,6 +412,23 @@ X::xft_draw_string_16(XftFont* xft_ft, int x, int y, _Xconst FcChar16 *str,
                       int len)
 {
   XftDrawString16(xft_draw, &sel_fg, xft_ft, x, y, str, len);
+}
+
+void
+X::draw_ucs2_string(const std::vector<uint16_t>& str, size_t x) {
+  // TODO: currently the proper font for this character needs to be found twice.
+  // This can definitely be optimized.
+  // Also, group consecutive characters of the same font so they can be printed
+  // in bulk.
+
+  for (auto ch : str) {
+    auto& font = fonts.drawable_font(ch);
+    const int y = BAR_HEIGHT / 2 + font.height / 2
+                  - font.descent + font.offset;
+    xft_draw_string_16(font.xft_ft, x, y, &ch, 1);
+    x += xft_char_width(ch);
+  }
+
 }
 
 void

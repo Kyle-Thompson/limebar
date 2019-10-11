@@ -1,9 +1,15 @@
 #pragma once
 
 #include <condition_variable>
+#include <functional>
 #include <mutex>
 
 static std::condition_variable condvar;
+
+struct Area {
+  uint16_t begin, end;
+  std::function<void(uint8_t button)> action;
+};
 
 template <typename Mod>
 class Module {
@@ -34,4 +40,5 @@ class Module {
   Mod _mod;
   std::mutex _mutex;
   std::string _str;
+  std::array<Area, Mod::MAX_AREAS> _areas;
 };

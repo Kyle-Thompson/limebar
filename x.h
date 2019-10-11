@@ -1,19 +1,23 @@
 #pragma once
 
+#include "config.h"
 #include "color.h"
 #include "enums.h"
 
+#include <bits/stdint-uintn.h>
 #include <fontconfig/fontconfig.h>
 #include <mutex>
+#include <vector>
 #include <xcb/xcb.h>
 #include <xcb/xcb_xrm.h>
 #include <X11/Xft/Xft.h>
 #include <X11/Xlib-xcb.h>
 #include <X11/Xlib.h>
 
+
 class X {
  public:
-  static X* Instance();
+  static X& Instance();
 
   // TODO: label
   void get_string_resource(const char* query, char **out);
@@ -27,6 +31,7 @@ class X {
   void     update_gc();
   void     copy_area(xcb_drawable_t src, xcb_drawable_t dst, int16_t src_x,
                      int16_t dst_x, uint16_t width);
+  void     create_gc(xcb_pixmap_t pixmap);
   void     create_pixmap(xcb_pixmap_t pid, xcb_drawable_t drawable,
                          uint16_t width);
   void     free_pixmap(xcb_pixmap_t pixmap);
@@ -49,7 +54,6 @@ class X {
   Atom          get_intern_atom();
   XVisualInfo*  get_visual_info(long vinfo_mask, XVisualInfo *vinfo_template,
                                 int *nitems_return);
-  void          get_randr_monitors();
   xcb_intern_atom_cookie_t get_atom_by_name(const char* name);
   xcb_intern_atom_reply_t* get_intern_atom_reply(const char* name);
 
@@ -57,13 +61,14 @@ class X {
   void set_event_queue_order(enum XEventQueueOwner owner);
   bool connection_has_error();
   auto get_gc() { return gc; }
+  auto get_colormap() { return colormap; }
 
   xcb_visualid_t get_visual();
 
   // XFT functions
   bool     xft_char_exists(XftFont *pub, FcChar32 ucs4);
   FT_UInt  xft_char_index(XftFont *pub, FcChar32 ucs4);
-  int      xft_char_width(uint16_t ch, XftFont *font);
+  int      xft_char_width(uint16_t ch);
   bool     xft_color_alloc_name(_Xconst char *name);
   void     xft_color_free();
   Visual*  xft_default_visual(int screen);
@@ -71,6 +76,7 @@ class X {
   void     xft_font_close(XftFont *xft);
   XftFont* xft_font_open_name(_Xconst char *name);
   void     xft_draw_string_16(XftFont* xft_ft, int x, int y, _Xconst FcChar16 *str, int len);
+  void     draw_ucs2_string(const std::vector<uint16_t>& str, size_t x);
 
   // TODO: make these private
   rgba_t fgc, bgc, ugc;
@@ -79,18 +85,84 @@ class X {
  private:
   X();
   ~X();
-  void init();
   uint8_t get_depth();
 
-  Display            *display    { nullptr };
-  xcb_screen_t       *screen     { nullptr };
-  xcb_connection_t   *connection { nullptr };
-  xcb_xrm_database_t *database   { nullptr };
+  Display            *display;
+  xcb_connection_t   *connection;
+  xcb_xrm_database_t *database;
+  xcb_screen_t       *screen;
 
   // char width lookuptable
+  // TODO: replace with hashmap
   static constexpr size_t MAX_WIDTHS {1 << 16};
   wchar_t xft_char[MAX_WIDTHS] {0, };
   char    xft_width[MAX_WIDTHS] {0, };
+
+
+ public:  // temp
+  struct font_t {
+    font_t() = default;
+    font_t(const char* pattern, int offset, X* x) {
+      _x = x;
+      if ((xft_ft = _x->xft_font_open_name(pattern))) {
+        descent = xft_ft->descent;
+        height = xft_ft->ascent + descent;
+        this->offset = offset;
+      } else {
+        fprintf(stderr, "Could not load font %s\n", pattern);
+        exit(EXIT_FAILURE);
+      }
+    }
+    ~font_t() { _x->xft_font_close(xft_ft); }
+
+    bool font_has_glyph(const uint16_t c) {
+      return _x->xft_char_exists(xft_ft, (FcChar32) c);
+    }
+
+    X* _x;
+    XftFont *xft_ft { nullptr };
+    int descent { 0 };
+    int height { 0 };
+    int offset { 0 };
+  };
+
+  struct Fonts {
+    Fonts() = default;
+    void init(X* x) {
+      // initialize fonts
+      std::transform(FONTS.begin(), FONTS.end(), _fonts.begin(),
+          [&](const auto& f) -> font_t {
+            const auto& [font, offset] = f;
+            return { font, offset, x };
+          });
+
+      // to make the alignment uniform, find maximum height
+      const int maxh = std::max_element(_fonts.begin(), _fonts.end(),
+          [](const auto& l, const auto& r){
+            return l.height < r.height;
+          })->height;
+
+      // set maximum height to all fonts
+      for (auto& font : _fonts)
+        font.height = maxh;
+    }
+    font_t& operator[](size_t index) { return _fonts[index]; }
+    font_t& drawable_font(const uint16_t c) {
+      // If the end is reached without finding an appropriate font, return nullptr.
+      // If the font can draw the character, return it.
+      for (auto& font : _fonts) {
+        if (font.font_has_glyph(c)) {
+          return font;
+        }
+      }
+      return _fonts[0];  // TODO: print error and exit?
+    }
+
+    std::array<font_t, FONTS.size()> _fonts;
+  };
+
+  Fonts fonts;
+ private:  // temp
 
   xcb_gcontext_t gc[GC_MAX];
   XftColor sel_fg;
@@ -98,7 +170,5 @@ class X {
 
   Visual *visual_ptr;
   xcb_visualid_t visual;
-
-  // static std::mutex _init_mutex;
-  static X* instance;
 };
+

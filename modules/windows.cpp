@@ -56,22 +56,22 @@ std::string mod_windows::update() {
   // %{A:wmctrl -i -a 0x00c00003:}Firefox%{A}
   std::stringstream ss;
   unsigned long client_list_size;
-  unsigned long current_workspace = X::Instance()->get_current_workspace();
+  unsigned long current_workspace = X::Instance().get_current_workspace();
 
   const Window current_window = [] {
     unsigned long size;
-    char* prop = X::Instance()->get_property(X::Instance()->get_default_root_window(), XA_WINDOW, "_NET_ACTIVE_WINDOW", &size);
+    char* prop = X::Instance().get_property(X::Instance().get_default_root_window(), XA_WINDOW, "_NET_ACTIVE_WINDOW", &size);
     Window ret = *((Window*)prop);
     free(prop);
     return ret;
   }();
 
   // TODO: how to capture windows that don't work here? (e.g. steam)
-  Window* windows = X::Instance()->get_client_list(&client_list_size);
+  Window* windows = X::Instance().get_client_list(&client_list_size);
   for (unsigned long i = 0; i < client_list_size / sizeof(Window); ++i) {
-    unsigned long *workspace = (unsigned long *)X::Instance()->get_property(windows[i],
+    unsigned long *workspace = (unsigned long *)X::Instance().get_property(windows[i],
         XA_CARDINAL, "_NET_WM_DESKTOP", nullptr);
-    char* title_cstr = X::Instance()->get_window_title(windows[i]);
+    char* title_cstr = X::Instance().get_window_title(windows[i]);
     if (!title_cstr || current_workspace != *workspace) continue;
     std::string title(title_cstr);
     if (windows[i] == current_window) ss << "%{F#257fad}";  // TODO: replace with general xres accent color

@@ -13,6 +13,8 @@ class mod_windows {
   void trigger();
   std::string update();
 
+  constexpr static size_t MAX_AREAS = 20;
+
  private:
   xcb_connection_t* conn;
   xcb_atom_t current_desktop;

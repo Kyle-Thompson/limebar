@@ -5,6 +5,8 @@
 #include "enums.h"
 #include "x.h"
 
+#include <optional>
+
 Monitors* Monitors::instance = nullptr;
 
 Monitors *
@@ -86,9 +88,9 @@ void
 monitor_t::draw_lines(int x, int w) {
   /* We can render both at the same time */
   if (attrs & ATTR_OVERL)
-    X::Instance()->fill_rect(_pixmap, GC_ATTR, x, 0, w, UNDERLINE_HEIGHT);
+    X::Instance().fill_rect(_pixmap, GC_ATTR, x, 0, w, UNDERLINE_HEIGHT);
   if (attrs & ATTR_UNDERL)
-    X::Instance()->fill_rect(_pixmap, GC_ATTR, x, BAR_HEIGHT - UNDERLINE_HEIGHT,
+    X::Instance().fill_rect(_pixmap, GC_ATTR, x, BAR_HEIGHT - UNDERLINE_HEIGHT,
                              w, UNDERLINE_HEIGHT);
 }
 
@@ -100,12 +102,12 @@ monitor_t::draw_shift(int x, int align, int w) {
 
 int
 monitor_t::draw_char(font_t *cur_font, int x, int align, FcChar16 ch) {
-  const int ch_width = X::Instance()->xft_char_width(ch, cur_font->xft_ft);
+  const int ch_width = X::Instance().xft_char_width(ch, cur_font->xft_ft);
   x = shift(x, align, ch_width);
 
   const int y = BAR_HEIGHT / 2 + cur_font->height / 2
                 - cur_font->descent + cur_font->offset;
-  X::Instance()->xft_draw_string_16(cur_font->xft_ft, x, y, &ch, 1);
+  X::Instance().xft_draw_string_16(cur_font->xft_ft, x, y, &ch, 1);
   draw_lines(x, ch_width);
 
   return ch_width;
@@ -114,8 +116,8 @@ monitor_t::draw_char(font_t *cur_font, int x, int align, FcChar16 ch) {
 Monitors::~Monitors() {
   // TODO: destruct individual monitors in monitor_t destructor
   for (const auto& mon : _monitors) {
-    X::Instance()->destroy_window(mon._window);
-    X::Instance()->free_pixmap(mon._pixmap);
+    X::Instance().destroy_window(mon._window);
+    X::Instance().free_pixmap(mon._pixmap);
   }
 }
 
