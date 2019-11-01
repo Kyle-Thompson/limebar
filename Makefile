@@ -1,20 +1,12 @@
-# This snippet has been shmelessly stol^Hborrowed from thestinger's repose Makefile
-VERSION = 1.1
-GIT_DESC=$(shell test -d .git && git describe --always 2>/dev/null)
-
-ifneq "$(GIT_DESC)" ""
-	VERSION=$(GIT_DESC)
-endif
-
 CC	= clang++
-CFLAGS += -Wall -std=c++2a -DVERSION="\"$(VERSION)\"" -I/usr/include/freetype2
+CFLAGS += -Wall -std=c++2a -I/usr/include/freetype2
 LDFLAGS += -lxcb -lxcb-randr -lxcb-xrm -lX11 -lX11-xcb -lXft -lfreetype -lz -lfontconfig -lpthread
 CFDEBUG = -g3 -pedantic -Wall -Wunused-parameter -Wlong-long \
           -Wsign-conversion -Wconversion -Wimplicit-function-declaration \
 	  -Weverything -Wextra -Wno-c++98-compat -Wno-c++98-compat-pedantic
 
 EXEC = limebar
-SRCS = limebar.cpp x.cpp modules/windows.cpp modules/workspaces.cpp modules/clock.cpp color.cpp
+SRCS = limebar.cpp x.cpp modules/windows.cpp modules/workspaces.cpp modules/clock.cpp color.cpp window.cpp
 OBJS = ${SRCS:.cpp=.o}
 
 PREFIX ?= /usr
@@ -23,7 +15,7 @@ BINDIR  = ${PREFIX}/bin
 all: ${EXEC}
 
 doc: README.pod
-	pod2man --section=1 --center="limebar Manual" --name "limebar" --release="limebar $(VERSION)" README.pod > limebar.1
+	pod2man --section=1 --center="limebar Manual" --name "limebar" README.pod > limebar.1
 
 .cpp.o:
 	${CC} ${CFLAGS} -o $@ -c $<
