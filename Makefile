@@ -1,9 +1,7 @@
 CC	= clang++
 CFLAGS += -Wall -std=c++2a -I/usr/include/freetype2
-LDFLAGS += -lxcb -lxcb-xrm -lX11 -lX11-xcb -lXft -lfreetype -lz -lfontconfig -lpthread
-CFDEBUG = -g3 -pedantic -Wall -Wunused-parameter -Wlong-long \
-          -Wsign-conversion -Wconversion -Wimplicit-function-declaration \
-	  -Weverything -Wextra -Wno-c++98-compat -Wno-c++98-compat-pedantic
+LDFLAGS += -lxcb -lxcb-xrm -lX11 -lX11-xcb -lXft -lfreetype -lfontconfig -lpthread
+CFDEBUG = -g3 -Weverything -Wno-c++98-compat -Wno-c++98-compat-pedantic
 
 EXEC = limebar
 SRCS = limebar.cpp x.cpp modules/windows.cpp modules/workspaces.cpp modules/clock.cpp color.cpp window.cpp
