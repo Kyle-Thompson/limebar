@@ -62,14 +62,6 @@ X::X()
   get_string_resource("foreground", &val);
   ugc = fgc = rgba_t::parse(val, nullptr);
 
-  // Generate a list of screens
-  const xcb_query_extension_reply_t *qe_reply = xcb_get_extension_data(connection, &xcb_randr_id);
-  if (!qe_reply || !qe_reply->present) {
-    // Check if RandR is present
-    fprintf(stderr, "Error with xcb_get_extension_data.\n");
-    exit(EXIT_FAILURE);
-  }
-
   gc[GC_DRAW] = generate_id();
   gc[GC_CLEAR] = generate_id();
   gc[GC_ATTR] = generate_id();

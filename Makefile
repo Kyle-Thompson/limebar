@@ -1,6 +1,6 @@
 CC	= clang++
 CFLAGS += -Wall -std=c++2a -I/usr/include/freetype2
-LDFLAGS += -lxcb -lxcb-randr -lxcb-xrm -lX11 -lX11-xcb -lXft -lfreetype -lz -lfontconfig -lpthread
+LDFLAGS += -lxcb -lxcb-xrm -lX11 -lX11-xcb -lXft -lfreetype -lz -lfontconfig -lpthread
 CFDEBUG = -g3 -pedantic -Wall -Wunused-parameter -Wlong-long \
           -Wsign-conversion -Wconversion -Wimplicit-function-declaration \
 	  -Weverything -Wextra -Wno-c++98-compat -Wno-c++98-compat-pedantic
