@@ -9,6 +9,7 @@
  * - Now that strings returned from modules are only textually parsed there is
  *   no way to do accent highlighting. Find a way to do accents in this model or
  *   find a new model.
+ * - Handle bar events in addition to module events.
  */
 
 #include "bars.h"

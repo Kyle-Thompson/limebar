@@ -73,13 +73,6 @@ X::X()
   gc[GC_DRAW] = generate_id();
   gc[GC_CLEAR] = generate_id();
   gc[GC_ATTR] = generate_id();
-
-  /* char color[] = "#ffffff"; */
-  /* uint32_t nfgc = *fgc.val() & 0x00ffffff; */
-  /* snprintf(color, sizeof(color), "#%06X", nfgc); */
-  /* if (!xft_color_alloc_name(color)) { */
-  /*   fprintf(stderr, "Couldn't allocate xft font color '%s'\n", color); */
-  /* } */
 }
 
 X::~X() {
