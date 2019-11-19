@@ -1,17 +1,16 @@
 #pragma once
 
-#include <array>
+#include "module.h"
 
-class mod_clock {
+#include <array>
+#include <utility>
+
+class mod_clock : public Module<mod_clock> {
  public:
-  mod_clock() {}
-  ~mod_clock() {}
+  mod_clock(const BarWindow& win) : Module(win) {}
 
   void trigger();
-  std::string update();
+  void update();
 
   constexpr static size_t MAX_AREAS = 1;
-
- private:
-  char clock_str[35];
 };

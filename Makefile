@@ -1,7 +1,9 @@
 CC	= clang++
-CFLAGS += -Wall -std=c++2a -I/usr/include/freetype2
+CFLAGS += -std=c++2a -I/usr/include/freetype2
 LDFLAGS += -lxcb -lxcb-xrm -lX11 -lX11-xcb -lXft -lfreetype -lfontconfig -lpthread
-CFDEBUG = -g3 -Weverything -Wno-c++98-compat -Wno-c++98-compat-pedantic
+CFDEBUG = -Wall -g3
+WARNINGS = -Weverything -Wno-c++98-compat -Wno-c++98-compat-pedantic
+RELEASE = -O3 -flto
 
 EXEC = limebar
 SRCS = limebar.cpp x.cpp modules/windows.cpp modules/workspaces.cpp modules/clock.cpp color.cpp window.cpp
@@ -24,6 +26,13 @@ ${EXEC}: ${OBJS}
 debug: ${EXEC}
 debug: CC += ${CFDEBUG}
 
+warnings: ${EXEC}
+warnings: CC += ${CFDEBUG} ${WARNINGS}
+
+release: ${EXEC}
+release: CC += ${RELEASE}
+release: LDFLAGS += -flto
+
 clean:
 	rm -f ./*.o ./modules/*.o ./*.1
 	rm -f ./${EXEC}
@@ -36,4 +45,4 @@ uninstall:
 	rm -f ${DESTDIR}${BINDIR}/limebar
 	rm -f $(DESTDIR)$(PREFIX)/share/man/man1/limebar.1
 
-.PHONY: all debug clean install
+.PHONY: all debug warnings release clean install

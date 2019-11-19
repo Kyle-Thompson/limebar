@@ -1,15 +1,17 @@
 #pragma once
 
+#include "module.h"
+
 #include <string>
 #include <xcb/xcb.h>
 
-class mod_workspaces {
+class mod_workspaces : public Module<mod_workspaces> {
  public:
-  mod_workspaces();
+  mod_workspaces(const BarWindow& win);
   ~mod_workspaces() {}
 
   void trigger();
-  std::string update();
+  void update();
 
   constexpr static size_t MAX_AREAS = 10;
 

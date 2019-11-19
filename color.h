@@ -15,5 +15,5 @@ struct rgba_t {
   void set(uint32_t v) { memcpy(this, &v, sizeof(v)); }
   uint32_t* val() { return reinterpret_cast<uint32_t*>(this); }
 
-  static rgba_t parse(const char *str, char **end);
+  static rgba_t parse(const char *str);
 };

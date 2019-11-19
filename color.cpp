@@ -5,7 +5,7 @@
 #include <cstdlib>
 
 rgba_t
-rgba_t::parse(const char *str, char **end) {
+rgba_t::parse(const char *str) {
   static const rgba_t ERR_COLOR { 0xffffffffU };
 
   if (!str)
@@ -13,17 +13,11 @@ rgba_t::parse(const char *str, char **end) {
 
   // Reset
   if (str[0] == '-') {
-    if (end)
-      *end = (char *)str + 1;
-
     return ERR_COLOR;
   }
 
   // Hex representation
   if (str[0] != '#') {
-    if (end)
-      *end = (char *)str;
-
     fprintf(stderr, "Invalid color specified\n");
     return ERR_COLOR;
   }
@@ -31,9 +25,6 @@ rgba_t::parse(const char *str, char **end) {
   errno = 0;
   char *ep;
   rgba_t tmp { (uint32_t)strtoul(str + 1, &ep, 16) };
-
-  if (end)
-    *end = ep;
 
   // Some error checking is definitely good
   if (errno) {

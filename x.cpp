@@ -20,6 +20,7 @@ X::get_visual () {
   }
 
   // Fallback
+  // TODO: when is this even used?
   visual_ptr = xft_default_visual(0);
   return screen->root_visual;
 }
@@ -58,18 +59,22 @@ X::X()
 
   char *val;
   get_string_resource("background", &val);
-  bgc = rgba_t::parse(val, nullptr);
+  bgc = rgba_t::parse(val);
   get_string_resource("foreground", &val);
-  ugc = fgc = rgba_t::parse(val, nullptr);
+  ugc = fgc = rgba_t::parse(val);
+  accent = rgba_t::parse("#257fad");
 
-  gc[GC_DRAW] = generate_id();
-  gc[GC_CLEAR] = generate_id();
-  gc[GC_ATTR] = generate_id();
+  gc[GC_DRAW]   = generate_id();
+  gc[GC_ACCENT] = generate_id();
+  gc[GC_CLEAR]  = generate_id();
+  gc[GC_ATTR]   = generate_id();
 }
 
 X::~X() {
   if (gc[GC_DRAW])
     xcb_free_gc(connection, gc[GC_DRAW]);
+  if (gc[GC_ACCENT])
+    xcb_free_gc(connection, gc[GC_ACCENT]);
   if (gc[GC_CLEAR])
     xcb_free_gc(connection, gc[GC_CLEAR]);
   if (gc[GC_ATTR])
@@ -80,7 +85,8 @@ X::~X() {
   if (database)
     xcb_xrm_database_free(database);
 
-  xft_color_free();
+  xft_color_free(&fg_color);
+  xft_color_free(&acc_color);
 }
 
 X&
@@ -108,38 +114,51 @@ X::change_property(uint8_t mode, xcb_window_t window, xcb_atom_t property,
 }
 
 void
-X::update_gc () {
-  xcb_change_gc(connection, gc[GC_DRAW], XCB_GC_FOREGROUND, fgc.val());
-  xcb_change_gc(connection, gc[GC_CLEAR], XCB_GC_FOREGROUND, bgc.val());
-  xcb_change_gc(connection, gc[GC_ATTR], XCB_GC_FOREGROUND, ugc.val());
-  xft_color_free();
+X::update_gc() {
+  xcb_change_gc(connection, gc[GC_DRAW],   XCB_GC_FOREGROUND, fgc.val());
+  xcb_change_gc(connection, gc[GC_ACCENT], XCB_GC_FOREGROUND, accent.val());
+  xcb_change_gc(connection, gc[GC_CLEAR],  XCB_GC_FOREGROUND, bgc.val());
+  xcb_change_gc(connection, gc[GC_ATTR],   XCB_GC_FOREGROUND, ugc.val());
+
+  // TODO: can't we just do this once initially?
+  xft_color_free(&acc_color);
+  char color2[] = "#ffffff";
+  uint32_t naccent = *accent.val() & 0x00ffffff;
+  snprintf(color2, sizeof(color2), "#%06X", naccent);
+  if (!XftColorAllocName(display, visual_ptr, colormap, color2, &acc_color)) {
+    fprintf(stderr, "Couldn't allocate xft font color '%s'\n", color2);
+  }
+
+  xft_color_free(&fg_color);
   char color[] = "#ffffff";
   uint32_t nfgc = *fgc.val() & 0x00ffffff;
   snprintf(color, sizeof(color), "#%06X", nfgc);
-  if (!xft_color_alloc_name(color)) {
+  if (!XftColorAllocName(display, visual_ptr, colormap, color, &fg_color)) {
     fprintf(stderr, "Couldn't allocate xft font color '%s'\n", color);
   }
 }
 
 void
 X::copy_area(xcb_drawable_t src, xcb_drawable_t dst, int16_t src_x,
-             int16_t dst_x, uint16_t width)
+             int16_t dst_x, uint16_t width, uint16_t height)
 {
+  // TODO: what's the significance of GC_DRAW here?
   xcb_copy_area(connection, src, dst, gc[GC_DRAW], src_x, 0, dst_x, 0, width,
-                BAR_HEIGHT);
+                height);
 }
 
 void
 X::create_gc(xcb_pixmap_t pixmap) {
-  xcb_create_gc(connection, gc[GC_DRAW],  pixmap, XCB_GC_FOREGROUND, fgc.val());
-  xcb_create_gc(connection, gc[GC_CLEAR], pixmap, XCB_GC_FOREGROUND, bgc.val());
-  xcb_create_gc(connection, gc[GC_ATTR],  pixmap, XCB_GC_FOREGROUND, ugc.val());
+  xcb_create_gc(connection, gc[GC_DRAW],   pixmap, XCB_GC_FOREGROUND, fgc.val());
+  xcb_create_gc(connection, gc[GC_ACCENT], pixmap, XCB_GC_FOREGROUND, accent.val());
+  xcb_create_gc(connection, gc[GC_CLEAR],  pixmap, XCB_GC_FOREGROUND, bgc.val());
+  xcb_create_gc(connection, gc[GC_ATTR],   pixmap, XCB_GC_FOREGROUND, ugc.val());
 }
 
 void
-X::create_pixmap(xcb_pixmap_t pid, xcb_drawable_t drawable, uint16_t width)
+X::create_pixmap(xcb_pixmap_t pid, xcb_drawable_t drawable, uint16_t width, uint16_t height)
 {
-  xcb_create_pixmap(connection, get_depth(), pid, drawable, width, BAR_HEIGHT);
+  xcb_create_pixmap(connection, get_depth(), pid, drawable, width, height);
 }
 
 void
@@ -149,11 +168,11 @@ X::free_pixmap(xcb_pixmap_t pixmap) {
 
 void
 X::create_window(xcb_window_t wid,
-    int16_t x, int16_t y, uint16_t width, uint16_t _class,
+    int16_t x, int16_t y, uint16_t width, uint16_t height, uint16_t _class,
     xcb_visualid_t visual, uint32_t value_mask, const void *value_list)
 {
   xcb_create_window(connection, get_depth(), wid, screen->root, x, y, width,
-      BAR_HEIGHT, 0, _class, visual, value_mask, value_list);
+      height, 0, _class, visual, value_mask, value_list);
 }
 
 void
@@ -177,8 +196,8 @@ X::wait_for_event() {
 }
 
 void
-X::fill_rect (xcb_drawable_t d, uint32_t gc_index, int16_t x, int16_t y,
-           uint16_t width, uint16_t height)
+X::fill_rect(xcb_drawable_t d, uint32_t gc_index, int16_t x, int16_t y,
+             uint16_t width, uint16_t height)
 {
   xcb_rectangle_t rect = { x, y, width, height };
   xcb_poly_fill_rectangle(connection, d, gc[gc_index], 1, &rect);
@@ -364,21 +383,13 @@ X::xft_char_width (uint16_t ch) {
     return 0;
 }
 
-bool
-X::xft_color_alloc_name(_Xconst char *name)
-{
-  return XftColorAllocName(display, visual_ptr, colormap, name, &sel_fg);
-}
-
 void
-X::xft_color_free() {
-  XftColorFree(display, visual_ptr, colormap, &sel_fg);
+X::xft_color_free(XftColor* color) {
+  XftColorFree(display, visual_ptr, colormap, color);
 }
 
 Visual *
 X::xft_default_visual(int screen) {
-  // TODO: is this even necessary?
-  fprintf(stderr, "SCREEN IS %d\n", screen);
   return DefaultVisual(display, screen);
 }
 
@@ -393,14 +404,7 @@ X::xft_font_open_name(_Xconst char *name) {
 }
 
 void
-X::xft_draw_string_16(XftFont* xft_ft, int x, int y, _Xconst FcChar16 *str,
-                      int len)
-{
-  XftDrawString16(xft_draw, &sel_fg, xft_ft, x, y, str, len);
-}
-
-void
-X::draw_ucs2_string(const std::vector<uint16_t>& str, size_t x) {
+X::draw_ucs2_string(XftDraw* draw, const std::vector<uint16_t>& str, size_t x) {
   // TODO: currently the proper font for this character needs to be found twice.
   // This can definitely be optimized.
   // Also, group consecutive characters of the same font so they can be printed
@@ -410,15 +414,30 @@ X::draw_ucs2_string(const std::vector<uint16_t>& str, size_t x) {
     auto& font = fonts.drawable_font(ch);
     const int y = BAR_HEIGHT / 2 + font.height / 2
                   - font.descent + font.offset;
-    xft_draw_string_16(font.xft_ft, x, y, &ch, 1);
+    XftDrawString16(draw, &fg_color, font.xft_ft, x, y, &ch, 1);
     x += xft_char_width(ch);
   }
+}
 
+void
+X::draw_ucs2_string_accent(XftDraw* draw, const std::vector<uint16_t>& str, size_t x) {
+  // TODO: currently the proper font for this character needs to be found twice.
+  // This can definitely be optimized.
+  // Also, group consecutive characters of the same font so they can be printed
+  // in bulk.
+
+  for (auto ch : str) {
+    auto& font = fonts.drawable_font(ch);
+    const int y = BAR_HEIGHT / 2 + font.height / 2
+                  - font.descent + font.offset;
+    XftDrawString16(draw, &acc_color, font.xft_ft, x, y, &ch, 1);
+    x += xft_char_width(ch);
+  }
 }
 
 void
 X::xft_font_close(XftFont *xft) {
-  XftFontClose (display, xft);
+  XftFontClose(display, xft);
 }
 
 uint8_t

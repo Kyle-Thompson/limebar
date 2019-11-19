@@ -13,12 +13,18 @@ void mod_clock::trigger()
   std::this_thread::sleep_for(std::chrono::minutes(1));
 }
 
-std::string mod_clock::update()
+void mod_clock::update()
 {
   time_t t = time(nullptr);
   struct tm* local = localtime(&t);
-  snprintf(clock_str, 35, "%%{F#257fad}%02d:%02d%%{F#7ea2b4} %s %02d",
-      local->tm_hour, local->tm_min, months[local->tm_mon], local->tm_mday);
-  clock_str[34] = '\0';
-  return clock_str;
+
+  char current_time[6];
+  snprintf(current_time, 6, "%02d:%02d", local->tm_hour, local->tm_min);
+  current_time[5] = '\0';
+  _pixmap.write_with_accent(current_time);
+
+  char current_day[8];
+  snprintf(current_day, 8, " %s %02d", months[local->tm_mon], local->tm_mday);
+  current_day[7] = '\0';
+  _pixmap.write(current_day);
 }

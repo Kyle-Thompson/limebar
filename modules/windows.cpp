@@ -7,7 +7,9 @@
 #include <X11/Xatom.h>
 #include <X11/X.h>
 
-mod_windows::mod_windows() {
+mod_windows::mod_windows(const BarWindow& win)
+  : Module(win)
+{
   conn = xcb_connect(nullptr, nullptr);
   if (xcb_connection_has_error(conn)) {
     fprintf(stderr, "Cannot X connection for workspaces daemon.\n");
@@ -52,9 +54,8 @@ void mod_windows::trigger() {
   }
 }
 
-std::string mod_windows::update() {
+void mod_windows::update() {
   // %{A:wmctrl -i -a 0x00c00003:}Firefox%{A}
-  std::stringstream ss;
   unsigned long client_list_size;
   unsigned long current_workspace = X::Instance().get_current_workspace();
 
@@ -74,10 +75,11 @@ std::string mod_windows::update() {
     char* title_cstr = X::Instance().get_window_title(windows[i]);
     if (!title_cstr || current_workspace != *workspace) continue;
     std::string title(title_cstr);
-    if (windows[i] == current_window) ss << "%{F#257fad}";  // TODO: replace with general xres accent color
-    ss << title.substr(title.find_last_of(' ') + 1) << " ";
-    if (windows[i] == current_window) ss << "%{F#7ea2b4}";
+    if (windows[i] == current_window) {
+      _pixmap.write_with_accent(title.substr(title.find_last_of(' ') + 1) + ' ');
+    } else {
+      _pixmap.write(title.substr(title.find_last_of(' ') + 1) + ' ');
+    }
   }
   free(windows);
-  return ss.str();
 }

@@ -2,13 +2,10 @@
 
 #include <array>
 
-constexpr bool TOPBAR = true;
 constexpr bool FORCE_DOCK = false;
-constexpr int BAR_WIDTH = 3840 /* 5760 */, BAR_HEIGHT = 20,
-              BAR_X_OFFSET = 0, BAR_Y_OFFSET = 0;
+constexpr int BAR_HEIGHT = 20;
 constexpr const char* WM_NAME = nullptr;
 constexpr std::string_view WM_CLASS = "limebar";
-constexpr int UNDERLINE_HEIGHT = 1;
 
 // font name, y offset
 constexpr std::array<std::pair<const char*, int>, 1> FONTS = {

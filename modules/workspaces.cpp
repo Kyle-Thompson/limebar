@@ -9,7 +9,8 @@
 #include <X11/Xatom.h>
 #include <X11/X.h>
 
-mod_workspaces::mod_workspaces()
+mod_workspaces::mod_workspaces(const BarWindow& win)
+  : Module(win)
 {
   conn = xcb_connect(nullptr, nullptr);
   if (xcb_connection_has_error(conn)) {
@@ -45,7 +46,7 @@ void mod_workspaces::trigger()
   }
 }
 
-std::string mod_workspaces::update()
+void mod_workspaces::update()
 {
   unsigned long desktop_list_size = 0;
   Window root = X::Instance().get_default_root_window();
@@ -74,16 +75,16 @@ std::string mod_workspaces::update()
   }
 
   // %{A:wmctrl -s 1 && refbar workspaces windows:}2%{A}
-  std::stringstream ss;
   for (int i = 0; i < *num_desktops; ++i) {
-    if (i == *cur_desktop) ss << "%{F#257fad}";
-    ss << names[i] << " ";
-    if (i == *cur_desktop) ss << "%{F#7ea2b4}";
+    if (i == *cur_desktop) {
+      _pixmap.write_with_accent(std::string(names[i]) + " ");
+    } else {
+      _pixmap.write(std::string(names[i]) + " ");
+    }
   }
 
   free(names);
   free(num_desktops);
   free(cur_desktop);
   free(list);
-  return ss.str();
 }

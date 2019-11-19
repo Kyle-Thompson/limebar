@@ -1,17 +1,19 @@
 #pragma once
 
+#include "module.h"
+
 #include "../x.h"
 
 #include <string>
 #include <xcb/xcb.h>
 
-class mod_windows {
+class mod_windows : public Module<mod_windows> {
  public:
-  mod_windows();
+  mod_windows(const BarWindow& win);
   ~mod_windows();
 
   void trigger();
-  std::string update();
+  void update();
 
   constexpr static size_t MAX_AREAS = 20;
 

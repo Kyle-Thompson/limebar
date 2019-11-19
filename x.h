@@ -30,14 +30,14 @@ class X {
   void     flush() { xcb_flush(connection); }
   void     update_gc();
   void     copy_area(xcb_drawable_t src, xcb_drawable_t dst, int16_t src_x,
-                     int16_t dst_x, uint16_t width);
+                     int16_t dst_x, uint16_t width, uint16_t height);
   void     create_gc(xcb_pixmap_t pixmap);
   void     create_pixmap(xcb_pixmap_t pid, xcb_drawable_t drawable,
-                         uint16_t width);
+                         uint16_t width, uint16_t height);
   void     free_pixmap(xcb_pixmap_t pixmap);
   void     create_window(xcb_window_t wid, int16_t x, int16_t y, uint16_t width,
-                         uint16_t _class, xcb_visualid_t visual,
-                         uint32_t value_mask, const void *value_list);
+      uint16_t height, uint16_t _class, xcb_visualid_t visual,
+      uint32_t value_mask, const void *value_list);
   void     destroy_window(xcb_window_t window);
   void     configure_window(xcb_window_t window, uint16_t value_mask,
                             const void *value_list);
@@ -69,17 +69,19 @@ class X {
   bool     xft_char_exists(XftFont *pub, FcChar32 ucs4);
   FT_UInt  xft_char_index(XftFont *pub, FcChar32 ucs4);
   int      xft_char_width(uint16_t ch);
-  bool     xft_color_alloc_name(_Xconst char *name);
-  void     xft_color_free();
+  void     xft_color_free(XftColor* color);
   Visual*  xft_default_visual(int screen);
   XftDraw* xft_draw_create(Drawable drawable);
   void     xft_font_close(XftFont *xft);
   XftFont* xft_font_open_name(_Xconst char *name);
-  void     xft_draw_string_16(XftFont* xft_ft, int x, int y, _Xconst FcChar16 *str, int len);
-  void     draw_ucs2_string(const std::vector<uint16_t>& str, size_t x);
+  void     draw_ucs2_string(XftDraw* draw, const std::vector<uint16_t>& str,
+                            size_t x);
+  void     draw_ucs2_string_accent(XftDraw* draw,
+                                   const std::vector<uint16_t>& str, size_t x);
 
   // TODO: make these private
   rgba_t fgc, bgc, ugc;
+  rgba_t accent;  // TODO: clean up color management
   XftDraw *xft_draw { nullptr };
   
  private:
@@ -165,7 +167,8 @@ class X {
  private:  // temp
 
   xcb_gcontext_t gc[GC_MAX];
-  XftColor sel_fg;
+  XftColor fg_color;
+  XftColor acc_color;
   xcb_colormap_t colormap;
 
   Visual *visual_ptr;
