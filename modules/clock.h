@@ -1,13 +1,13 @@
 #pragma once
 
-#include "module.h"
+#include "dynamic_module.h"
 
 #include <array>
 #include <utility>
 
-class mod_clock : public Module<mod_clock> {
+class mod_clock : public DynamicModule<mod_clock> {
  public:
-  mod_clock(const BarWindow& win) : Module(win) {}
+  mod_clock(const BarWindow& win) : DynamicModule(win) {}
 
   void trigger();
   void update();

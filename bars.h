@@ -98,8 +98,8 @@ bar_t<origin_x, origin_y, width, height, Left, Middle, Right>::update()
   std::apply(
       [&](auto&... mod) {
         ([&mod, this]{
-           const auto& [px, l] = mod.get();
-           _win.update_left(px);
+           const auto& pack = mod.get();
+           _win.update_left(pack.pixmap);
          }(), ...);
       },
       std::get<0>(_sections)._modules);
@@ -109,8 +109,8 @@ bar_t<origin_x, origin_y, width, height, Left, Middle, Right>::update()
   std::apply(
       [&](auto&... mod) {
         ([&mod, this]{
-           const auto& [px, l] = mod.get();
-           _win.update_right(px);
+           const auto& pack = mod.get();
+           _win.update_right(pack.pixmap);
          }(), ...);
       },
       std::get<2>(_sections)._modules);
@@ -121,9 +121,9 @@ bar_t<origin_x, origin_y, width, height, Left, Middle, Right>::update()
   std::apply(
       [&](auto&... mod) {
         ([&/*, this*/]{
-           const auto& [px, l] = mod.get();
-           /* _win.update_middle(px);  // TODO(1): uncomment */
-           mid_pix.append(px);
+           const auto& pack = mod.get();
+           /* _win.update_middle(pack.pixmap);  // TODO(1): uncomment */
+           mid_pix.append(pack.pixmap);
          }(), ...);
       },
       std::get<1>(_sections)._modules);

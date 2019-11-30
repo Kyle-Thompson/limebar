@@ -8,7 +8,7 @@
 #include <X11/X.h>
 
 mod_windows::mod_windows(const BarWindow& win)
-  : Module(win)
+  : DynamicModule(win)
 {
   conn = xcb_connect(nullptr, nullptr);
   if (xcb_connection_has_error(conn)) {

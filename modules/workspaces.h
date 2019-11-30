@@ -1,11 +1,11 @@
 #pragma once
 
-#include "module.h"
+#include "dynamic_module.h"
 
 #include <string>
 #include <xcb/xcb.h>
 
-class mod_workspaces : public Module<mod_workspaces> {
+class mod_workspaces : public DynamicModule<mod_workspaces> {
  public:
   mod_workspaces(const BarWindow& win);
   ~mod_workspaces() {}

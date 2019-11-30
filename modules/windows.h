@@ -1,13 +1,13 @@
 #pragma once
 
-#include "module.h"
+#include "dynamic_module.h"
 
 #include "../x.h"
 
 #include <string>
 #include <xcb/xcb.h>
 
-class mod_windows : public Module<mod_windows> {
+class mod_windows : public DynamicModule<mod_windows> {
  public:
   mod_windows(const BarWindow& win);
   ~mod_windows();
