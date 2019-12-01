@@ -8,7 +8,7 @@
  * - Isolate X11 code into a WM module that can be swapped with something else
  *   like Wayland down the road.
  * - (1) Use _middle_pixmap in window instead of populating external pixmap.
- * - The pixmap patch seems to have added some bugs. Will seg fault and print
+ * - The pixmap patch seems to have added some bugs. Will segfault and print
  *   garbage seemingly at random.
  */
 
