@@ -7,9 +7,7 @@
 #include <X11/Xatom.h>
 #include <X11/X.h>
 
-mod_windows::mod_windows(const BarWindow& win)
-  : DynamicModule(win)
-{
+mod_windows::mod_windows() {
   conn = xcb_connect(nullptr, nullptr);
   if (xcb_connection_has_error(conn)) {
     fprintf(stderr, "Cannot X connection for workspaces daemon.\n");
@@ -42,6 +40,24 @@ mod_windows::~mod_windows() {
   xcb_disconnect(conn);
 }
 
+void mod_windows::get(ModulePixmap &px) {
+  // TODO: how to capture windows that don't work here? (e.g. steam)
+
+  for (unsigned long i = 0; i < client_list_size; ++i) {
+    // TODO: pair workspace with windows in update()
+    unsigned long *workspace = (unsigned long *)X::Instance()
+        .get_property(windows[i], XA_CARDINAL, "_NET_WM_DESKTOP", nullptr);
+    char* title_cstr = X::Instance().get_window_title(windows[i]);
+    if (!title_cstr || current_workspace != *workspace) continue;
+    std::string title(title_cstr);
+    if (windows[i] == current_window) {
+      px.write_with_accent(title.substr(title.find_last_of(' ') + 1) + ' ');
+    } else {
+      px.write(title.substr(title.find_last_of(' ') + 1) + ' ');
+    }
+  }
+}
+
 void mod_windows::trigger() {
   for (xcb_generic_event_t *ev = nullptr; (ev = xcb_wait_for_event(conn)); free(ev)) {
     if ((ev->response_type & 0x7F) == XCB_PROPERTY_NOTIFY) {
@@ -55,31 +71,20 @@ void mod_windows::trigger() {
 }
 
 void mod_windows::update() {
-  // %{A:wmctrl -i -a 0x00c00003:}Firefox%{A}
-  unsigned long client_list_size;
-  unsigned long current_workspace = X::Instance().get_current_workspace();
+  if (windows) free(windows);
 
-  const Window current_window = [] {
+  // %{A:wmctrl -i -a 0x00c00003:}Firefox%{A}
+  current_workspace = X::Instance().get_current_workspace();
+  current_window = [] {
     unsigned long size;
-    char* prop = X::Instance().get_property(X::Instance().get_default_root_window(), XA_WINDOW, "_NET_ACTIVE_WINDOW", &size);
+    char* prop = X::Instance()
+        .get_property(X::Instance().get_default_root_window(),
+                      XA_WINDOW, "_NET_ACTIVE_WINDOW", &size);
     Window ret = *((Window*)prop);
     free(prop);
     return ret;
   }();
 
-  // TODO: how to capture windows that don't work here? (e.g. steam)
-  Window* windows = X::Instance().get_client_list(&client_list_size);
-  for (unsigned long i = 0; i < client_list_size / sizeof(Window); ++i) {
-    unsigned long *workspace = (unsigned long *)X::Instance().get_property(windows[i],
-        XA_CARDINAL, "_NET_WM_DESKTOP", nullptr);
-    char* title_cstr = X::Instance().get_window_title(windows[i]);
-    if (!title_cstr || current_workspace != *workspace) continue;
-    std::string title(title_cstr);
-    if (windows[i] == current_window) {
-      _pixmap.write_with_accent(title.substr(title.find_last_of(' ') + 1) + ' ');
-    } else {
-      _pixmap.write(title.substr(title.find_last_of(' ') + 1) + ' ');
-    }
-  }
-  free(windows);
+  windows = X::Instance().get_client_list(&client_list_size);
+  client_list_size /= sizeof(Window);
 }

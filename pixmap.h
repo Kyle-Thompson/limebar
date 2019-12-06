@@ -65,6 +65,8 @@ struct Util {
   }
 };
 
+// TODO: create a wrapper class that only allows appending and not clearing to
+// limit access to what modules can do when getting a ModulePixmap
 class ModulePixmap {
  public:
   ModulePixmap(xcb_drawable_t drawable, uint16_t width, uint16_t height)
@@ -95,6 +97,7 @@ class ModulePixmap {
     _used += rhs._used;
   }
 
+  // TODO: overload with const char*
   void write(const std::string& str) {
     ucs2_and_width parsed = Util::utf8_to_ucs2(str);
 
@@ -121,4 +124,5 @@ class ModulePixmap {
   X&           _x;
   xcb_pixmap_t _pixmap_id;
   XftDraw*     _xft_draw;
+  std::mutex   _mutex;
 };

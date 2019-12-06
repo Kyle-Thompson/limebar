@@ -1,19 +1,17 @@
 #pragma once
 
-#include "static_module.h"
+#include "module.h"
 #include <array>
 
 // TODO: replace with std::string when that becomes standardized
-template <char... Chars>
-class mod_fill : public StaticModule<mod_fill<Chars...>> {
-  using PARENT = StaticModule<mod_fill<Chars...>>;
-
+class mod_fill : public StaticModule<mod_fill> {
  public:
-  mod_fill(const BarWindow& win)
-    : PARENT(win)
-  {
-    std::array<char, sizeof...(Chars) + 1> chars { Chars... };
-    chars[sizeof...(Chars)] = '\0';
-    PARENT::_pixmap.write(chars.data());
+  mod_fill(const char* str) : _str(str) {}
+
+  void get(ModulePixmap& px) {
+    px.write(_str);
   }
+  
+ private:
+  const char* _str;
 };

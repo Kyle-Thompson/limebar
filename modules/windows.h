@@ -1,24 +1,31 @@
 #pragma once
 
-#include "dynamic_module.h"
+#include "module.h"
 
-#include "../x.h"
-
-#include <string>
 #include <xcb/xcb.h>
+
+// TODO: make special window container
 
 class mod_windows : public DynamicModule<mod_windows> {
  public:
-  mod_windows(const BarWindow& win);
+  mod_windows();
   ~mod_windows();
 
-  void trigger();
-  void update();
+  void get(ModulePixmap& px);
 
   constexpr static size_t MAX_AREAS = 20;
 
+  friend class DynamicModule<mod_windows>;
  private:
+  void trigger();
+  void update();
+
   xcb_connection_t* conn;
   xcb_atom_t current_desktop;
   xcb_atom_t active_window;
+
+  unsigned long  client_list_size;
+  unsigned long  current_workspace;
+  Window         current_window;
+  Window        *windows;
 };
