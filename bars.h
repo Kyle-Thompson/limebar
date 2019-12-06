@@ -9,13 +9,23 @@
 #include <array>
 #include <bits/stdint-uintn.h>  // int_t
 #include <chrono>
+#include <condition_variable>
 #include <cstddef>  // size_t
 #include <mutex>
-#include <sstream>
 #include <thread>
 #include <tuple>
 #include <utility>  // pair, make_index_sequence
-#include <vector>
+
+/** dimension_t
+ * Utility struct for passing dimensions to bar_t.
+ * NOTE: origin_{x,y} refers to the coordinate pair for the top left pixel.
+ */
+struct dimension_t {
+  size_t origin_x;
+  size_t origin_y;
+  size_t width;
+  size_t height;
+};
 
 
 /** section_t
@@ -23,59 +33,69 @@
  * stores the modules in a given section, manages their threads and collects
  * their current values into one representation of the state of the section at
  * the time which it was called.
+ *
+ * TODO: how to verify that Mods is a tuple?
  */
-template <typename ...Mod>
+template <typename Mods>
 struct section_t {
-  section_t(const BarWindow& win);
-  // TODO: collect generator to return one module pixmap and its lock at a time.
+  section_t(std::condition_variable& cond, BarWindow& win, Mods&& mods)
+    : _pixmap(win.generate_mod_pixmap())
+    , _modules(std::move(mods))
+  {
+    std::apply(
+        [&](auto&&... mods) { (mods.subscribe(&cond), ...); },
+        _modules);
+  }
 
-  std::tuple<Mod...> _modules;
-  std::array<std::thread, sizeof...(Mod)> _module_threads;
+  ModulePixmap& collect() {
+    _pixmap.clear();
+    std::apply(
+        [&](auto&&... mods) { (mods.get(_pixmap), ...); },
+        _modules);
+    return _pixmap;
+  }
+
+  ModulePixmap _pixmap;
+  Mods _modules;
 };
-
-template <typename ...Mod>
-section_t<Mod...>::section_t(const BarWindow& win)
-  : _modules( ((void)sizeof(Mod), win)... )
-  , _module_threads(
-      [this]<size_t... I>(std::index_sequence<I...>) -> decltype(_module_threads) {
-        return { std::thread(std::ref(std::get<I>(_modules)))... };
-      }(std::make_index_sequence<sizeof...(Mod)>{}))
-{}
 
 
 /** bar_t
  * The bar_t class maintains the three different sections and the window
  * displaying the bar itself. It will also draw each section into the bar.
  */
-template <size_t origin_x, size_t origin_y,
-          size_t width, size_t height,
-          typename Left, typename Middle, typename Right>
+template <typename Left, typename Middle, typename Right>
 struct bar_t {
-  bar_t();
+
+  bar_t(dimension_t d, Left left, Middle middle, Right right);
 
   void operator()();
   void update();
 
-  /* std::condition_variable _condvar;  // TODO: Each bar should have it's own synchronization. */
+  std::condition_variable _condvar;
+  size_t _origin_x, _origin_y, _width, _height;
   BarWindow _win;
-  std::tuple<Left, Middle, Right> _sections;
+  section_t<Left>   _left;
+  section_t<Middle> _middle;
+  section_t<Right>  _right;
 };
 
-template <size_t origin_x, size_t origin_y,
-          size_t width, size_t height,
-          typename Left, typename Middle, typename Right>
-bar_t<origin_x, origin_y, width, height, Left, Middle, Right>::bar_t()
-  : _win(origin_x, origin_y, width, height)
-  , _sections(_win, _win, _win)
+template <typename Left, typename Middle, typename Right>
+bar_t<Left, Middle, Right>::bar_t(dimension_t d, Left left, Middle middle,
+                                  Right right)
+  : _origin_x(d.origin_x)
+  , _origin_y(d.origin_y)
+  , _width(d.width)
+  , _height(d.height)
+  , _win(_origin_x, _origin_y, _width, _height)
+  , _left(_condvar, _win, std::move(left))
+  , _middle(_condvar, _win, std::move(middle))
+  , _right(_condvar, _win, std::move(right))
 {}
 
-template <size_t origin_x, size_t origin_y,
-          size_t width, size_t height,
-          typename Left, typename Middle, typename Right>
+template <typename Left, typename Middle, typename Right>
 void
-bar_t<origin_x, origin_y, width, height, Left, Middle, Right>::operator()()
-{
-
+bar_t<Left, Middle, Right>::operator()() {
   while (true) {
     _win.clear();
     update();
@@ -83,51 +103,16 @@ bar_t<origin_x, origin_y, width, height, Left, Middle, Right>::operator()()
 
     std::mutex mutex;
     std::unique_lock<std::mutex> lock(mutex);
-    condvar.wait(lock);
+    _condvar.wait(lock);
   }
 }
 
-template <size_t origin_x, size_t origin_y,
-          size_t width, size_t height,
-          typename Left, typename Middle, typename Right>
+template <typename Left, typename Middle, typename Right>
 void
-bar_t<origin_x, origin_y, width, height, Left, Middle, Right>::update()
-{
-  // add in left modules up to the entire bar
-  // TODO: update with section collect when available. This is so gross.
-  std::apply(
-      [&](auto&... mod) {
-        ([&mod, this]{
-           const auto& pack = mod.get();
-           _win.update_left(pack.pixmap);
-         }(), ...);
-      },
-      std::get<0>(_sections)._modules);
-
-
-  // add right side modules
-  std::apply(
-      [&](auto&... mod) {
-        ([&mod, this]{
-           const auto& pack = mod.get();
-           _win.update_right(pack.pixmap);
-         }(), ...);
-      },
-      std::get<2>(_sections)._modules);
-
-
-  // add middle modules
-  auto mid_pix = _win.generate_mod_pixmap();
-  std::apply(
-      [&](auto&... mod) {
-        ([&/*, this*/]{
-           const auto& pack = mod.get();
-           /* _win.update_middle(pack.pixmap);  // TODO(1): uncomment */
-           mid_pix.append(pack.pixmap);
-         }(), ...);
-      },
-      std::get<1>(_sections)._modules);
-  _win.update_middle(mid_pix);  // TODO(1): delete
+bar_t<Left, Middle, Right>::update() {
+  _win.update_left(_left.collect());
+  _win.update_right(_right.collect());
+  _win.update_middle(_middle.collect());
 }
 
 
@@ -136,20 +121,12 @@ bar_t<origin_x, origin_y, width, height, Left, Middle, Right>::update()
  */
 template <typename ...Bar>
 struct Bars {
-  Bars()
-    /* : _threads(std::thread(Bar{})...) */
-    : _threads(
-        [this]<size_t... I>(std::index_sequence<I...>) -> decltype(_threads) {
-          return { std::thread(std::ref(std::get<I>(_bars)))... };
-        }(std::make_index_sequence<sizeof...(Bar)>{}))
-  {}
+  Bars(Bar& ...bars) : _threads{std::thread(std::ref(bars))...} {}
   ~Bars() {
     for (auto& t : _threads)
       t.join();
   }
 
-  // TODO: have threads own each bar.
-  std::tuple<Bar...> _bars;
   // TODO: jthreads
   std::array<std::thread, sizeof...(Bar)> _threads;
 };

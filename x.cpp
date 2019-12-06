@@ -3,7 +3,9 @@
 #include "config.h"
 
 #include <X11/Xlib-xcb.h>
+#include <cstdlib>
 #include <unordered_map>
+#include <vector>
 #include <xcb/randr.h>
 #include <X11/Xatom.h>
 #include <xcb/xcb_xrm.h>
@@ -238,7 +240,7 @@ X::connection_has_error() {
 template <typename T>
 T*  // TODO: unique_ptr
 X::get_property(Window win, Atom xa_prop_type, const char *prop_name,
-                unsigned long *size)
+                unsigned long *num_items)
 {
   Atom xa_ret_type;
   int ret_format;
@@ -259,10 +261,11 @@ X::get_property(Window win, Atom xa_prop_type, const char *prop_name,
     return nullptr;
   }
 
-  if (size) {
-    *size = (ret_format / 8) * ret_nitems;
+  if (num_items) {
+    *num_items = ret_nitems;
   }
 
+  // TODO: if !is_pointer<T>, free the memory and return by value
   return (T*) ret_prop;
 }
 
@@ -275,32 +278,38 @@ X::get_window_title(Window win) {
 }
 
 
-Window *
-X::get_client_list(unsigned long *size) {
-  Window *client_list;
+std::vector<Window>
+X::get_client_list() {
+  unsigned long items { 0 };
+  Window *client_list =
+       get_property<Window>(DefaultRootWindow(display), XA_WINDOW,
+                            "_NET_CLIENT_LIST", &items)
+    ?: get_property<Window>(DefaultRootWindow(display), XA_CARDINAL,
+                            "_WIN_CLIENT_LIST", &items);
 
-  if ((client_list = get_property<Window>(DefaultRootWindow(display),
-      XA_WINDOW, "_NET_CLIENT_LIST", size)) == NULL) {
-    if ((client_list = get_property<Window>(DefaultRootWindow(display),
-        XA_CARDINAL, "_WIN_CLIENT_LIST", size)) == NULL) {
-      fprintf(stderr, "Cannot get client list properties. \n"
-          "(_NET_CLIENT_LIST or _WIN_CLIENT_LIST)\n");
-      return NULL;
-    }
+  if (client_list == nullptr) {
+    fprintf(stderr, "Cannot get client list properties. "
+        "(_NET_CLIENT_LIST or _WIN_CLIENT_LIST)\n");
+    exit(EXIT_FAILURE);
   }
-
-  return client_list;
+  
+  // TODO: instead of copying the data, just transfer ownership of the memory
+  std::vector<Window> v(client_list, client_list + items);
+  // TODO: do we need to free here?
+  /* free(client_list); */
+  return v;
 }
 
 
 unsigned long
 X::get_current_workspace() {
-  unsigned long *cur_desktop = NULL;
+  // TODO: refactor for clarity
+  unsigned long *cur_desktop = nullptr;
   Window root = DefaultRootWindow(display);
   if (! (cur_desktop = get_property<unsigned long>(root,
-      XA_CARDINAL, "_NET_CURRENT_DESKTOP", NULL))) {
+      XA_CARDINAL, "_NET_CURRENT_DESKTOP", nullptr))) {
     if (! (cur_desktop = get_property<unsigned long>(root,
-        XA_CARDINAL, "_WIN_WORKSPACE", NULL))) {
+        XA_CARDINAL, "_WIN_WORKSPACE", nullptr))) {
       fprintf(stderr, "Cannot get current desktop properties. "
           "(_NET_CURRENT_DESKTOP or _WIN_WORKSPACE property)\n");
       free(cur_desktop);

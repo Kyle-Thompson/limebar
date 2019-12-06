@@ -11,6 +11,11 @@
  * - The pixmap patch seems to have added some bugs. Will segfault and print
  *   garbage seemingly at random.
  * - fix windows module bug where not all windows are shown.
+ * - Should each section have it's own pixmap to reduce the number of modules
+ *   that need to be queried when another module changes?
+ * - Introduce concept of fixed size modules where an update to the module
+ *   doesn't require redrawing any of the other modules at all.
+ * - Clean up X module implementations. (e.g. remove `if(thing) free(thing)`)
  */
 
 #include "bars.h"
@@ -19,6 +24,33 @@
 #include "modules/clock.h"
 #include "modules/fill.h"
 
+#include <tuple>
+#include <X11/Xlib.h>
+
+template <typename Mod>
+class ModuleContainer {
+ public:
+  template <typename ...Args>
+  ModuleContainer(Args ...args)
+    : _module(std::forward<Args>(args)...)
+    , _thread(std::ref(_module))
+  {}
+
+  ~ModuleContainer() {
+    _thread.join();
+  }
+
+  Mod& operator*() { return _module; }
+
+  Mod _module;
+  std::thread _thread;
+};
+
+template <typename ...Mods>
+std::tuple<Mods& ...> make_section(ModuleContainer<Mods>& ...mods) {
+  return std::tuple<Mods& ...>{*mods...};
+}
+
 int
 main () {
   if (!XInitThreads()) {
@@ -26,31 +58,18 @@ main () {
     exit(EXIT_FAILURE);
   }
 
-  // rendering bug when using:
-  /* Bars< */
-  /*   bar_t< */
-  /*     1920, 0, 1919, 20, */
-  /*     section_t<mod_workspaces, */
-  /*               mod_windows>, */
-  /*     section_t<mod_clock, */
-  /*               mod_clock, */
-  /*               mod_workspaces, */
-  /*               mod_windows, */
-  /*               mod_clock, */
-  /*               mod_windows>, */
-  /*     section_t<> */
-  /*   > */
-  /* > bars; */
+  ModuleContainer<mod_fill>       space(" ");
+  ModuleContainer<mod_workspaces> workspaces;
+  ModuleContainer<mod_fill>       sep("| ");
+  ModuleContainer<mod_windows>    windows;
+  ModuleContainer<mod_clock>      clock;
 
-  Bars<
-    bar_t<
-      1920, 0, 1919, 20,         // config
-      section_t<mod_fill<' '>,   // left
-                mod_workspaces,
-                mod_fill<'|', ' '>,
-                mod_windows>,
-      section_t<mod_clock>,      // center
-      section_t<>                // right
-    >
-  > bars;
+  bar_t bar(
+    { .origin_x = 1920, .origin_y = 0, .width = 1919, .height = 20 },
+    make_section(space, workspaces, sep, windows),
+    make_section(clock),
+    std::tuple{}
+  );
+
+  Bars bars(bar);
 }

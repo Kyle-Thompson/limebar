@@ -1,16 +1,18 @@
 #pragma once
 
-#include "dynamic_module.h"
-
-#include <array>
-#include <utility>
+#include "module.h"
 
 class mod_clock : public DynamicModule<mod_clock> {
  public:
-  mod_clock(const BarWindow& win) : DynamicModule(win) {}
+  void get(ModulePixmap& px) const;
 
+  constexpr static size_t MAX_AREAS = 1;
+
+  friend class DynamicModule<mod_clock>;
+ private:
   void trigger();
   void update();
 
-  constexpr static size_t MAX_AREAS = 1;
+  char current_time[6];
+  char current_day[8];
 };

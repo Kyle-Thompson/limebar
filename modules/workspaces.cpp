@@ -9,9 +9,7 @@
 #include <X11/Xatom.h>
 #include <X11/X.h>
 
-mod_workspaces::mod_workspaces(const BarWindow& win)
-  : DynamicModule(win)
-{
+mod_workspaces::mod_workspaces() {
   conn = xcb_connect(nullptr, nullptr);
   if (xcb_connection_has_error(conn)) {
     fprintf(stderr, "Cannot create X connection for workspaces module.\n");
@@ -31,8 +29,17 @@ mod_workspaces::mod_workspaces(const BarWindow& win)
   xcb_flush(conn);
 }
 
-void mod_workspaces::trigger()
-{
+void mod_workspaces::get(ModulePixmap &px) const {
+  for (int i = 0; i < names.size(); ++i) {
+    if (i == cur_desktop) {
+      px.write_with_accent(names[i] + " ");
+    } else {
+      px.write(names[i] + " ");
+    }
+  }
+}
+
+void mod_workspaces::trigger() {
   // TODO: this doesn't work if switching an empty workspace to an empty
   // workspace.
   for (xcb_generic_event_t *ev = nullptr; (ev = xcb_wait_for_event(conn));
@@ -46,43 +53,25 @@ void mod_workspaces::trigger()
   }
 }
 
-void mod_workspaces::update()
-{
-  unsigned long desktop_list_size = 0;
+void mod_workspaces::update() {
   Window root = X::Instance().get_default_root_window();
 
-  unsigned long *num_desktops = X::Instance().get_property<unsigned long>(
-      root, XA_CARDINAL, "_NET_NUMBER_OF_DESKTOPS", nullptr);
-  unsigned long *cur_desktop = X::Instance().get_property<unsigned long>(
+  // TODO: fix memory leak
+  unsigned long *cur_desktop_ptr = X::Instance().get_property<unsigned long>(
       root, XA_CARDINAL, "_NET_CURRENT_DESKTOP", nullptr);
+  cur_desktop = *cur_desktop_ptr;
+  /* free(num_desktops_ptr); */
+
+  unsigned long desktop_list_size { 0 };
   char *list = X::Instance().get_property<char>(root,
       X::Instance().get_intern_atom(), "_NET_DESKTOP_NAMES",
       &desktop_list_size);
 
-  /* prepare the array of desktop names */
-  char **names = (char **) malloc(*num_desktops * sizeof(char *));
-  int id = 0;
-  names[id++] = list;
-  for (int i = 0; i < desktop_list_size; i++) {
-    if (list[i] == '\0') {
-      if (id >= *num_desktops) {
-        break;
-      }
-      names[id++] = list + i + 1;
-    }
+  char *str = list;
+  names.clear();
+  for (int offset = 0; offset <= desktop_list_size; offset += strlen(str) + 1) {
+    names.push_back(str + offset);
   }
 
-  // %{A:wmctrl -s 1 && refbar workspaces windows:}2%{A}
-  for (int i = 0; i < *num_desktops; ++i) {
-    if (i == *cur_desktop) {
-      _pixmap.write_with_accent(std::string(names[i]) + " ");
-    } else {
-      _pixmap.write(std::string(names[i]) + " ");
-    }
-  }
-
-  free(names);
-  free(num_desktops);
-  free(cur_desktop);
   free(list);
 }
