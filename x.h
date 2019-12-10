@@ -7,6 +7,7 @@
 #include <bits/stdint-uintn.h>
 #include <fontconfig/fontconfig.h>
 #include <mutex>
+#include <unordered_map>
 #include <vector>
 #include <xcb/xcb.h>
 #include <xcb/xcb_xrm.h>
@@ -95,11 +96,8 @@ class X {
   xcb_xrm_database_t *database;
   xcb_screen_t       *screen;
 
-  // char width lookuptable
-  // TODO: replace with hashmap
-  static constexpr size_t MAX_WIDTHS {1 << 16};
-  wchar_t xft_char[MAX_WIDTHS] {0, };
-  char    xft_width[MAX_WIDTHS] {0, };
+  // TODO: use a more optimized hash map
+  std::unordered_map<uint16_t, char> xft_char_widths;
 
 
  public:  // temp

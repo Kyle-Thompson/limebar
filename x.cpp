@@ -3,6 +3,7 @@
 #include "config.h"
 
 #include <X11/Xlib-xcb.h>
+#include <unordered_map>
 #include <xcb/randr.h>
 #include <X11/Xatom.h>
 #include <xcb/xcb_xrm.h>
@@ -332,35 +333,28 @@ X::xft_char_index(XftFont *pub, FcChar32 ucs4) {
 }
 
 int
-X::xft_char_width (uint16_t ch) {
+X::xft_char_width(uint16_t ch) {
   static bool temp_fix = true;
   if (temp_fix) {
     fonts.init(this);
     temp_fix = false;
   }
 
-  XftFont *font = fonts.drawable_font(ch).xft_ft;
-  const int slot = [this](uint16_t ch) {
-    int slot = ch % MAX_WIDTHS;
-    while (xft_char[slot] != 0 && xft_char[slot] != ch) {
-      slot = (slot + 1) % MAX_WIDTHS;
-    }
-    return slot;
-  }(ch);
-
-  if (!xft_char[slot]) {
-    XGlyphInfo gi;
-    FT_UInt glyph = XftCharIndex(display, font, (FcChar32) ch);
-    XftFontLoadGlyphs(display, font, FcFalse, &glyph, 1);
-    XftGlyphExtents(display, font, &glyph, 1, &gi);
-    XftFontUnloadGlyphs(display, font, &glyph, 1);
-    xft_char[slot] = ch;
-    xft_width[slot] = gi.xOff;
-    return gi.xOff;
-  } else if (xft_char[slot] == ch)
-    return xft_width[slot];
-  else
-    return 0;
+  auto itr = xft_char_widths.find(ch);
+  if (itr == xft_char_widths.end()) {
+    itr = xft_char_widths.insert( {ch,
+        [&]{
+          XGlyphInfo gi;
+          XftFont *font = fonts.drawable_font(ch).xft_ft;
+          FT_UInt glyph = XftCharIndex(display, font, (FcChar32) ch);
+          XftFontLoadGlyphs(display, font, FcFalse, &glyph, 1);
+          XftGlyphExtents(display, font, &glyph, 1, &gi);
+          XftFontUnloadGlyphs(display, font, &glyph, 1);
+          return gi.xOff;
+        }()
+    }).first;
+  }
+  return itr->second;
 }
 
 void
