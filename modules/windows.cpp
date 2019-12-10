@@ -61,7 +61,8 @@ void mod_windows::update() {
 
   const Window current_window = [] {
     unsigned long size;
-    char* prop = X::Instance().get_property(X::Instance().get_default_root_window(), XA_WINDOW, "_NET_ACTIVE_WINDOW", &size);
+    char* prop = X::Instance().get_property<char>(X::Instance()
+        .get_default_root_window(), XA_WINDOW, "_NET_ACTIVE_WINDOW", &size);
     Window ret = *((Window*)prop);
     free(prop);
     return ret;
@@ -70,11 +71,10 @@ void mod_windows::update() {
   // TODO: how to capture windows that don't work here? (e.g. steam)
   Window* windows = X::Instance().get_client_list(&client_list_size);
   for (unsigned long i = 0; i < client_list_size / sizeof(Window); ++i) {
-    unsigned long *workspace = (unsigned long *)X::Instance().get_property(windows[i],
-        XA_CARDINAL, "_NET_WM_DESKTOP", nullptr);
-    char* title_cstr = X::Instance().get_window_title(windows[i]);
-    if (!title_cstr || current_workspace != *workspace) continue;
-    std::string title(title_cstr);
+    unsigned long *workspace = X::Instance().get_property<unsigned long>(
+        windows[i], XA_CARDINAL, "_NET_WM_DESKTOP", nullptr);
+    std::string title = X::Instance().get_window_title(windows[i]);  // TODO fix leak
+    if (title.empty() || current_workspace != *workspace) continue;
     if (windows[i] == current_window) {
       _pixmap.write_with_accent(title.substr(title.find_last_of(' ') + 1) + ' ');
     } else {

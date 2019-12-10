@@ -51,15 +51,13 @@ void mod_workspaces::update()
   unsigned long desktop_list_size = 0;
   Window root = X::Instance().get_default_root_window();
 
-  unsigned long *num_desktops =
-    (unsigned long *)X::Instance().get_property(root,
-        XA_CARDINAL, "_NET_NUMBER_OF_DESKTOPS", nullptr);
-  unsigned long *cur_desktop =
-    (unsigned long *)X::Instance().get_property(root,
-        XA_CARDINAL, "_NET_CURRENT_DESKTOP", nullptr);
-  char *list = X::Instance().get_property(root,
-      X::Instance().get_intern_atom(),
-      "_NET_DESKTOP_NAMES", &desktop_list_size);
+  unsigned long *num_desktops = X::Instance().get_property<unsigned long>(
+      root, XA_CARDINAL, "_NET_NUMBER_OF_DESKTOPS", nullptr);
+  unsigned long *cur_desktop = X::Instance().get_property<unsigned long>(
+      root, XA_CARDINAL, "_NET_CURRENT_DESKTOP", nullptr);
+  char *list = X::Instance().get_property<char>(root,
+      X::Instance().get_intern_atom(), "_NET_DESKTOP_NAMES",
+      &desktop_list_size);
 
   /* prepare the array of desktop names */
   char **names = (char **) malloc(*num_desktops * sizeof(char *));
