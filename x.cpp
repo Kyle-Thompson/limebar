@@ -27,32 +27,25 @@ X::get_visual () {
 }
 
 X::X()
-  : display(XOpenDisplay(nullptr))
-  , connection(XGetXCBConnection(display))
-  , database(xcb_xrm_database_from_default(connection))
-  , screen(xcb_setup_roots_iterator(xcb_get_setup(connection)).data)
 {
-  if (!display) {
+  if (!(display = XOpenDisplay(nullptr))) {
     fprintf (stderr, "Couldnt open display\n");
     exit(EXIT_FAILURE);
   }
 
-  if (!connection) {
+  if (!(connection = XGetXCBConnection(display)) || connection_has_error()) {
     fprintf (stderr, "Couldn't connect to X\n");
     exit (EXIT_FAILURE);
-  }
-  if (connection_has_error()) {
-    fprintf(stderr, "X connection has error\n");
-    exit(EXIT_FAILURE);
   }
 
   set_event_queue_order(XCBOwnsEventQueue);
 
-  if (!database) {
+  if (!(database = xcb_xrm_database_from_default(connection))) {
     fprintf(stderr, "Could not connect to database\n");
     exit(EXIT_FAILURE);
   }
 
+  screen = xcb_setup_roots_iterator(xcb_get_setup(connection)).data;
   /* Try to get a RGBA visual and build the colormap for that */
   visual = get_visual();
   colormap = xcb_generate_id(connection);
@@ -344,7 +337,7 @@ X::xft_char_width(uint16_t ch) {
   auto itr = xft_char_widths.find(ch);
   if (itr == xft_char_widths.end()) {
     itr = xft_char_widths.insert( {ch,
-        [&]{
+        [this](uint16_t ch){
           XGlyphInfo gi;
           XftFont *font = fonts.drawable_font(ch).xft_ft;
           FT_UInt glyph = XftCharIndex(display, font, (FcChar32) ch);
@@ -352,7 +345,7 @@ X::xft_char_width(uint16_t ch) {
           XftGlyphExtents(display, font, &glyph, 1, &gi);
           XftFontUnloadGlyphs(display, font, &glyph, 1);
           return gi.xOff;
-        }()
+        }(ch)
     }).first;
   }
   return itr->second;
