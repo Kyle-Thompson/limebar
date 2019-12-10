@@ -334,6 +334,7 @@ X::xft_char_index(XftFont *pub, FcChar32 ucs4) {
 
 int
 X::xft_char_width(uint16_t ch) {
+  // TODO: fix this
   static bool temp_fix = true;
   if (temp_fix) {
     fonts.init(this);

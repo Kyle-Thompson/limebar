@@ -10,6 +10,7 @@
  * - (1) Use _middle_pixmap in window instead of populating external pixmap.
  * - The pixmap patch seems to have added some bugs. Will segfault and print
  *   garbage seemingly at random.
+ * - fix windows module bug where not all windows are shown.
  */
 
 #include "bars.h"
