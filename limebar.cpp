@@ -1,8 +1,5 @@
 /** TODO
  * - Replace module calls to system where possible.
- * - Refactor Bars to work with multiple bars. Modules in a bar should not be
- *   required to be duplicated for each instantiation of a bar, they should be
- *   able to reference one common module to avoid duplication.
  * - Each module should have its own areas
  * - Handle bar events in addition to module events.
  * - Isolate X11 code into a WM module that can be swapped with something else
@@ -15,7 +12,6 @@
  *   that need to be queried when another module changes?
  * - Introduce concept of fixed size modules where an update to the module
  *   doesn't require redrawing any of the other modules at all.
- * - Clean up X module implementations. (e.g. remove `if(thing) free(thing)`)
  */
 
 #include "bars.h"
