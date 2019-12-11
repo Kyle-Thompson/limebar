@@ -7,16 +7,14 @@
 // TODO: make special window container
 
 class mod_windows : public DynamicModule<mod_windows> {
+  friend class DynamicModule<mod_windows>;
+
  public:
   mod_windows();
   ~mod_windows();
 
-  void get(ModulePixmap& px) const;
-
-  constexpr static size_t MAX_AREAS = 20;
-
-  friend class DynamicModule<mod_windows>;
  private:
+  void extract(ModulePixmap& px) const;
   void trigger();
   void update();
 

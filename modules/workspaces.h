@@ -7,15 +7,13 @@
 #include <xcb/xcb.h>
 
 class mod_workspaces : public DynamicModule<mod_workspaces> {
+  friend class DynamicModule<mod_workspaces>;
+
  public:
   mod_workspaces();
 
-  void get(ModulePixmap& px) const;
-
-  constexpr static size_t MAX_AREAS = 10;
-
-  friend class DynamicModule<mod_workspaces>;
  private:
+  void extract(ModulePixmap& px) const;
   void trigger();
   void update();
 

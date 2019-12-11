@@ -23,6 +23,7 @@
 #include <tuple>
 #include <X11/Xlib.h>
 
+// TODO: Specialize on StaticModule to not spawn a thread
 template <typename Mod>
 class ModuleContainer {
  public:
@@ -64,7 +65,7 @@ main () {
     { .origin_x = 1920, .origin_y = 0, .width = 1919, .height = 20 },
     make_section(space, workspaces, sep, windows),
     make_section(clock),
-    std::tuple{}
+    make_section()
   );
 
   Bars bars(bar);

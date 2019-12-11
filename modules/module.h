@@ -33,19 +33,20 @@ class DynamicModule {
     _conds.push_back(cond);
   }
 
-  void update() {
-    /* std::unique_lock lock{_mutex}; */
-    static_cast<Mod&>(*this).update();
-  }
-
   void get(ModulePixmap& px) const {
-    /* std::shared_lock lock{_mutex}; */
-    static_cast<Mod&>(*this).get(px);
+    // TODO: use reader/writer lock
+    std::unique_lock lock{_mutex};
+    static_cast<const Mod&>(*this).extract(px);
   }
 
  private:
+  void update() {
+    std::unique_lock lock{_mutex};
+    static_cast<Mod&>(*this).update();
+  }
+
   std::vector<std::condition_variable*> _conds;  // TODO array?
-  mutable std::shared_mutex _mutex;
+  mutable std::mutex _mutex;
 };
 
 
@@ -58,4 +59,5 @@ class StaticModule {
   // TODO: can we avoid having to call these functions for StaticModule?
   void operator()() {}
   void subscribe(std::condition_variable* cond) {}
+  void get(ModulePixmap& px) { static_cast<const Mod&>(*this).get(); }
 };

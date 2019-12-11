@@ -3,13 +3,9 @@
 #include "module.h"
 
 class mod_clock : public DynamicModule<mod_clock> {
- public:
-  void get(ModulePixmap& px) const;
-
-  constexpr static size_t MAX_AREAS = 1;
-
   friend class DynamicModule<mod_clock>;
- private:
+
+  void extract(ModulePixmap& px) const;
   void trigger();
   void update();
 

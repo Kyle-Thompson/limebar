@@ -85,10 +85,13 @@ X::~X() {
   xft_color_free(&acc_color);
 }
 
+std::mutex _m;
+
 X&
 X::Instance() {
   static X instance;
   static bool temp = true;
+  std::unique_lock lock{_m};  // TODO please god clean this function
   if (temp) {
     instance.fonts.init(&instance);
     temp = false;

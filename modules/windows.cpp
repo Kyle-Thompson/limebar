@@ -40,7 +40,7 @@ mod_windows::~mod_windows() {
   xcb_disconnect(conn);
 }
 
-void mod_windows::get(ModulePixmap &px) const {
+void mod_windows::extract(ModulePixmap &px) const {
   // TODO: how to capture windows that don't work here? (e.g. steam)
 
   for (Window w : windows) {
