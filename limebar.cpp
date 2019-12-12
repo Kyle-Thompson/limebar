@@ -4,9 +4,6 @@
  * - Handle bar events in addition to module events.
  * - Isolate X11 code into a WM module that can be swapped with something else
  *   like Wayland down the road.
- * - The pixmap patch seems to have added some bugs. Will segfault and print
- *   garbage seemingly at random.
- * - fix windows module bug where not all windows are shown.
  * - Should each section have it's own pixmap to reduce the number of modules
  *   that need to be queried when another module changes?
  * - Introduce concept of fixed size modules where an update to the module
