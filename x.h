@@ -7,6 +7,7 @@
 #include <bits/stdint-uintn.h>
 #include <fontconfig/fontconfig.h>
 #include <mutex>
+#include <shared_mutex>
 #include <unordered_map>
 #include <vector>
 #include <xcb/xcb.h>
@@ -98,6 +99,7 @@ class X {
 
   // TODO: use a more optimized hash map
   std::unordered_map<uint16_t, char> xft_char_widths;
+  std::shared_mutex _char_widths_mutex;
 
 
  public:  // temp

@@ -4,6 +4,8 @@
 
 #include <X11/Xlib-xcb.h>
 #include <cstdlib>
+#include <mutex>
+#include <shared_mutex>
 #include <unordered_map>
 #include <vector>
 #include <xcb/randr.h>
@@ -339,26 +341,24 @@ X::xft_char_index(XftFont *pub, FcChar32 ucs4) {
 
 int
 X::xft_char_width(uint16_t ch) {
-  // TODO: fix this
-  static bool temp_fix = true;
-  if (temp_fix) {
-    fonts.init(this);
-    temp_fix = false;
-  }
+  auto load_char = [&] {
+    XGlyphInfo gi;
+    XftFont *font = fonts.drawable_font(ch).xft_ft;
+    FT_UInt glyph = XftCharIndex(display, font, (FcChar32) ch);
+    XftFontLoadGlyphs(display, font, FcFalse, &glyph, 1);
+    XftGlyphExtents(display, font, &glyph, 1, &gi);
+    XftFontUnloadGlyphs(display, font, &glyph, 1);
+    return gi.xOff;
+  };
 
-  auto itr = xft_char_widths.find(ch);
+  auto itr = [&] {
+    std::shared_lock lock{_char_widths_mutex};
+    return xft_char_widths.find(ch);
+  }();
+
   if (itr == xft_char_widths.end()) {
-    itr = xft_char_widths.insert( {ch,
-        [this](uint16_t ch){
-          XGlyphInfo gi;
-          XftFont *font = fonts.drawable_font(ch).xft_ft;
-          FT_UInt glyph = XftCharIndex(display, font, (FcChar32) ch);
-          XftFontLoadGlyphs(display, font, FcFalse, &glyph, 1);
-          XftGlyphExtents(display, font, &glyph, 1, &gi);
-          XftFontUnloadGlyphs(display, font, &glyph, 1);
-          return gi.xOff;
-        }(ch)
-    }).first;
+    std::unique_lock lock{_char_widths_mutex};
+    itr = xft_char_widths.insert({ch, load_char()}).first;
   }
   return itr->second;
 }
