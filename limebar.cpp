@@ -60,12 +60,24 @@ main () {
   ModuleContainer<mod_windows>    windows;
   ModuleContainer<mod_clock>      clock;
 
-  bar_t bar(
-    { .origin_x = 1920, .origin_y = 0, .width = 1919, .height = 20 },
-    make_section(space, workspaces, sep, windows),
-    make_section(clock),
-    make_section()
+  auto left_section   { make_section(space, workspaces, sep, windows) };
+  auto middle_section { make_section(clock) };
+  auto right_section  { make_section() };
+
+  bar_t left_bar(
+    { .origin_x = 0, .origin_y = 0, .width = 1920, .height = 20 },
+    left_section, middle_section, right_section
   );
 
-  Bars bars(bar);
+  bar_t middle_bar(
+    { .origin_x = 1920, .origin_y = 0, .width = 1920, .height = 20 },
+    left_section, middle_section, right_section
+  );
+
+  bar_t right_bar(
+    { .origin_x = 3840, .origin_y = 0, .width = 1920, .height = 20 },
+    left_section, middle_section, right_section
+  );
+
+  Bars bars(left_bar, middle_bar, right_bar);
 }
