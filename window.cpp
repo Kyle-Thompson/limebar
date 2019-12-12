@@ -30,7 +30,6 @@ std::array<xcb_atom_t, size> atom_list;
 BarWindow::BarWindow(size_t x, size_t y, size_t w, size_t h)
   : _x(X::Instance()), _window(_x.generate_id()), _pixmap(_x.generate_id())
   , _origin_x(x), _origin_y(y), _width(w) , _height(h)
-  , _middle_pixmap(_window, w, h)
 {
   // TODO: investigate if this should be redone per this leftover comment:
   // As suggested fetch all the cookies first (yum!) and then retrieve the
@@ -144,9 +143,6 @@ BarWindow::update_middle(const ModulePixmap& pixmap) {
     _x.copy_area(pixmap.pixmap(), _window, 0,
         _width / 2 - middle_offset, middle_offset * 2, _height);
   }
-
-  // TODO(1): uncomment
-  /* _middle_pixmap.append(pixmap); */
 }
 
 void
