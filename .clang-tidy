@@ -1,0 +1,20 @@
+---
+Checks: '
+  -*,
+  bugprone-*,
+  cert-*
+  clang-diagnostic-*,
+  clang-analyzer-*,
+  cppcoreguidelines-*,
+    -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  google-*,
+    -google-readability-todo,
+  llvm-*,
+  misc-*,
+  modernize-*,
+    -modernize-use-trailing-return-type,
+  performance-*,
+  portability-*,
+  readability-*
+  '
+...
