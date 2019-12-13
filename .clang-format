@@ -1,0 +1,14 @@
+---
+Language: Cpp
+Standard: Cpp11
+BasedOnStyle: Google
+
+AllowShortFunctionsOnASingleLine: InlineOnly
+AllowShortLambdasOnASingleLine: All
+AlwaysBreakAfterReturnType: TopLevelDefinitions
+BraceWrapping:
+  AfterControlStatement: true
+BreakBeforeTernaryOperators: true
+BreakConstructorInitializers: BeforeComma
+ColumnLimit: 80
+---

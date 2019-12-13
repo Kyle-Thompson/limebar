@@ -1,12 +1,12 @@
 #pragma once
 
-#include "../pixmap.h"
-
 #include <array>
 #include <condition_variable>
 #include <functional>
 #include <mutex>
 #include <shared_mutex>
+
+#include "../pixmap.h"
 
 struct Area {
   uint16_t begin, end;
@@ -16,7 +16,7 @@ struct Area {
 template <typename Mod>
 class DynamicModule {
  public:
-  void operator()[[noreturn]]() {
+  void operator() [[noreturn]] () {
     update();
 
     while (true) {
@@ -29,9 +29,7 @@ class DynamicModule {
     }
   }
 
-  void subscribe(std::condition_variable* cond) {
-    _conds.push_back(cond);
-  }
+  void subscribe(std::condition_variable* cond) { _conds.push_back(cond); }
 
   void get(ModulePixmap& px) const {
     // TODO: use reader/writer lock
@@ -48,7 +46,6 @@ class DynamicModule {
   std::vector<std::condition_variable*> _conds;  // TODO array?
   mutable std::mutex _mutex;
 };
-
 
 /** TODO
  * can we avoid spawning a thread for static modules?

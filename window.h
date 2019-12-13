@@ -1,12 +1,13 @@
 #pragma once
 
-#include "pixmap.h"
-#include "x.h"
+#include <xcb/xproto.h>
 
 #include <array>
 #include <cstddef>  // size_t
 #include <vector>
-#include <xcb/xproto.h>
+
+#include "pixmap.h"
+#include "x.h"
 
 class BarWindow {
  public:
@@ -22,9 +23,7 @@ class BarWindow {
     _x.copy_area(_pixmap, _window, 0, 0, _width, _height);
   }
 
-  void render() {
-    _x.flush();
-  }
+  void render() { _x.flush(); }
 
   void update_left(const ModulePixmap& pixmap);
   void update_middle(const ModulePixmap& pixmap);
@@ -45,5 +44,5 @@ class BarWindow {
   xcb_window_t _window;
   xcb_pixmap_t _pixmap;
   size_t _origin_x, _origin_y, _width, _height;
-  size_t _offset_left { 0 }, _offset_right { 0 };
+  size_t _offset_left{0}, _offset_right{0};
 };

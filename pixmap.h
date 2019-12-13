@@ -1,14 +1,15 @@
 #pragma once
 
-#include "x.h"
-
 #include <X11/Xft/Xft.h>
-#include <algorithm>
 #include <bits/stdint-uintn.h>  // uint16_t
+#include <xcb/xproto.h>         // xcb_drawable_t
+
+#include <algorithm>
 #include <mutex>
 #include <string>
 #include <vector>
-#include <xcb/xproto.h>  // xcb_drawable_t
+
+#include "x.h"
 
 using ucs2 = std::vector<uint16_t>;
 using ucs2_and_width = std::pair<ucs2, size_t>;
@@ -19,12 +20,13 @@ struct Util {
     size_t total_width = 0;
     ucs2 str;
 
-    for (uint8_t *utf = (uint8_t *)text.c_str(); utf != (uint8_t *) &*text.end();) {
+    for (uint8_t* utf = (uint8_t*)text.c_str();
+         utf != (uint8_t*)&*text.end();) {
       uint16_t ucs = 0;
       // ASCII
       if (utf[0] < 0x80) {
         ucs = utf[0];
-        utf  += 1;
+        utf += 1;
       }
       // Two byte utf8 sequence
       else if ((utf[0] & 0xe0) == 0xc0) {
@@ -70,21 +72,18 @@ struct Util {
 class ModulePixmap {
  public:
   ModulePixmap(xcb_drawable_t drawable, uint16_t width, uint16_t height)
-    : _width(width)
-    , _height(height)
-    , _x(X::Instance())
-    , _pixmap_id(_x.generate_id())
-    , _xft_draw(_x.xft_draw_create(_pixmap_id))
-  {
+      : _width(width)
+      , _height(height)
+      , _x(X::Instance())
+      , _pixmap_id(_x.generate_id())
+      , _xft_draw(_x.xft_draw_create(_pixmap_id)) {
     _x.create_pixmap(_pixmap_id, drawable, width, height);
     clear();
   }
 
-  ~ModulePixmap() {
-    X::Instance().free_pixmap(_pixmap_id);
-  }
+  ~ModulePixmap() { X::Instance().free_pixmap(_pixmap_id); }
 
-  uint16_t     size()   const { return _used; }
+  uint16_t size() const { return _used; }
   xcb_pixmap_t pixmap() const { return _pixmap_id; }
 
   void clear() {
@@ -119,10 +118,10 @@ class ModulePixmap {
   }
 
  private:
-  uint16_t     _used;
-  uint16_t     _width, _height;
-  X&           _x;
+  uint16_t _used;
+  uint16_t _width, _height;
+  X& _x;
   xcb_pixmap_t _pixmap_id;
-  XftDraw*     _xft_draw;
-  std::mutex   _mutex;
+  XftDraw* _xft_draw;
+  std::mutex _mutex;
 };

@@ -9,4 +9,4 @@ constexpr std::string_view WM_CLASS = "limebar";
 
 // font name, y offset
 constexpr std::array<std::pair<const char*, int>, 1> FONTS = {
-  std::make_pair("GohuFont:pixelsize=11", 0) };
+    std::make_pair("GohuFont:pixelsize=11", 0)};
