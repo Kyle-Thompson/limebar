@@ -16,6 +16,7 @@
 #include "modules/clock.h"
 #include "modules/fill.h"
 
+#include <iostream>
 #include <tuple>
 #include <X11/Xlib.h>
 
@@ -35,6 +36,7 @@ class ModuleContainer {
 
   Mod& operator*() { return _module; }
 
+ private:
   Mod _module;
   std::thread _thread;
 };
@@ -47,7 +49,7 @@ std::tuple<Mods& ...> make_section(ModuleContainer<Mods>& ...mods) {
 int
 main () {
   if (!XInitThreads()) {
-    fprintf(stderr, "Failed to initialize threading for Xlib\n");
+    std::cerr << "Failed to initialize threading for Xlib\n";
     exit(EXIT_FAILURE);
   }
 
@@ -61,20 +63,20 @@ main () {
   auto middle_section { make_section(clock) };
   auto right_section  { make_section() };
 
-  bar_t left_bar(
+  Bar left_bar(
     { .origin_x = 0, .origin_y = 0, .width = 1920, .height = 20 },
     left_section, middle_section, right_section
   );
 
-  bar_t middle_bar(
+  Bar middle_bar(
     { .origin_x = 1920, .origin_y = 0, .width = 1920, .height = 20 },
     left_section, middle_section, right_section
   );
 
-  bar_t right_bar(
+  Bar right_bar(
     { .origin_x = 3840, .origin_y = 0, .width = 1920, .height = 20 },
     left_section, middle_section, right_section
   );
 
-  Bars bars(left_bar, middle_bar, right_bar);
+  BarContainer bars(left_bar, middle_bar, right_bar);
 }

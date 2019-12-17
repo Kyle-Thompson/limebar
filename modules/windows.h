@@ -14,7 +14,7 @@ class mod_windows : public DynamicModule<mod_windows> {
   ~mod_windows();
 
  private:
-  void extract(ModulePixmap& px) const;
+  void extract(ModulePixmap* px) const;
   void trigger();
   void update();
 

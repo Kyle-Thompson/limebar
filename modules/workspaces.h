@@ -13,13 +13,13 @@ class mod_workspaces : public DynamicModule<mod_workspaces> {
   mod_workspaces();
 
  private:
-  void extract(ModulePixmap& px) const;
+  void extract(ModulePixmap* px) const;
   void trigger();
   void update();
 
   xcb_atom_t current_desktop;
   xcb_connection_t* conn;
 
-  unsigned long cur_desktop  { 0 };
+  unsigned long cur_desktop { 0 };
   std::vector<std::string> names;
 };

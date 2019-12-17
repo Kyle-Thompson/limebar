@@ -5,10 +5,10 @@
 class mod_clock : public DynamicModule<mod_clock> {
   friend class DynamicModule<mod_clock>;
 
-  void extract(ModulePixmap& px) const;
+  void extract(ModulePixmap* px) const;
   void trigger();
   void update();
 
-  char current_time[6];
-  char current_day[8];
+  std::array<char, 6> current_time;
+  std::array<char, 8> current_day;
 };

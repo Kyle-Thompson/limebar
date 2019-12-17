@@ -33,7 +33,7 @@ class DynamicModule {
     _conds.push_back(cond);
   }
 
-  void get(ModulePixmap& px) const {
+  void get(ModulePixmap* px) const {
     // TODO: use reader/writer lock
     std::unique_lock lock{_mutex};
     static_cast<const Mod&>(*this).extract(px);
@@ -59,5 +59,5 @@ class StaticModule {
   // TODO: can we avoid having to call these functions for StaticModule?
   void operator()() {}
   void subscribe(std::condition_variable* cond) {}
-  void get(ModulePixmap& px) { static_cast<const Mod&>(*this).get(); }
+  void get(ModulePixmap* px) { static_cast<const Mod&>(*this).extract(px); }
 };

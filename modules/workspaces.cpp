@@ -1,9 +1,11 @@
 #include "workspaces.h"
 #include "../x.h"
 
+#include <bits/stdint-uintn.h>
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
+#include <iostream>
 #include <sstream>
 #include <xcb/xcb.h>
 #include <X11/Xatom.h>
@@ -12,7 +14,7 @@
 mod_workspaces::mod_workspaces() {
   conn = xcb_connect(nullptr, nullptr);
   if (xcb_connection_has_error(conn)) {
-    fprintf(stderr, "Cannot create X connection for workspaces module.\n");
+    std::cerr << "Cannot create X connection for workspaces module.\n";
     exit(EXIT_FAILURE);
   }
 
@@ -29,19 +31,17 @@ mod_workspaces::mod_workspaces() {
   xcb_flush(conn);
 }
 
-void mod_workspaces::extract(ModulePixmap &px) const {
+void mod_workspaces::extract(ModulePixmap *px) const {
   for (int i = 0; i < names.size(); ++i) {
     if (i == cur_desktop) {
-      px.write_with_accent(names[i] + " ");
+      px->write_with_accent(names[i] + " ");
     } else {
-      px.write(names[i] + " ");
+      px->write(names[i] + " ");
     }
   }
 }
 
 void mod_workspaces::trigger() {
-  // TODO: this doesn't work if switching an empty workspace to an empty
-  // workspace.
   for (xcb_generic_event_t *ev = nullptr; (ev = xcb_wait_for_event(conn));
       free(ev)) {
     if ((ev->response_type & 0x7F) == XCB_PROPERTY_NOTIFY
@@ -57,20 +57,20 @@ void mod_workspaces::update() {
   Window root = X::Instance().get_default_root_window();
 
   // TODO: fix memory leak
-  unsigned long *cur_desktop_ptr = X::Instance().get_property<unsigned long>(
+  auto *cur_desktop_ptr = X::Instance().get_property<uint64_t>(
       root, XA_CARDINAL, "_NET_CURRENT_DESKTOP", nullptr);
   cur_desktop = *cur_desktop_ptr;
   /* free(num_desktops_ptr); */
 
-  unsigned long desktop_list_size { 0 };
-  char *list = X::Instance().get_property<char>(root,
+  uint64_t desktop_list_size { 0 };
+  auto *list = X::Instance().get_property<char>(root,
       X::Instance().get_intern_atom(), "_NET_DESKTOP_NAMES",
       &desktop_list_size);
 
   char *str = list;
   names.clear();
-  for (int offset = 0; offset <= desktop_list_size; offset += strlen(str) + 1) {
-    names.push_back(str + offset);
+  for (uint64_t offset = 0; offset <= desktop_list_size; offset += strlen(str) + 1) {
+    names.emplace_back(str + offset);
   }
 
   free(list);

@@ -37,24 +37,22 @@ struct dimension_t {
  * TODO: how to verify that Mods is a tuple?
  */
 template <typename Mods>
-struct section_t {
-  section_t(std::condition_variable& cond, BarWindow& win, Mods&& mods)
+class Section {
+ public:
+  Section(std::condition_variable* cond, const BarWindow& win, Mods&& mods)
     : _pixmap(win.generate_mod_pixmap())
     , _modules(std::move(mods))
   {
-    std::apply(
-        [&](auto&&... mods) { (mods.subscribe(&cond), ...); },
-        _modules);
+    std::apply([&](auto&&... mods) { (mods.subscribe(cond), ...); }, _modules);
   }
 
   ModulePixmap& collect() {
     _pixmap.clear();
-    std::apply(
-        [&](auto&&... mods) { (mods.get(_pixmap), ...); },
-        _modules);
+    std::apply([this](auto&&... mods) { (mods.get(&_pixmap), ...); }, _modules);
     return _pixmap;
   }
 
+ private:
   ModulePixmap _pixmap;
   Mods _modules;
 };
@@ -65,37 +63,38 @@ struct section_t {
  * displaying the bar itself. It will also draw each section into the bar.
  */
 template <typename Left, typename Middle, typename Right>
-struct bar_t {
-
-  bar_t(dimension_t d, Left left, Middle middle, Right right);
+class Bar {
+ public:
+  Bar(dimension_t d, Left left, Middle middle, Right right);
 
   void operator()();
   void update();
 
+ private:
   std::condition_variable _condvar;
   size_t _origin_x, _origin_y, _width, _height;
   BarWindow _win;
-  section_t<Left>   _left;
-  section_t<Middle> _middle;
-  section_t<Right>  _right;
+  Section<Left>   _left;
+  Section<Middle> _middle;
+  Section<Right>  _right;
 };
 
 template <typename Left, typename Middle, typename Right>
-bar_t<Left, Middle, Right>::bar_t(dimension_t d, Left left, Middle middle,
-                                  Right right)
+Bar<Left, Middle, Right>::Bar(dimension_t d, Left left, Middle middle,
+                              Right right)
   : _origin_x(d.origin_x)
   , _origin_y(d.origin_y)
   , _width(d.width)
   , _height(d.height)
   , _win(_origin_x, _origin_y, _width, _height)
-  , _left(_condvar, _win, std::move(left))
-  , _middle(_condvar, _win, std::move(middle))
-  , _right(_condvar, _win, std::move(right))
+  , _left(&_condvar, _win, std::move(left))
+  , _middle(&_condvar, _win, std::move(middle))
+  , _right(&_condvar, _win, std::move(right))
 {}
 
 template <typename Left, typename Middle, typename Right>
 void
-bar_t<Left, Middle, Right>::operator()() {
+Bar<Left, Middle, Right>::operator()() {
   while (true) {
     _win.clear();
     update();
@@ -109,7 +108,7 @@ bar_t<Left, Middle, Right>::operator()() {
 
 template <typename Left, typename Middle, typename Right>
 void
-bar_t<Left, Middle, Right>::update() {
+Bar<Left, Middle, Right>::update() {
   _win.update_left(_left.collect());
   _win.update_right(_right.collect());
   _win.update_middle(_middle.collect());
@@ -120,13 +119,24 @@ bar_t<Left, Middle, Right>::update() {
  * Run each bar in their own thread.
  */
 template <typename ...Bar>
-struct Bars {
-  Bars(Bar& ...bars) : _threads{std::thread(std::ref(bars))...} {}
-  ~Bars() {
-    for (auto& t : _threads)
+class BarContainer {
+ public:
+  explicit BarContainer(Bar& ...bars)
+    : _threads{std::thread(std::ref(bars))...}
+  {}
+
+  ~BarContainer() {
+    for (auto& t : _threads) {
       t.join();
+    }
   }
 
+  BarContainer(const BarContainer&) = delete;
+  BarContainer(BarContainer&&) = delete;
+  BarContainer& operator=(const BarContainer&) = delete;
+  BarContainer& operator=(BarContainer&&) = delete;
+
+ private:
   // TODO: jthreads
   std::array<std::thread, sizeof...(Bar)> _threads;
 };

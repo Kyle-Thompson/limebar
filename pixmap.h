@@ -70,7 +70,8 @@ struct Util {
 class ModulePixmap {
  public:
   ModulePixmap(xcb_drawable_t drawable, uint16_t width, uint16_t height)
-    : _width(width)
+    : _used(0)
+    , _width(width)
     , _height(height)
     , _x(X::Instance())
     , _pixmap_id(_x.generate_id())
@@ -84,8 +85,13 @@ class ModulePixmap {
     X::Instance().free_pixmap(_pixmap_id);
   }
 
-  uint16_t     size()   const { return _used; }
-  xcb_pixmap_t pixmap() const { return _pixmap_id; }
+  ModulePixmap(const ModulePixmap&) = delete;
+  ModulePixmap(ModulePixmap&&) = delete;
+  ModulePixmap& operator=(const ModulePixmap&) = delete;
+  ModulePixmap& operator=(ModulePixmap&&) = delete;
+
+  [[nodiscard]] uint16_t     size()   const { return _used; }
+  [[nodiscard]] xcb_pixmap_t pixmap() const { return _pixmap_id; }
 
   void clear() {
     _used = 0;

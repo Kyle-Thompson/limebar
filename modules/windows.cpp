@@ -1,5 +1,6 @@
 #include "windows.h"
 
+#include <bits/stdint-uintn.h>
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
@@ -40,18 +41,18 @@ mod_windows::~mod_windows() {
   xcb_disconnect(conn);
 }
 
-void mod_windows::extract(ModulePixmap &px) const {
+void mod_windows::extract(ModulePixmap *px) const {
   // TODO: how to capture windows that don't work here? (e.g. steam)
 
   for (Window w : windows) {
-    unsigned long *workspace = X::Instance().get_property<unsigned long>(
+    auto *workspace = X::Instance().get_property<uint64_t>(
         w, XA_CARDINAL, "_NET_WM_DESKTOP", nullptr);
     std::string title = X::Instance().get_window_title(w);
     if (title.empty() || current_workspace != *workspace) continue;
     if (w == current_window) {
-      px.write_with_accent(title.substr(title.find_last_of(' ') + 1) + ' ');
+      px->write_with_accent(title.substr(title.find_last_of(' ') + 1) + ' ');
     } else {
-      px.write(title.substr(title.find_last_of(' ') + 1) + ' ');
+      px->write(title.substr(title.find_last_of(' ') + 1) + ' ');
     }
   }
 }
@@ -72,8 +73,8 @@ void mod_windows::update() {
   // %{A:wmctrl -i -a 0x00c00003:}Firefox%{A}
   current_workspace = X::Instance().get_current_workspace();
   current_window = [] {
-    unsigned long size;
-    Window* prop = X::Instance().get_property<Window>(X::Instance()
+    uint64_t size;
+    auto* prop = X::Instance().get_property<Window>(X::Instance()
         .get_default_root_window(), XA_WINDOW, "_NET_ACTIVE_WINDOW", &size);
     Window ret = *prop;
     free(prop);
