@@ -50,7 +50,7 @@ clean:
 	rm -f ./*.o ./modules/*.o ./*.1
 	rm -f ./${EXEC}
 
-install: limebar
+install:
 	install -D -m 755 limebar ${DESTDIR}${BINDIR}/limebar
 
 uninstall:
