@@ -3,6 +3,7 @@
 #include "config.h"
 
 #include <X11/Xlib-xcb.h>
+#include <X11/Xutil.h>
 #include <cstdlib>
 #include <mutex>
 #include <shared_mutex>
@@ -277,9 +278,15 @@ X::get_property(Window win, Atom xa_prop_type, const char *prop_name,
 
 std::string
 X::get_window_title(Window win) {
-  return get_property<char>(win, XInternAtom(display, "UTF8_STRING", False),
-                            "_NET_WM_NAME", NULL)
-         ?: "";
+  // TODO: why does this have to be here??
+  get_property<char>(win, XInternAtom(display, "UTF8_STRING", False),
+                     "_NET_WM_NAME", nullptr);
+  XClassHint hint;
+  XGetClassHint(display, win, &hint);
+  std::string ret(hint.res_class);
+  XFree(hint.res_class);
+  XFree(hint.res_name);
+  return ret;
 }
 
 

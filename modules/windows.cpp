@@ -50,10 +50,11 @@ void mod_windows::extract(ModulePixmap *px) const {
     std::string title = X::Instance().get_window_title(w);
     if (title.empty() || current_workspace != *workspace) continue;
     if (w == current_window) {
-      px->write_with_accent(title.substr(title.find_last_of(' ') + 1) + ' ');
+      px->write_with_accent(title);
     } else {
-      px->write(title.substr(title.find_last_of(' ') + 1) + ' ');
+      px->write(title);
     }
+    px->write(" ");  // TODO: don't add a space after the last window
   }
 }
 
