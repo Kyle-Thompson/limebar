@@ -433,3 +433,24 @@ uint8_t
 X::get_depth() {
   return (visual == screen->root_visual) ? XCB_COPY_FROM_PARENT : 32;
 }
+
+
+// helpers
+
+xcb_atom_t get_atom(xcb_connection_t *conn, const char *name) {
+  std::unique_ptr<xcb_intern_atom_reply_t> reply {
+      xcb_intern_atom_reply(conn,
+          xcb_intern_atom(conn, 0, static_cast<uint16_t>(strlen(name)),
+                          name),
+          nullptr) };
+  return reply ? reply->atom : XCB_NONE;
+}
+
+xcb_connection_t *get_connection() {
+  auto *conn = xcb_connect(nullptr, nullptr);
+  if (xcb_connection_has_error(conn)) {
+    std::cerr << "Cannot create X connection.\n";
+    exit(EXIT_FAILURE);
+  }
+  return conn;
+}

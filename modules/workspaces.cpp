@@ -11,20 +11,11 @@
 #include <X11/Xatom.h>
 #include <X11/X.h>
 
-mod_workspaces::mod_workspaces() {
-  conn = xcb_connect(nullptr, nullptr);
-  if (xcb_connection_has_error(conn)) {
-    std::cerr << "Cannot create X connection for workspaces module.\n";
-    exit(EXIT_FAILURE);
-  }
-
-  const char *desktop = "_NET_CURRENT_DESKTOP";
-  xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(conn,
-      xcb_intern_atom(conn, 0, static_cast<uint16_t>(strlen(desktop)), desktop),
-      nullptr);
-  current_desktop = reply ? reply->atom : XCB_NONE;
-  free(reply);
-
+mod_workspaces::mod_workspaces()
+  : conn(get_connection())
+  , current_desktop(get_atom(conn, "_NET_CURRENT_DESKTOP"))
+  , x(X::Instance())
+{
   uint32_t values = XCB_EVENT_MASK_PROPERTY_CHANGE;
   xcb_screen_t* screen = xcb_setup_roots_iterator(xcb_get_setup(conn)).data;
   xcb_change_window_attributes(conn, screen->root, XCB_CW_EVENT_MASK, &values);
@@ -42,30 +33,29 @@ void mod_workspaces::extract(ModulePixmap *px) const {
 }
 
 void mod_workspaces::trigger() {
-  for (xcb_generic_event_t *ev = nullptr; (ev = xcb_wait_for_event(conn));
-      free(ev)) {
+  while (true) {
+    std::unique_ptr<xcb_generic_event_t> ev(xcb_wait_for_event(conn));
+    if (!ev) continue;  // TODO: what is the right behavior here?
     if ((ev->response_type & 0x7F) == XCB_PROPERTY_NOTIFY
-        && reinterpret_cast<xcb_property_notify_event_t *>(ev)->atom
+        && reinterpret_cast<xcb_property_notify_event_t *>(ev.get())->atom
             == current_desktop) {
-      free(ev);
       return;
     }
   }
 }
 
 void mod_workspaces::update() {
-  Window root = X::Instance().get_default_root_window();
+  Window root = x.get_default_root_window();
 
   // TODO: fix memory leak
-  auto *cur_desktop_ptr = X::Instance().get_property<uint64_t>(
+  auto *cur_desktop_ptr = x.get_property<uint64_t>(
       root, XA_CARDINAL, "_NET_CURRENT_DESKTOP", nullptr);
   cur_desktop = *cur_desktop_ptr;
   /* free(num_desktops_ptr); */
 
   uint64_t desktop_list_size { 0 };
-  auto *list = X::Instance().get_property<char>(root,
-      X::Instance().get_intern_atom(), "_NET_DESKTOP_NAMES",
-      &desktop_list_size);
+  char *list = x.get_property<char>(root, x.get_intern_atom(),
+                                    "_NET_DESKTOP_NAMES", &desktop_list_size);
 
   char *str = list;
   names.clear();

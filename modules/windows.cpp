@@ -1,4 +1,5 @@
 #include "windows.h"
+#include "../x.h"
 
 #include <bits/stdint-uintn.h>
 #include <cstdlib>
@@ -9,14 +10,6 @@
 #include <X11/Xatom.h>
 #include <X11/X.h>
 
-xcb_atom_t get_atom(xcb_connection_t *conn, const char *name) {
-  std::unique_ptr<xcb_intern_atom_reply_t, decltype(std::free) *> reply {
-      xcb_intern_atom_reply(conn,
-          xcb_intern_atom(conn, 0, static_cast<uint16_t>(strlen(name)),
-                          name),
-          nullptr), std::free };
-  return reply ? reply->atom : XCB_NONE;
-}
 
 mod_windows::mod_windows()
   : conn(xcb_connect(nullptr, nullptr))

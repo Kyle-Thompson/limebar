@@ -6,6 +6,7 @@
 
 #include <bits/stdint-uintn.h>
 #include <fontconfig/fontconfig.h>
+#include <iostream>
 #include <mutex>
 #include <shared_mutex>
 #include <unordered_map>
@@ -112,7 +113,7 @@ class X {
         height = xft_ft->ascent + descent;
         this->offset = offset;
       } else {
-        fprintf(stderr, "Could not load font %s\n", pattern);
+        std::cerr << "Could not load font " << pattern << "\n";
         exit(EXIT_FAILURE);
       }
     }
@@ -176,3 +177,9 @@ class X {
   xcb_visualid_t visual;
 };
 
+
+// helpers
+
+
+xcb_atom_t get_atom(xcb_connection_t *conn, const char *name);
+xcb_connection_t *get_connection();
