@@ -83,7 +83,7 @@ void mod_windows::update() {
   }();
 
   // TODO: must be a cleaner way to do this
-  auto temp = X::Instance().get_client_list();
+  auto temp = X::Instance().get_windows();
   windows.clear();
   windows.insert(windows.begin(), temp.begin(), temp.end());
 }

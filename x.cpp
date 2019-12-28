@@ -291,7 +291,7 @@ X::get_window_title(Window win) {
 
 
 std::vector<Window>
-X::get_client_list() {
+X::get_windows() {
   unsigned long items { 0 };
   Window *client_list =
        get_property<Window>(DefaultRootWindow(display), XA_WINDOW,

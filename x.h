@@ -51,7 +51,7 @@ class X {
   T*            get_property(Window win, Atom xa_prop_type,
                              const char *prop_name, unsigned long *size);
   std::string   get_window_title(Window win);
-  std::vector<Window> get_client_list();
+  std::vector<Window> get_windows();
   unsigned long get_current_workspace();
   Window        get_default_root_window();
   Atom          get_intern_atom();
