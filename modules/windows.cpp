@@ -8,7 +8,9 @@
 #include <X11/Xatom.h>
 #include <X11/X.h>
 
-mod_windows::mod_windows() {
+mod_windows::mod_windows()
+  : x(X::Instance())
+{
   conn = xcb_connect(nullptr, nullptr);
   if (xcb_connection_has_error(conn)) {
     fprintf(stderr, "Cannot X connection for workspaces daemon.\n");
@@ -45,9 +47,9 @@ void mod_windows::extract(ModulePixmap *px) const {
   // TODO: how to capture windows that don't work here? (e.g. steam)
 
   for (Window w : windows) {
-    auto *workspace = X::Instance().get_property<uint64_t>(
+    auto *workspace = x.get_property<uint64_t>(
         w, XA_CARDINAL, "_NET_WM_DESKTOP", nullptr);
-    std::string title = X::Instance().get_window_title(w);
+    std::string title = x.get_window_title(w);
     if (title.empty() || current_workspace != *workspace) continue;
     if (w == current_window) {
       px->write_with_accent(title);
@@ -72,18 +74,18 @@ void mod_windows::trigger() {
 
 void mod_windows::update() {
   // %{A:wmctrl -i -a 0x00c00003:}Firefox%{A}
-  current_workspace = X::Instance().get_current_workspace();
-  current_window = [] {
+  current_workspace = x.get_current_workspace();
+  current_window = [this] {
     uint64_t size;
-    auto* prop = X::Instance().get_property<Window>(X::Instance()
-        .get_default_root_window(), XA_WINDOW, "_NET_ACTIVE_WINDOW", &size);
+    auto* prop = x.get_property<Window>(x.get_default_root_window(), XA_WINDOW,
+                                        "_NET_ACTIVE_WINDOW", &size);
     Window ret = *prop;
     free(prop);
     return ret;
   }();
 
   // TODO: must be a cleaner way to do this
-  auto temp = X::Instance().get_windows();
+  auto temp = x.get_windows();
   windows.clear();
   windows.insert(windows.begin(), temp.begin(), temp.end());
 }

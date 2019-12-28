@@ -21,6 +21,7 @@ class mod_windows : public DynamicModule<mod_windows> {
   xcb_connection_t* conn;
   xcb_atom_t current_desktop;
   xcb_atom_t active_window;
+  X& x;
 
   unsigned long  current_workspace;
   Window         current_window;
