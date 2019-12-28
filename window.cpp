@@ -1,5 +1,10 @@
 #include "window.h"
+
+#include <array>
 #include <cstddef>
+#include <cstdlib>
+#include <iostream>
+#include <memory>
 #include <vector>
 
 enum {
@@ -36,32 +41,30 @@ BarWindow::BarWindow(size_t x, size_t y, size_t w, size_t h)
   // atoms to exploit the async'ness
   std::transform(atom_names.begin(), atom_names.end(), atom_list.begin(),
       [this](auto name){
-        xcb_intern_atom_reply_t *atom_reply =
-            _x.get_intern_atom_reply(name);
+        std::unique_ptr<xcb_intern_atom_reply_t, decltype(std::free) *>
+            atom_reply { _x.get_intern_atom_reply(name), std::free };
         if (!atom_reply) {
-          fprintf(stderr, "atom reply failed.\n");
+          std::cerr << "atom reply failed.\n";
           exit(EXIT_FAILURE);
         }
-        auto ret = atom_reply->atom;
-        free(atom_reply);  // TODO: use unique_ptr
-        return ret;
+        return atom_reply->atom;
       });
 
   // create a window with width and height
-  const uint32_t mask[] { *_x.bgc.val(), *_x.bgc.val(), FORCE_DOCK,
-    XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS |
-        XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE,
-    _x.get_colormap() };
+  const std::array<uint32_t, 5> mask { *_x.bgc.val(), *_x.bgc.val(), FORCE_DOCK,
+      XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS |
+          XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE,
+      _x.get_colormap() };
 
   _x.create_window(_window, _origin_x, _origin_y, _width, _height,
       XCB_WINDOW_CLASS_INPUT_OUTPUT, _x.get_visual(),
       XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL | XCB_CW_OVERRIDE_REDIRECT |
           XCB_CW_EVENT_MASK | XCB_CW_COLORMAP,
-      mask);
+      mask.data());
 
   _x.create_pixmap(_pixmap, _window, _width, _height);
 
-  int strut[12] = {0};
+  std::array<int, 12> strut = {0};
   // TODO: Find a better way of determining if this is a top-bar
   if (_origin_y == 0) {
     strut[2] = BAR_HEIGHT;
@@ -81,11 +84,11 @@ BarWindow::BarWindow(size_t x, size_t y, size_t w, size_t h)
       &atom_list[NET_WM_STATE_STICKY]);
   _x.change_property(XCB_PROP_MODE_REPLACE, _window,
       atom_list[NET_WM_DESKTOP], XCB_ATOM_CARDINAL, 32, 1,
-      (const uint32_t []) { 0u - 1u } );
+      (std::array<uint32_t, 1> { 0u - 1u }).data() );
   _x.change_property(XCB_PROP_MODE_REPLACE, _window,
-      atom_list[NET_WM_STRUT_PARTIAL], XCB_ATOM_CARDINAL, 32, 12, strut);
+      atom_list[NET_WM_STRUT_PARTIAL], XCB_ATOM_CARDINAL, 32, 12, strut.data());
   _x.change_property(XCB_PROP_MODE_REPLACE, _window, atom_list[NET_WM_STRUT],
-      XCB_ATOM_CARDINAL, 32, 4, strut);
+      XCB_ATOM_CARDINAL, 32, 4, strut.data());
   _x.change_property(XCB_PROP_MODE_REPLACE, _window, XCB_ATOM_WM_NAME,
       XCB_ATOM_STRING, 8, 3, "bar");
   _x.change_property(XCB_PROP_MODE_REPLACE, _window, XCB_ATOM_WM_CLASS,
@@ -97,26 +100,27 @@ BarWindow::BarWindow(size_t x, size_t y, size_t w, size_t h)
 
   // Make sure that the window really gets in the place it's supposed to be
   // Some WM such as Openbox need this
-  const uint32_t xy[] {
+  const std::array<uint32_t, 2> xy {
       static_cast<uint32_t>(_origin_x), static_cast<uint32_t>(_origin_y) };
-  _x.configure_window(_window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, xy);
+  _x.configure_window(_window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, xy.data());
 
   // Set the WM_NAME atom to the user specified value
-  if constexpr (WM_NAME != nullptr)
+  if constexpr (WM_NAME != nullptr) {
     _x.change_property(XCB_PROP_MODE_REPLACE, _window,
         XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, strlen(WM_NAME), WM_NAME);
+  }
 
   // set the WM_CLASS atom instance to the executable name
   if (WM_CLASS.size()) {
     constexpr int size = WM_CLASS.size() + 6;
-    char wm_class[size] = {0};
+    std::array<char, size> wm_class = {0};
 
     // WM_CLASS is nullbyte seperated: WM_CLASS + "\0Bar\0"
-    strncpy(wm_class, WM_CLASS.data(), WM_CLASS.size());
-    strcpy(wm_class + WM_CLASS.size(), "\0Bar");
+    strncpy(wm_class.data(), WM_CLASS.data(), WM_CLASS.size());
+    strcpy(wm_class.data() + WM_CLASS.size(), "\0Bar");
 
     _x.change_property(XCB_PROP_MODE_REPLACE, _window,
-        XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, size, wm_class);
+        XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, size, wm_class.data());
   }
 
   _x.fill_rect(_pixmap, GC_CLEAR, 0, 0, _width, _height);
