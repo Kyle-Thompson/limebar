@@ -23,18 +23,14 @@ mod_windows::mod_windows()
   active_window = reply ? reply->atom : XCB_NONE;
   free(reply);
 
-  uint32_t values = XCB_EVENT_MASK_PROPERTY_CHANGE;
-  xcb_screen_t* screen = xcb_setup_roots_iterator(xcb_get_setup(conn)).data;
-  xcb_change_window_attributes(conn, screen->root, XCB_CW_EVENT_MASK, &values);
-  xcb_flush(conn);
-
   const char *desktop = "_NET_CURRENT_DESKTOP";
   reply = xcb_intern_atom_reply(conn,
       xcb_intern_atom(conn, 0, static_cast<uint16_t>(strlen(desktop)), desktop), nullptr);
   current_desktop = reply ? reply->atom : XCB_NONE;
   free(reply);
 
-  screen = xcb_setup_roots_iterator(xcb_get_setup(conn)).data;
+  uint32_t values = XCB_EVENT_MASK_PROPERTY_CHANGE;
+  xcb_screen_t *screen = xcb_setup_roots_iterator(xcb_get_setup(conn)).data;
   xcb_change_window_attributes(conn, screen->root, XCB_CW_EVENT_MASK, &values);
   xcb_flush(conn);
 }
