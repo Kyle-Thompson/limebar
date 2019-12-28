@@ -2,32 +2,32 @@
 
 #include <bits/stdint-uintn.h>
 #include <cstdlib>
-#include <cstdio>
 #include <cstring>
+#include <iostream>
+#include <memory>
 #include <sstream>
 #include <X11/Xatom.h>
 #include <X11/X.h>
 
+xcb_atom_t get_atom(xcb_connection_t *conn, const char *name) {
+  std::unique_ptr<xcb_intern_atom_reply_t, decltype(std::free) *> reply {
+      xcb_intern_atom_reply(conn,
+          xcb_intern_atom(conn, 0, static_cast<uint16_t>(strlen(name)),
+                          name),
+          nullptr), std::free };
+  return reply ? reply->atom : XCB_NONE;
+}
+
 mod_windows::mod_windows()
-  : x(X::Instance())
+  : conn(xcb_connect(nullptr, nullptr))
+  , current_desktop(get_atom(conn, "_NET_CURRENT_DESKTOP"))
+  , active_window(get_atom(conn, "_NET_ACTIVE_WINDOW"))
+  , x(X::Instance())
 {
-  conn = xcb_connect(nullptr, nullptr);
   if (xcb_connection_has_error(conn)) {
-    fprintf(stderr, "Cannot X connection for workspaces daemon.\n");
+    std::cerr << "Cannot X connection for workspaces daemon.\n";
     exit(EXIT_FAILURE);
   }
-
-  const char *window = "_NET_ACTIVE_WINDOW";
-  xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(conn,
-      xcb_intern_atom(conn, 0, static_cast<uint16_t>(strlen(window)), window), nullptr);
-  active_window = reply ? reply->atom : XCB_NONE;
-  free(reply);
-
-  const char *desktop = "_NET_CURRENT_DESKTOP";
-  reply = xcb_intern_atom_reply(conn,
-      xcb_intern_atom(conn, 0, static_cast<uint16_t>(strlen(desktop)), desktop), nullptr);
-  current_desktop = reply ? reply->atom : XCB_NONE;
-  free(reply);
 
   uint32_t values = XCB_EVENT_MASK_PROPERTY_CHANGE;
   xcb_screen_t *screen = xcb_setup_roots_iterator(xcb_get_setup(conn)).data;
@@ -43,10 +43,11 @@ void mod_windows::extract(ModulePixmap *px) const {
   // TODO: how to capture windows that don't work here? (e.g. steam)
 
   for (Window w : windows) {
-    auto *workspace = x.get_property<uint64_t>(
-        w, XA_CARDINAL, "_NET_WM_DESKTOP", nullptr);
+    auto *workspace = x.get_property<uint64_t>(w, XA_CARDINAL,
+                                               "_NET_WM_DESKTOP", nullptr);
     std::string title = x.get_window_title(w);
     if (title.empty() || current_workspace != *workspace) continue;
+
     if (w == current_window) {
       px->write_with_accent(title);
     } else {
@@ -57,11 +58,13 @@ void mod_windows::extract(ModulePixmap *px) const {
 }
 
 void mod_windows::trigger() {
-  for (xcb_generic_event_t *ev = nullptr; (ev = xcb_wait_for_event(conn)); free(ev)) {
+  while (true) {
+    std::unique_ptr<xcb_generic_event_t, decltype(std::free) *> ev {
+        xcb_wait_for_event(conn), std::free };
+    if (!ev) continue;  // TODO: what is the right behavior here?
     if ((ev->response_type & 0x7F) == XCB_PROPERTY_NOTIFY) {
-      auto atom = reinterpret_cast<xcb_property_notify_event_t *>(ev)->atom;
+      auto atom = reinterpret_cast<xcb_property_notify_event_t *>(ev.get())->atom;
       if (atom == active_window || atom == current_desktop) {
-        free(ev);
         return;
       }
     }
