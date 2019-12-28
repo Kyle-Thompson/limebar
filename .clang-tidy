@@ -7,6 +7,7 @@ Checks: '
   clang-analyzer-*,
   cppcoreguidelines-*,
     -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+    -cppcoreguidelines-owning-memory,
   google-*,
     -google-readability-todo,
   llvm-*,
