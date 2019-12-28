@@ -57,10 +57,9 @@ void mod_workspaces::update() {
   char *list = x.get_property<char>(root, x.get_intern_atom(),
                                     "_NET_DESKTOP_NAMES", &desktop_list_size);
 
-  char *str = list;
   names.clear();
-  for (uint64_t offset = 0; offset <= desktop_list_size; offset += strlen(str) + 1) {
-    names.emplace_back(str + offset);
+  for (char *str = list; str - list <= desktop_list_size; str += strlen(str) + 1) {
+    names.emplace_back(str);
   }
 
   free(list);
