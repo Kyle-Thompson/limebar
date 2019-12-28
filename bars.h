@@ -28,7 +28,7 @@ struct dimension_t {
 };
 
 
-/** section_t
+/** Section
  * A bar is broken up into three sections; left, middle, and right. This class
  * stores the modules in a given section, manages their threads and collects
  * their current values into one representation of the state of the section at
@@ -58,8 +58,8 @@ class Section {
 };
 
 
-/** bar_t
- * The bar_t class maintains the three different sections and the window
+/** Bar
+ * The Bar class maintains the three different sections and the window
  * displaying the bar itself. It will also draw each section into the bar.
  */
 template <typename Left, typename Middle, typename Right>
