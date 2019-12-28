@@ -299,9 +299,10 @@ X::get_client_list() {
     ?: get_property<Window>(DefaultRootWindow(display), XA_CARDINAL,
                             "_WIN_CLIENT_LIST", &items);
 
-  if (client_list == nullptr) {
+  if (!client_list) {
     fprintf(stderr, "Cannot get client list properties. "
-        "(_NET_CLIENT_LIST or _WIN_CLIENT_LIST)\n");
+                    "(_NET_CLIENT_LIST or _WIN_CLIENT_LIST)\n");
+    free(client_list);
     exit(EXIT_FAILURE);
   }
   
@@ -315,19 +316,20 @@ X::get_client_list() {
 
 unsigned long
 X::get_current_workspace() {
-  // TODO: refactor for clarity
-  unsigned long *cur_desktop = nullptr;
   Window root = DefaultRootWindow(display);
-  if (! (cur_desktop = get_property<unsigned long>(root,
-      XA_CARDINAL, "_NET_CURRENT_DESKTOP", nullptr))) {
-    if (! (cur_desktop = get_property<unsigned long>(root,
-        XA_CARDINAL, "_WIN_WORKSPACE", nullptr))) {
-      fprintf(stderr, "Cannot get current desktop properties. "
-          "(_NET_CURRENT_DESKTOP or _WIN_WORKSPACE property)\n");
-      free(cur_desktop);
-      exit(EXIT_FAILURE);
-    }
+
+  unsigned long *cur_desktop =
+       get_property<unsigned long>(root, XA_CARDINAL, "_NET_CURRENT_DESKTOP",
+                                   nullptr)
+    ?: get_property<unsigned long>(root, XA_CARDINAL, "_WIN_WORKSPACE", nullptr);
+
+  if (!cur_desktop) {
+    fprintf(stderr, "Cannot get current desktop properties. "
+        "(_NET_CURRENT_DESKTOP or _WIN_WORKSPACE property)\n");
+    free(cur_desktop);
+    exit(EXIT_FAILURE);
   }
+
   unsigned long ret = *cur_desktop;
   free(cur_desktop);
   return ret;
