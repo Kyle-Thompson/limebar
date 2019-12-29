@@ -236,44 +236,8 @@ X::connection_has_error() {
 }
 
 
-template <typename T>
-T*  // TODO: unique_ptr
-X::get_property(Window win, Atom xa_prop_type, const char *prop_name,
-                uint64_t *num_items)
-{
-  Atom xa_ret_type;
-  int ret_format;
-  uint64_t ret_nitems;
-  uint64_t ret_bytes_after;
-  unsigned char *ret_prop;
-
-  Atom xa_prop_name = XInternAtom(display, prop_name, False);
-
-  if (XGetWindowProperty(display, win, xa_prop_name, 0, 1024, False,
-      xa_prop_type, &xa_ret_type, &ret_format,
-      &ret_nitems, &ret_bytes_after, &ret_prop) != Success) {
-    return nullptr;
-  }
-
-  if (xa_ret_type != xa_prop_type || ret_bytes_after > 0) {
-    XFree(ret_prop);
-    return nullptr;
-  }
-
-  if (num_items) {
-    *num_items = ret_nitems;
-  }
-
-  // TODO: if !is_pointer<T>, free the memory and return by value
-  return (T*) ret_prop;
-}
-
-
 std::string
 X::get_window_title(Window win) {
-  // TODO: why does this have to be here??
-  get_property<char>(win, XInternAtom(display, "UTF8_STRING", False),
-                     "_NET_WM_NAME", nullptr);
   XClassHint hint;
   XGetClassHint(display, win, &hint);
   std::string ret(hint.res_class);
@@ -285,48 +249,35 @@ X::get_window_title(Window win) {
 
 std::vector<Window>
 X::get_windows() {
-  uint64_t items { 0 };
-  Window *client_list =
-       get_property<Window>(
-           DefaultRootWindow(display), XA_WINDOW,
-                            "_NET_CLIENT_LIST", &items)
-    ?: get_property<Window>(DefaultRootWindow(display), XA_CARDINAL,
-                            "_WIN_CLIENT_LIST", &items);
+  Window root = get_default_root_window();
+  auto client_list =
+       get_property<Window>(root, XA_WINDOW, "_NET_CLIENT_LIST")
+    ?: get_property<Window>(root, XA_CARDINAL, "_WIN_CLIENT_LIST");
 
   if (!client_list) {
     std::cerr << "Cannot get client list properties. "
                  "(_NET_CLIENT_LIST or _WIN_CLIENT_LIST)\n";
-    free(client_list);
     exit(EXIT_FAILURE);
   }
-  
-  // TODO: instead of copying the data, just transfer ownership of the memory
-  std::vector<Window> v(client_list, client_list + items);
-  // TODO: do we need to free here?
-  /* free(client_list); */
-  return v;
+
+  return client_list.value();
 }
 
 
-uint64_t
+uint32_t
 X::get_current_workspace() {
-  Window root = DefaultRootWindow(display);
-
-  uint64_t *cur_desktop =
-       get_property<uint64_t>(root, XA_CARDINAL, "_NET_CURRENT_DESKTOP",
-                                   nullptr)
-    ?: get_property<uint64_t>(root, XA_CARDINAL, "_WIN_WORKSPACE", nullptr);
+  Window root = get_default_root_window();
+  auto cur_desktop =
+       get_property<uint64_t>(root, XA_CARDINAL, "_NET_CURRENT_DESKTOP")
+    ?: get_property<uint64_t>(root, XA_CARDINAL, "_WIN_WORKSPACE");
 
   if (!cur_desktop) {
     std::cerr << "Cannot get current desktop properties. "
                  "(_NET_CURRENT_DESKTOP or _WIN_WORKSPACE property)\n";
-    free(cur_desktop);
     exit(EXIT_FAILURE);
   }
 
-  uint64_t ret = *cur_desktop;
-  free(cur_desktop);
-  return ret;
+  return cur_desktop.value().at(0);
 }
 
 

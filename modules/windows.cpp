@@ -36,10 +36,10 @@ void mod_windows::extract(ModulePixmap *px) const {
   // TODO: how to capture windows that don't work here? (e.g. steam)
 
   for (Window w : windows) {
-    auto *workspace = x.get_property<uint64_t>(w, XA_CARDINAL,
-                                               "_NET_WM_DESKTOP", nullptr);
+    auto workspace = x.get_property<uint32_t>(w, XA_CARDINAL, "_NET_WM_DESKTOP")
+        .value().at(0);
     std::string title = x.get_window_title(w);
-    if (title.empty() || current_workspace != *workspace) continue;
+    if (title.empty() || current_workspace != workspace) continue;
 
     if (w == current_window) {
       px->write_with_accent(title);
@@ -67,14 +67,9 @@ void mod_windows::trigger() {
 void mod_windows::update() {
   // %{A:wmctrl -i -a 0x00c00003:}Firefox%{A}
   current_workspace = x.get_current_workspace();
-  current_window = [this] {
-    uint64_t size;
-    auto* prop = x.get_property<Window>(x.get_default_root_window(), XA_WINDOW,
-                                        "_NET_ACTIVE_WINDOW", &size);
-    Window ret = *prop;
-    free(prop);
-    return ret;
-  }();
+  current_window = x.get_property<Window>(x.get_default_root_window(),
+                                          XA_WINDOW, "_NET_ACTIVE_WINDOW")
+      .value().at(0);
 
   // TODO: must be a cleaner way to do this
   auto temp = x.get_windows();

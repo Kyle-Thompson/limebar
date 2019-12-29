@@ -22,6 +22,6 @@ class mod_workspaces : public DynamicModule<mod_workspaces> {
   xcb_atom_t current_desktop;
   X& x;
 
-  unsigned long cur_desktop { 0 };
+  uint32_t cur_desktop { 0 };
   std::vector<std::string> names;
 };

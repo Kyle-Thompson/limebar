@@ -47,21 +47,14 @@ void mod_workspaces::trigger() {
 
 void mod_workspaces::update() {
   Window root = x.get_default_root_window();
+  cur_desktop = x.get_property<uint64_t>(
+      root, XA_CARDINAL, "_NET_CURRENT_DESKTOP").value().at(0);
 
-  // TODO: fix memory leak
-  auto *cur_desktop_ptr = x.get_property<uint64_t>(
-      root, XA_CARDINAL, "_NET_CURRENT_DESKTOP", nullptr);
-  cur_desktop = *cur_desktop_ptr;
-  /* free(num_desktops_ptr); */
-
-  uint64_t desktop_list_size { 0 };
-  char *list = x.get_property<char>(root, x.get_intern_atom(),
-                                    "_NET_DESKTOP_NAMES", &desktop_list_size);
+  auto vec = x.get_property<char>(root, x.get_intern_atom(), "_NET_DESKTOP_NAMES").value();
+  char *chars = vec.data();
 
   names.clear();
-  for (char *str = list; str - list <= desktop_list_size; str += strlen(str) + 1) {
+  for (char *str = chars; str - chars < vec.size(); str += strlen(str) + 1) {
     names.emplace_back(str);
   }
-
-  free(list);
 }

@@ -8,6 +8,7 @@
 #include <fontconfig/fontconfig.h>
 #include <iostream>
 #include <mutex>
+#include <optional>
 #include <shared_mutex>
 #include <unordered_map>
 #include <vector>
@@ -49,11 +50,11 @@ class X {
 
   // TODO: label
   template <typename T>
-  T*            get_property(Window win, Atom xa_prop_type,
-                             const char *prop_name, unsigned long *size);
+  std::optional<std::vector<T>> get_property(Window win, Atom xa_prop_type,
+      const char *prop_name);
   std::string   get_window_title(Window win);
   std::vector<Window> get_windows();
-  unsigned long get_current_workspace();
+  uint32_t      get_current_workspace();
   Window        get_default_root_window();
   Atom          get_intern_atom();
   XVisualInfo*  get_visual_info(long vinfo_mask, XVisualInfo *vinfo_template,
@@ -176,6 +177,35 @@ class X {
   Visual *visual_ptr;
   xcb_visualid_t visual;
 };
+
+
+template <typename T>
+std::optional<std::vector<T>>
+X::get_property(Window win, Atom xa_prop_type, const char *prop_name)
+{
+  Atom xa_ret_type;
+  int ret_format;
+  uint64_t ret_nitems;
+  uint64_t ret_bytes_after;
+  unsigned char *ret_prop;
+
+  Atom xa_prop_name = XInternAtom(display, prop_name, False);
+
+  if (XGetWindowProperty(display, win, xa_prop_name, 0, 1024, False,
+          xa_prop_type, &xa_ret_type, &ret_format, &ret_nitems,
+          &ret_bytes_after, &ret_prop)
+      != Success) {
+    return std::nullopt;
+  }
+
+  if (xa_ret_type != xa_prop_type || ret_bytes_after > 0) {
+    XFree(ret_prop);
+    return std::nullopt;
+  }
+
+  return std::vector<T>((T *)ret_prop,
+                        (T *)(ret_prop + (ret_nitems * sizeof(T))));
+}
 
 
 // helpers
