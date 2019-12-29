@@ -4,7 +4,10 @@
 
 #include <X11/Xlib-xcb.h>
 #include <X11/Xutil.h>
+#include <bits/stdint-intn.h>
+#include <bits/stdint-uintn.h>
 #include <cstdlib>
+#include <iostream>
 #include <mutex>
 #include <shared_mutex>
 #include <unordered_map>
@@ -34,19 +37,19 @@ X::get_visual () {
 X::X()
 {
   if (!(display = XOpenDisplay(nullptr))) {
-    fprintf (stderr, "Couldnt open display\n");
+    std::cerr << "Couldnt open display\n";
     exit(EXIT_FAILURE);
   }
 
   if (!(connection = XGetXCBConnection(display)) || connection_has_error()) {
-    fprintf (stderr, "Couldn't connect to X\n");
+    std::cerr << "Couldn't connect to X\n";
     exit (EXIT_FAILURE);
   }
 
   set_event_queue_order(XCBOwnsEventQueue);
 
   if (!(database = xcb_xrm_database_from_default(connection))) {
-    fprintf(stderr, "Could not connect to database\n");
+    std::cerr << "Could not connect to database\n";
     exit(EXIT_FAILURE);
   }
 
@@ -70,19 +73,13 @@ X::X()
 }
 
 X::~X() {
-  if (gc[GC_DRAW])
-    xcb_free_gc(connection, gc[GC_DRAW]);
-  if (gc[GC_ACCENT])
-    xcb_free_gc(connection, gc[GC_ACCENT]);
-  if (gc[GC_CLEAR])
-    xcb_free_gc(connection, gc[GC_CLEAR]);
-  if (gc[GC_ATTR])
-    xcb_free_gc(connection, gc[GC_ATTR]);
+  if (gc[GC_DRAW]) xcb_free_gc(connection, gc[GC_DRAW]);
+  if (gc[GC_ACCENT]) xcb_free_gc(connection, gc[GC_ACCENT]);
+  if (gc[GC_CLEAR]) xcb_free_gc(connection, gc[GC_CLEAR]);
+  if (gc[GC_ATTR]) xcb_free_gc(connection, gc[GC_ATTR]);
 
-  if (connection)
-    xcb_disconnect(connection);
-  if (database)
-    xcb_xrm_database_free(database);
+  if (connection) xcb_disconnect(connection);
+  if (database) xcb_xrm_database_free(database);
 
   xft_color_free(&fg_color);
   xft_color_free(&acc_color);
@@ -124,19 +121,15 @@ X::update_gc() {
 
   // TODO: can't we just do this once initially?
   xft_color_free(&acc_color);
-  char color2[] = "#ffffff";
-  uint32_t naccent = *accent.val() & 0x00ffffff;
-  snprintf(color2, sizeof(color2), "#%06X", naccent);
-  if (!XftColorAllocName(display, visual_ptr, colormap, color2, &acc_color)) {
-    fprintf(stderr, "Couldn't allocate xft font color '%s'\n", color2);
+  if (!XftColorAllocName(display, visual_ptr, colormap, accent.get_str(),
+      &acc_color)) {
+    std::cerr << "Couldn't allocate xft color " << accent.get_str() << "\n";
   }
 
   xft_color_free(&fg_color);
-  char color[] = "#ffffff";
-  uint32_t nfgc = *fgc.val() & 0x00ffffff;
-  snprintf(color, sizeof(color), "#%06X", nfgc);
-  if (!XftColorAllocName(display, visual_ptr, colormap, color, &fg_color)) {
-    fprintf(stderr, "Couldn't allocate xft font color '%s'\n", color);
+  if (!XftColorAllocName(display, visual_ptr, colormap, fgc.get_str(),
+      &fg_color)) {
+    std::cerr << "Couldn't allocate xft color " << fgc.get_str() << "\n";
   }
 }
 
@@ -216,7 +209,7 @@ X::get_intern_atom() {
 }
 
 XVisualInfo *
-X::get_visual_info(long vinfo_mask, XVisualInfo *vinfo_template,
+X::get_visual_info(int64_t vinfo_mask, XVisualInfo *vinfo_template,
                    int *nitems_return)
 {
   return XGetVisualInfo(display, vinfo_mask, vinfo_template, nitems_return);
@@ -246,12 +239,12 @@ X::connection_has_error() {
 template <typename T>
 T*  // TODO: unique_ptr
 X::get_property(Window win, Atom xa_prop_type, const char *prop_name,
-                unsigned long *num_items)
+                uint64_t *num_items)
 {
   Atom xa_ret_type;
   int ret_format;
-  unsigned long ret_nitems;
-  unsigned long ret_bytes_after;
+  uint64_t ret_nitems;
+  uint64_t ret_bytes_after;
   unsigned char *ret_prop;
 
   Atom xa_prop_name = XInternAtom(display, prop_name, False);
@@ -292,16 +285,17 @@ X::get_window_title(Window win) {
 
 std::vector<Window>
 X::get_windows() {
-  unsigned long items { 0 };
+  uint64_t items { 0 };
   Window *client_list =
-       get_property<Window>(DefaultRootWindow(display), XA_WINDOW,
+       get_property<Window>(
+           DefaultRootWindow(display), XA_WINDOW,
                             "_NET_CLIENT_LIST", &items)
     ?: get_property<Window>(DefaultRootWindow(display), XA_CARDINAL,
                             "_WIN_CLIENT_LIST", &items);
 
   if (!client_list) {
-    fprintf(stderr, "Cannot get client list properties. "
-                    "(_NET_CLIENT_LIST or _WIN_CLIENT_LIST)\n");
+    std::cerr << "Cannot get client list properties. "
+                 "(_NET_CLIENT_LIST or _WIN_CLIENT_LIST)\n";
     free(client_list);
     exit(EXIT_FAILURE);
   }
@@ -314,23 +308,23 @@ X::get_windows() {
 }
 
 
-unsigned long
+uint64_t
 X::get_current_workspace() {
   Window root = DefaultRootWindow(display);
 
-  unsigned long *cur_desktop =
-       get_property<unsigned long>(root, XA_CARDINAL, "_NET_CURRENT_DESKTOP",
+  uint64_t *cur_desktop =
+       get_property<uint64_t>(root, XA_CARDINAL, "_NET_CURRENT_DESKTOP",
                                    nullptr)
-    ?: get_property<unsigned long>(root, XA_CARDINAL, "_WIN_WORKSPACE", nullptr);
+    ?: get_property<uint64_t>(root, XA_CARDINAL, "_WIN_WORKSPACE", nullptr);
 
   if (!cur_desktop) {
-    fprintf(stderr, "Cannot get current desktop properties. "
-        "(_NET_CURRENT_DESKTOP or _WIN_WORKSPACE property)\n");
+    std::cerr << "Cannot get current desktop properties. "
+                 "(_NET_CURRENT_DESKTOP or _WIN_WORKSPACE property)\n";
     free(cur_desktop);
     exit(EXIT_FAILURE);
   }
 
-  unsigned long ret = *cur_desktop;
+  uint64_t ret = *cur_desktop;
   free(cur_desktop);
   return ret;
 }

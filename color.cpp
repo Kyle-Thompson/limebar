@@ -1,8 +1,8 @@
 #include "color.h"
 
 #include <cerrno>
-#include <cstdio>
 #include <cstdlib>
+#include <iostream>
 
 rgba_t
 rgba_t::parse(const char *str) {
@@ -10,11 +10,6 @@ rgba_t::parse(const char *str) {
 
   if (!str)
     return ERR_COLOR;
-
-  // Reset
-  if (str[0] == '-') {
-    return ERR_COLOR;
-  }
 
   // Hex representation
   if (str[0] != '#') {
@@ -49,7 +44,7 @@ rgba_t::parse(const char *str) {
       // Colors in #aarrggbb format, those need no adjustments
       break;
     default:
-      fprintf(stderr, "Invalid color specified\n");
+      std::cerr << "Invalid color specified\n";
       return ERR_COLOR;
   }
 
