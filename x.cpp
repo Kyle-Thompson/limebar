@@ -438,11 +438,11 @@ X::get_depth() {
 // helpers
 
 xcb_atom_t get_atom(xcb_connection_t *conn, const char *name) {
-  std::unique_ptr<xcb_intern_atom_reply_t> reply {
+  std::unique_ptr<xcb_intern_atom_reply_t, decltype(std::free) *> reply {
       xcb_intern_atom_reply(conn,
           xcb_intern_atom(conn, 0, static_cast<uint16_t>(strlen(name)),
                           name),
-          nullptr) };
+          nullptr), std::free };
   return reply ? reply->atom : XCB_NONE;
 }
 
