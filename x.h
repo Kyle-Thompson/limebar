@@ -25,8 +25,6 @@ class X {
 
   // TODO: label
   void get_string_resource(const char* query, char **out);
-  void change_property(uint8_t mode, xcb_window_t window, xcb_atom_t property,
-      xcb_atom_t type, uint8_t format, uint32_t data_len, const void *data);
   // TODO: provide better API
   void fill_rect(xcb_drawable_t d, uint32_t gc_index, int16_t x, int16_t y,
                  uint16_t width, uint16_t height);
@@ -41,7 +39,7 @@ class X {
   void     free_pixmap(xcb_pixmap_t pixmap);
   void     create_window(xcb_window_t wid, int16_t x, int16_t y, uint16_t width,
       uint16_t height, uint16_t _class, xcb_visualid_t visual,
-      uint32_t value_mask, const void *value_list);
+      uint32_t value_mask, bool reserve_space);
   void     destroy_window(xcb_window_t window);
   void     configure_window(xcb_window_t window, uint16_t value_mask,
                             const void *value_list);
@@ -63,10 +61,7 @@ class X {
   xcb_intern_atom_reply_t* get_intern_atom_reply(const char* name);
 
   void set_ewmh_atoms();
-  void set_event_queue_order(enum XEventQueueOwner owner);
   bool connection_has_error();
-  auto get_gc() { return gc; }
-  auto get_colormap() { return colormap; }
 
   xcb_visualid_t get_visual();
 
@@ -75,7 +70,6 @@ class X {
   FT_UInt  xft_char_index(XftFont *pub, FcChar32 ucs4);
   int      xft_char_width(uint16_t ch);
   void     xft_color_free(XftColor* color);
-  Visual*  xft_default_visual(int screen);
   XftDraw* xft_draw_create(Drawable drawable);
   void     xft_font_close(XftFont *xft);
   XftFont* xft_font_open_name(_Xconst char *name);

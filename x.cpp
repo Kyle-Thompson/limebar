@@ -16,6 +16,30 @@
 #include <X11/Xatom.h>
 #include <xcb/xcb_xrm.h>
 
+enum {
+  NET_WM_WINDOW_TYPE,
+  NET_WM_WINDOW_TYPE_DOCK,
+  NET_WM_DESKTOP,
+  NET_WM_STRUT_PARTIAL,
+  NET_WM_STRUT,
+  NET_WM_STATE,
+  NET_WM_STATE_STICKY,
+  NET_WM_STATE_ABOVE,
+};
+
+static constexpr size_t atom_names_size = 8;
+static constexpr std::array<const char *, atom_names_size> atom_names {
+  "_NET_WM_WINDOW_TYPE",
+  "_NET_WM_WINDOW_TYPE_DOCK",
+  "_NET_WM_DESKTOP",
+  "_NET_WM_STRUT_PARTIAL",
+  "_NET_WM_STRUT",
+  "_NET_WM_STATE",
+  // Leave those at the end since are batch-set
+  "_NET_WM_STATE_STICKY",
+  "_NET_WM_STATE_ABOVE",
+};
+
 xcb_visualid_t
 X::get_visual () {
   XVisualInfo xv; 
@@ -30,7 +54,7 @@ X::get_visual () {
 
   // Fallback
   // TODO: when is this even used?
-  visual_ptr = xft_default_visual(0);
+  visual_ptr = DefaultVisual(display, 0);
   return screen->root_visual;
 }
 
@@ -46,7 +70,7 @@ X::X()
     exit (EXIT_FAILURE);
   }
 
-  set_event_queue_order(XCBOwnsEventQueue);
+  XSetEventQueueOwner(display, XCBOwnsEventQueue);
 
   if (!(database = xcb_xrm_database_from_default(connection))) {
     std::cerr << "Could not connect to database\n";
@@ -106,13 +130,6 @@ X::get_string_resource(const char* query, char **out) {
 }
 
 void
-X::change_property(uint8_t mode, xcb_window_t window, xcb_atom_t property,
-    xcb_atom_t type, uint8_t format, uint32_t data_len, const void *data)
-{
-  xcb_change_property(connection, mode, window, property, type, format, data_len, data);
-}
-
-void
 X::update_gc() {
   xcb_change_gc(connection, gc[GC_DRAW],   XCB_GC_FOREGROUND, fgc.val());
   xcb_change_gc(connection, gc[GC_ACCENT], XCB_GC_FOREGROUND, accent.val());
@@ -161,13 +178,92 @@ X::free_pixmap(xcb_pixmap_t pixmap) {
   xcb_free_pixmap(connection, pixmap);
 }
 
+// TODO: refactor into multiple functions
 void
 X::create_window(xcb_window_t wid,
     int16_t x, int16_t y, uint16_t width, uint16_t height, uint16_t _class,
-    xcb_visualid_t visual, uint32_t value_mask, const void *value_list)
+    xcb_visualid_t visual, uint32_t value_mask, bool reserve_space)
 {
+  const std::array<uint32_t, 5> mask { *bgc.val(), *bgc.val(), FORCE_DOCK,
+      XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS |
+          XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE,
+      colormap };
   xcb_create_window(connection, get_depth(), wid, screen->root, x, y, width,
-      height, 0, _class, visual, value_mask, value_list);
+      height, 0, _class, visual, value_mask, mask.data());
+
+  if (!reserve_space) return;
+
+  // TODO: investigate if this should be redone per this leftover comment:
+  // As suggested fetch all the cookies first (yum!) and then retrieve the
+  // atoms to exploit the async'ness
+  std::array<xcb_atom_t, atom_names_size> atom_list;
+  std::transform(atom_names.begin(), atom_names.end(), atom_list.begin(),
+      [this](auto name){
+        std::unique_ptr<xcb_intern_atom_reply_t, decltype(std::free) *>
+            atom_reply { get_intern_atom_reply(name), std::free };
+        if (!atom_reply) {
+          std::cerr << "atom reply failed.\n";
+          exit(EXIT_FAILURE);
+        }
+        return atom_reply->atom;
+      });
+  std::array<int, 12> strut = {0};
+  // TODO: Find a better way of determining if this is a top-bar
+  if (y == 0) {
+    strut[2] = BAR_HEIGHT;
+    strut[8] = x;
+    strut[9] = x + width;
+  } else {
+    strut[3]  = BAR_HEIGHT;
+    strut[10] = x;
+    strut[11] = x + width;
+  }
+
+  xcb_change_property(connection, XCB_PROP_MODE_REPLACE, wid,
+      atom_list[NET_WM_WINDOW_TYPE], XCB_ATOM_ATOM, 32, 1,
+      &atom_list[NET_WM_WINDOW_TYPE_DOCK]);
+  xcb_change_property(connection, XCB_PROP_MODE_APPEND, wid,
+      atom_list[NET_WM_STATE], XCB_ATOM_ATOM, 32, 2,
+      &atom_list[NET_WM_STATE_STICKY]);
+  xcb_change_property(connection, XCB_PROP_MODE_REPLACE, wid,
+      atom_list[NET_WM_DESKTOP], XCB_ATOM_CARDINAL, 32, 1,
+      (std::array<uint32_t, 1> { 0u - 1u }).data() );
+  xcb_change_property(connection, XCB_PROP_MODE_REPLACE, wid,
+      atom_list[NET_WM_STRUT_PARTIAL], XCB_ATOM_CARDINAL, 32, 12, strut.data());
+  xcb_change_property(connection, XCB_PROP_MODE_REPLACE, wid,
+      atom_list[NET_WM_STRUT], XCB_ATOM_CARDINAL, 32, 4, strut.data());
+  xcb_change_property(connection, XCB_PROP_MODE_REPLACE, wid, XCB_ATOM_WM_NAME,
+      XCB_ATOM_STRING, 8, 3, "bar");
+  xcb_change_property(connection, XCB_PROP_MODE_REPLACE, wid,
+      XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, 12, "lemonbar\0Bar");
+
+  map_window(wid);
+
+  // Make sure that the window really gets in the place it's supposed to be
+  // Some WM such as Openbox need this
+  const std::array<uint32_t, 2> xy {
+      static_cast<uint32_t>(x), static_cast<uint32_t>(y) };
+  configure_window(wid, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
+      xy.data());
+
+  // Set the WM_NAME atom to the user specified value
+  if constexpr (WM_NAME != nullptr) {
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, wid,
+        XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, strlen(WM_NAME), WM_NAME);
+  }
+
+  // set the WM_CLASS atom instance to the executable name
+  if (WM_CLASS.size()) {
+    constexpr int size = WM_CLASS.size() + 6;
+    std::array<char, size> wm_class = {0};
+
+    // WM_CLASS is nullbyte seperated: WM_CLASS + "\0Bar\0"
+    strncpy(wm_class.data(), WM_CLASS.data(), WM_CLASS.size());
+    strcpy(wm_class.data() + WM_CLASS.size(), "\0Bar");
+
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, wid, XCB_ATOM_WM_CLASS,
+        XCB_ATOM_STRING, 8, size, wm_class.data());
+  }
 }
 
 void
@@ -223,11 +319,6 @@ X::get_atom_by_name(const char* name) {
 xcb_intern_atom_reply_t*
 X::get_intern_atom_reply(const char *name) {
   return xcb_intern_atom_reply(connection, get_atom_by_name(name), nullptr);
-}
-
-void
-X::set_event_queue_order(enum XEventQueueOwner owner) {
-  XSetEventQueueOwner(display, owner);
 }
 
 bool
@@ -320,11 +411,6 @@ X::xft_char_width(uint16_t ch) {
 void
 X::xft_color_free(XftColor* color) {
   XftColorFree(display, visual_ptr, colormap, color);
-}
-
-Visual *
-X::xft_default_visual(int screen) {
-  return DefaultVisual(display, screen);
 }
 
 XftDraw *

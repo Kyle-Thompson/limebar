@@ -50,7 +50,8 @@ void mod_workspaces::update() {
   cur_desktop = x.get_property<uint64_t>(
       root, XA_CARDINAL, "_NET_CURRENT_DESKTOP").value().at(0);
 
-  auto vec = x.get_property<char>(root, x.get_intern_atom(), "_NET_DESKTOP_NAMES").value();
+  auto vec = x.get_property<char>(root, x.get_intern_atom(),
+                                  "_NET_DESKTOP_NAMES").value();
   char *chars = vec.data();
 
   names.clear();
