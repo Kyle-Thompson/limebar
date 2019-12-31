@@ -89,6 +89,12 @@ class X {
   std::unordered_map<uint16_t, char> xft_char_widths;
   std::shared_mutex _char_widths_mutex;
 
+  xcb_gcontext_t gc_bg;
+  xcb_colormap_t colormap;
+
+  Visual *visual_ptr;
+  xcb_visualid_t visual;
+
  public:  // temp
   class font_color {
    public:
@@ -171,13 +177,6 @@ class X {
   };
 
   Fonts fonts;
- private:  // temp
-
-  xcb_gcontext_t gc_bg;
-  xcb_colormap_t colormap;
-
-  Visual *visual_ptr;
-  xcb_visualid_t visual;
 };
 
 
