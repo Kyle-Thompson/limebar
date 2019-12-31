@@ -30,13 +30,13 @@ class BarWindow {
   void update_middle(const ModulePixmap& pixmap);
   void update_right(const ModulePixmap& pixmap);
 
-  xcb_pixmap_t generate_pixmap() const {
+  [[nodiscard]] xcb_pixmap_t generate_pixmap() const {
     xcb_pixmap_t pixmap = _x.generate_id();
     _x.create_pixmap(pixmap, _window, _width, _height);
     return pixmap;
   }
 
-  ModulePixmap generate_mod_pixmap() const {
+  [[nodiscard]] ModulePixmap generate_mod_pixmap() const {
     return ModulePixmap(_window, _width, _height);
   }
 
