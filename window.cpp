@@ -19,7 +19,7 @@ BarWindow::BarWindow(size_t x, size_t y, size_t w, size_t h)
 
   _x.create_pixmap(_pixmap, _window, _width, _height);
   _x.create_gc(_pixmap);
-  _x.fill_rect(_pixmap, GC_CLEAR, 0, 0, _width, _height);
+  _x.clear_rect(_pixmap, _width, _height);
 }
 
 void

@@ -95,7 +95,7 @@ class ModulePixmap {
 
   void clear() {
     _used = 0;
-    _x.fill_rect(_pixmap_id, GC_CLEAR, 0, 0, _width, _height);
+    _x.clear_rect(_pixmap_id, _width, _height);
   }
 
   void append(const ModulePixmap& rhs) {

@@ -90,17 +90,22 @@ X::X()
   fgc = rgba_t::parse(val);
   accent = rgba_t::parse("#257fad");
 
-  gc[GC_DRAW]   = generate_id();
-  gc[GC_ACCENT] = generate_id();
-  gc[GC_CLEAR]  = generate_id();
-  gc[GC_ATTR]   = generate_id();
+  gc_bg = generate_id();
+
+  // TODO: move to color class
+  if (!XftColorAllocName(display, visual_ptr, colormap, accent.get_str(),
+      &acc_color)) {
+    std::cerr << "Couldn't allocate xft color " << accent.get_str() << "\n";
+  }
+
+  if (!XftColorAllocName(display, visual_ptr, colormap, fgc.get_str(),
+      &fg_color)) {
+    std::cerr << "Couldn't allocate xft color " << fgc.get_str() << "\n";
+  }
 }
 
 X::~X() {
-  if (gc[GC_DRAW]) xcb_free_gc(connection, gc[GC_DRAW]);
-  if (gc[GC_ACCENT]) xcb_free_gc(connection, gc[GC_ACCENT]);
-  if (gc[GC_CLEAR]) xcb_free_gc(connection, gc[GC_CLEAR]);
-  if (gc[GC_ATTR]) xcb_free_gc(connection, gc[GC_ATTR]);
+  if (gc_bg) xcb_free_gc(connection, gc_bg);
 
   if (connection) xcb_disconnect(connection);
   if (database) xcb_xrm_database_free(database);
@@ -133,26 +138,13 @@ void
 X::copy_area(xcb_drawable_t src, xcb_drawable_t dst, int16_t src_x,
              int16_t dst_x, uint16_t width, uint16_t height)
 {
-  // TODO: what's the significance of GC_DRAW here?
-  xcb_copy_area(connection, src, dst, gc[GC_DRAW], src_x, 0, dst_x, 0, width,
+  xcb_copy_area(connection, src, dst, gc_bg, src_x, 0, dst_x, 0, width,
                 height);
 }
 
 void
 X::create_gc(xcb_pixmap_t pixmap) {
-  xcb_create_gc(connection, gc[GC_DRAW],   pixmap, XCB_GC_FOREGROUND, fgc.val());
-  xcb_create_gc(connection, gc[GC_ACCENT], pixmap, XCB_GC_FOREGROUND, accent.val());
-  xcb_create_gc(connection, gc[GC_CLEAR],  pixmap, XCB_GC_FOREGROUND, bgc.val());
-
-  if (!XftColorAllocName(display, visual_ptr, colormap, accent.get_str(),
-      &acc_color)) {
-    std::cerr << "Couldn't allocate xft color " << accent.get_str() << "\n";
-  }
-
-  if (!XftColorAllocName(display, visual_ptr, colormap, fgc.get_str(),
-      &fg_color)) {
-    std::cerr << "Couldn't allocate xft color " << fgc.get_str() << "\n";
-  }
+  xcb_create_gc(connection, gc_bg,  pixmap, XCB_GC_FOREGROUND, bgc.val());
 }
 
 void
@@ -275,11 +267,10 @@ X::wait_for_event() {
 }
 
 void
-X::fill_rect(xcb_drawable_t d, uint32_t gc_index, int16_t x, int16_t y,
-             uint16_t width, uint16_t height)
+X::clear_rect(xcb_drawable_t d, uint16_t width, uint16_t height)
 {
-  xcb_rectangle_t rect = { x, y, width, height };
-  xcb_poly_fill_rectangle(connection, d, gc[gc_index], 1, &rect);
+  xcb_rectangle_t rect = { 0, 0, width, height };
+  xcb_poly_fill_rectangle(connection, d, gc_bg, 1, &rect);
 }
 
 Window

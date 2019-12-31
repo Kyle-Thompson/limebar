@@ -2,7 +2,6 @@
 
 #include "config.h"
 #include "color.h"
-#include "enums.h"
 
 #include <bits/stdint-uintn.h>
 #include <fontconfig/fontconfig.h>
@@ -26,8 +25,7 @@ class X {
   // TODO: label
   void get_string_resource(const char* query, char **out);
   // TODO: provide better API
-  void fill_rect(xcb_drawable_t d, uint32_t gc_index, int16_t x, int16_t y,
-                 uint16_t width, uint16_t height);
+  void clear_rect(xcb_drawable_t d, uint16_t width, uint16_t height);
   uint32_t generate_id() { return xcb_generate_id(connection); }
   void     flush() { xcb_flush(connection); }
   void     copy_area(xcb_drawable_t src, xcb_drawable_t dst, int16_t src_x,
@@ -163,7 +161,7 @@ class X {
   Fonts fonts;
  private:  // temp
 
-  xcb_gcontext_t gc[GC_MAX];
+  xcb_gcontext_t gc_bg;
   XftColor fg_color;
   XftColor acc_color;
   xcb_colormap_t colormap;

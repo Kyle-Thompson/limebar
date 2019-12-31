@@ -1,5 +1,6 @@
 #pragma once
 
+#include <X11/Xft/Xft.h>
 #include <array>
 #include <cstdint>
 #include <cstdio>
@@ -32,4 +33,10 @@ class rgba_t {
   uint8_t b { 0 };
   uint8_t a { 0 };
   std::array<char, 8> str { "#000000" };
+};
+
+struct BarColors {
+  rgba_t background;
+  rgba_t foreground;
+  rgba_t fg_accent;
 };
