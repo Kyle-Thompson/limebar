@@ -59,5 +59,5 @@ rgba_t::parse(const char *str) {
     };
   }
 
-  return { 0U };
+  return rgba_t { 0U };
 }

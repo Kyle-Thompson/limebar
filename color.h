@@ -9,7 +9,7 @@
 class rgba_t {
  public:
   rgba_t() = default;
-  rgba_t(uint32_t v) { set(v); parse_str(); }
+  explicit rgba_t(uint32_t v) { set(v); parse_str(); }
   rgba_t(uint8_t r_, uint8_t g_, uint8_t b_, uint8_t a_)
     : r(r_) , g(g_) , b(b_) , a(a_)
   {
