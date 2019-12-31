@@ -30,7 +30,6 @@ class X {
                  uint16_t width, uint16_t height);
   uint32_t generate_id() { return xcb_generate_id(connection); }
   void     flush() { xcb_flush(connection); }
-  void     update_gc();
   void     copy_area(xcb_drawable_t src, xcb_drawable_t dst, int16_t src_x,
                      int16_t dst_x, uint16_t width, uint16_t height);
   void     create_gc(xcb_pixmap_t pixmap);
@@ -77,11 +76,6 @@ class X {
                             size_t x);
   void     draw_ucs2_string_accent(XftDraw* draw,
                                    const std::vector<uint16_t>& str, size_t x);
-
-  // TODO: make these private
-  rgba_t fgc, bgc, ugc;
-  rgba_t accent;  // TODO: clean up color management
-  XftDraw *xft_draw { nullptr };
   
  private:
   X();
@@ -96,6 +90,12 @@ class X {
   // TODO: use a more optimized hash map
   std::unordered_map<uint16_t, char> xft_char_widths;
   std::shared_mutex _char_widths_mutex;
+
+ public:
+  // TODO: make these private
+  rgba_t fgc, bgc;
+  rgba_t accent;  // TODO: clean up color management
+  XftDraw *xft_draw { nullptr };
 
 
  public:  // temp

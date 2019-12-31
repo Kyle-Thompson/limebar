@@ -87,7 +87,7 @@ X::X()
   get_string_resource("background", &val);
   bgc = rgba_t::parse(val);
   get_string_resource("foreground", &val);
-  ugc = fgc = rgba_t::parse(val);
+  fgc = rgba_t::parse(val);
   accent = rgba_t::parse("#257fad");
 
   gc[GC_DRAW]   = generate_id();
@@ -130,27 +130,6 @@ X::get_string_resource(const char* query, char **out) {
 }
 
 void
-X::update_gc() {
-  xcb_change_gc(connection, gc[GC_DRAW],   XCB_GC_FOREGROUND, fgc.val());
-  xcb_change_gc(connection, gc[GC_ACCENT], XCB_GC_FOREGROUND, accent.val());
-  xcb_change_gc(connection, gc[GC_CLEAR],  XCB_GC_FOREGROUND, bgc.val());
-  xcb_change_gc(connection, gc[GC_ATTR],   XCB_GC_FOREGROUND, ugc.val());
-
-  // TODO: can't we just do this once initially?
-  xft_color_free(&acc_color);
-  if (!XftColorAllocName(display, visual_ptr, colormap, accent.get_str(),
-      &acc_color)) {
-    std::cerr << "Couldn't allocate xft color " << accent.get_str() << "\n";
-  }
-
-  xft_color_free(&fg_color);
-  if (!XftColorAllocName(display, visual_ptr, colormap, fgc.get_str(),
-      &fg_color)) {
-    std::cerr << "Couldn't allocate xft color " << fgc.get_str() << "\n";
-  }
-}
-
-void
 X::copy_area(xcb_drawable_t src, xcb_drawable_t dst, int16_t src_x,
              int16_t dst_x, uint16_t width, uint16_t height)
 {
@@ -164,7 +143,16 @@ X::create_gc(xcb_pixmap_t pixmap) {
   xcb_create_gc(connection, gc[GC_DRAW],   pixmap, XCB_GC_FOREGROUND, fgc.val());
   xcb_create_gc(connection, gc[GC_ACCENT], pixmap, XCB_GC_FOREGROUND, accent.val());
   xcb_create_gc(connection, gc[GC_CLEAR],  pixmap, XCB_GC_FOREGROUND, bgc.val());
-  xcb_create_gc(connection, gc[GC_ATTR],   pixmap, XCB_GC_FOREGROUND, ugc.val());
+
+  if (!XftColorAllocName(display, visual_ptr, colormap, accent.get_str(),
+      &acc_color)) {
+    std::cerr << "Couldn't allocate xft color " << accent.get_str() << "\n";
+  }
+
+  if (!XftColorAllocName(display, visual_ptr, colormap, fgc.get_str(),
+      &fg_color)) {
+    std::cerr << "Couldn't allocate xft color " << fgc.get_str() << "\n";
+  }
 }
 
 void
