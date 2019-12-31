@@ -20,6 +20,7 @@
 
 class X {
  public:
+  class font_color;
   static X& Instance();
 
   // TODO: label
@@ -30,13 +31,13 @@ class X {
   void     flush() { xcb_flush(connection); }
   void     copy_area(xcb_drawable_t src, xcb_drawable_t dst, int16_t src_x,
                      int16_t dst_x, uint16_t width, uint16_t height);
-  void     create_gc(xcb_pixmap_t pixmap);
+  void     create_gc(xcb_pixmap_t pixmap, const rgba_t& rgb);
   void     create_pixmap(xcb_pixmap_t pid, xcb_drawable_t drawable,
                          uint16_t width, uint16_t height);
   void     free_pixmap(xcb_pixmap_t pixmap);
-  void     create_window(xcb_window_t wid, int16_t x, int16_t y, uint16_t width,
-      uint16_t height, uint16_t _class, xcb_visualid_t visual,
-      uint32_t value_mask, bool reserve_space);
+  void     create_window(xcb_window_t wid, const rgba_t& rgb, int16_t x,
+      int16_t y, uint16_t width, uint16_t height, uint16_t _class,
+      xcb_visualid_t visual, uint32_t value_mask, bool reserve_space);
   void     destroy_window(xcb_window_t window);
   void     configure_window(xcb_window_t window, uint16_t value_mask,
                             const void *value_list);
@@ -63,6 +64,7 @@ class X {
   xcb_visualid_t get_visual();
 
   // XFT functions
+  XftColor alloc_char_color(const rgba_t& rgb);
   bool     xft_char_exists(XftFont *pub, FcChar32 ucs4);
   FT_UInt  xft_char_index(XftFont *pub, FcChar32 ucs4);
   int      xft_char_width(uint16_t ch);
@@ -70,10 +72,8 @@ class X {
   XftDraw* xft_draw_create(Drawable drawable);
   void     xft_font_close(XftFont *xft);
   XftFont* xft_font_open_name(_Xconst char *name);
-  void     draw_ucs2_string(XftDraw* draw, const std::vector<uint16_t>& str,
-                            size_t x);
-  void     draw_ucs2_string_accent(XftDraw* draw,
-                                   const std::vector<uint16_t>& str, size_t x);
+  void     draw_ucs2_string(XftDraw* draw, font_color* color,
+                            const std::vector<uint16_t>& str, size_t x);
   
  private:
   X();
@@ -91,12 +91,29 @@ class X {
 
  public:
   // TODO: make these private
-  rgba_t fgc, bgc;
-  rgba_t accent;  // TODO: clean up color management
   XftDraw *xft_draw { nullptr };
 
 
  public:  // temp
+  class font_color {
+   public:
+    font_color(const rgba_t& color)
+      : _color(X::Instance().alloc_char_color(color))
+    {}
+    ~font_color() {
+      X::Instance().xft_color_free(&_color);
+    }
+    font_color(const font_color& rhs) : _color(rhs._color) {}
+    font_color(font_color&&) = delete;
+    font_color& operator=(const font_color&) = delete;
+    font_color& operator=(font_color&&) = delete;
+
+    XftColor *get() { return &_color; }
+
+   private:
+    XftColor _color;
+  };
+
   struct font_t {
     font_t() = default;
     font_t(const char* pattern, int offset, X* x) {
@@ -162,8 +179,6 @@ class X {
  private:  // temp
 
   xcb_gcontext_t gc_bg;
-  XftColor fg_color;
-  XftColor acc_color;
   xcb_colormap_t colormap;
 
   Visual *visual_ptr;

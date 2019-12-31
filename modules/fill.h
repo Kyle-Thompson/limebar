@@ -8,7 +8,8 @@ class mod_fill : public StaticModule<mod_fill> {
  public:
   explicit mod_fill(const char* str) : _str(str) {}
 
-  void get(ModulePixmap* px) {
+  template <typename DS>
+  void extract(ModulePixmap<DS>* px) const {
     px->write(_str);
   }
   

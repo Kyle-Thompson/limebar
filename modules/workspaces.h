@@ -14,7 +14,8 @@ class mod_workspaces : public DynamicModule<mod_workspaces> {
   mod_workspaces();
 
  private:
-  void extract(ModulePixmap* px) const;
+  template <typename DS>
+  void extract(ModulePixmap<DS>* px) const;
   void trigger();
   void update();
 
@@ -25,3 +26,10 @@ class mod_workspaces : public DynamicModule<mod_workspaces> {
   uint32_t cur_desktop { 0 };
   std::vector<std::string> names;
 };
+
+template <typename DS>
+void mod_workspaces::extract(ModulePixmap<DS> *px) const {
+  for (int i = 0; i < names.size(); ++i) {
+    px->write(names[i] + " ", (i == cur_desktop));
+  }
+}

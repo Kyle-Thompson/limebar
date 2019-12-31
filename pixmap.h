@@ -1,6 +1,7 @@
 #pragma once
 
 #include "x.h"
+#include "color.h"
 
 #include <X11/Xft/Xft.h>
 #include <algorithm>
@@ -67,13 +68,16 @@ struct Util {
 
 // TODO: create a wrapper class that only allows appending and not clearing to
 // limit access to what modules can do when getting a ModulePixmap
+template <typename DS>
 class ModulePixmap {
  public:
-  ModulePixmap(xcb_drawable_t drawable, uint16_t width, uint16_t height)
+  ModulePixmap(xcb_drawable_t drawable, BarColors<DS>* colors, uint16_t width,
+               uint16_t height)
     : _used(0)
     , _width(width)
     , _height(height)
     , _x(X::Instance())
+    , _colors(colors)
     , _pixmap_id(_x.generate_id())
     , _xft_draw(_x.xft_draw_create(_pixmap_id))
   {
@@ -104,31 +108,28 @@ class ModulePixmap {
   }
 
   // TODO: overload with const char*
-  void write(const std::string& str) {
+  void write(const std::string& str, bool accented = false) {
     ucs2_and_width parsed = Util::utf8_to_ucs2(str);
 
     // TODO: clamp to max instead of not writing anything
     if (_used + parsed.second <= _width) {
-      _x.draw_ucs2_string(_xft_draw, parsed.first, _used);
-      _used += parsed.second;
-    }
-  }
-
-  void write_with_accent(const std::string& str) {
-    ucs2_and_width parsed = Util::utf8_to_ucs2(str);
-
-    // TODO: clamp to max instead of not writing anything
-    if (_used + parsed.second <= _width) {
-      _x.draw_ucs2_string_accent(_xft_draw, parsed.first, _used);
+      if (accented) {
+        _x.draw_ucs2_string(_xft_draw, &_colors->fg_accent, parsed.first,
+                            _used);
+      } else {
+        _x.draw_ucs2_string(_xft_draw, &_colors->foreground, parsed.first,
+                            _used);
+      }
       _used += parsed.second;
     }
   }
 
  private:
-  uint16_t     _used;
-  uint16_t     _width, _height;
-  X&           _x;
-  xcb_pixmap_t _pixmap_id;
-  XftDraw*     _xft_draw;
-  std::mutex   _mutex;
+  uint16_t        _used;
+  uint16_t        _width, _height;
+  X&              _x;
+  BarColors<DS>*  _colors;
+  xcb_pixmap_t    _pixmap_id;
+  XftDraw*        _xft_draw;
+  std::mutex      _mutex;
 };

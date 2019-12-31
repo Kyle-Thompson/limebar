@@ -8,9 +8,11 @@
  *   that need to be queried when another module changes?
  * - Introduce concept of fixed size modules where an update to the module
  *   doesn't require redrawing any of the other modules at all.
+ * - Tidy up use of <DS> everywhere.
  */
 
 #include "bars.h"
+#include "color.h"
 #include "modules/workspaces.h"
 #include "modules/windows.h"
 #include "modules/clock.h"
@@ -63,18 +65,28 @@ main () {
   auto middle_section { make_section(clock) };
   auto right_section  { make_section() };
 
+  char *val;
+  X::Instance().get_string_resource("background", &val);
+  rgba_t bgc = rgba_t::parse(val);
+  X::Instance().get_string_resource("foreground", &val);
+  rgba_t fgc = rgba_t::parse(val);
+  rgba_t acc = rgba_t::parse("#257fad");
+
   Bar left_bar(
     { .origin_x = 0, .origin_y = 0, .width = 1920, .height = 20 },
+    BarColors<X>{ .background = bgc, .foreground = fgc, .fg_accent = acc },
     left_section, middle_section, right_section
   );
 
   Bar middle_bar(
     { .origin_x = 1920, .origin_y = 0, .width = 1920, .height = 20 },
+    BarColors<X>{ .background = bgc, .foreground = fgc, .fg_accent = acc },
     left_section, middle_section, right_section
   );
 
   Bar right_bar(
     { .origin_x = 3840, .origin_y = 0, .width = 1920, .height = 20 },
+    BarColors<X>{ .background = bgc, .foreground = fgc, .fg_accent = acc },
     left_section, middle_section, right_section
   );
 

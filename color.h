@@ -1,6 +1,5 @@
 #pragma once
 
-#include <X11/Xft/Xft.h>
 #include <array>
 #include <cstdint>
 #include <cstdio>
@@ -11,14 +10,16 @@ class rgba_t {
   rgba_t() = default;
   explicit rgba_t(uint32_t v) { set(v); parse_str(); }
   rgba_t(uint8_t r_, uint8_t g_, uint8_t b_, uint8_t a_)
-    : r(r_) , g(g_) , b(b_) , a(a_)
+    : r(r_), g(g_), b(b_), a(a_)
   {
     parse_str();
   }
+  ~rgba_t() = default;
+  rgba_t(const rgba_t&) = default;
 
   void set(uint32_t v) { memcpy(this, &v, sizeof(v)); }
-  const uint32_t* val() { return reinterpret_cast<const uint32_t*>(this); }
-  char *get_str() { return str.data(); }
+  const uint32_t* val() const { return reinterpret_cast<const uint32_t*>(this); }
+  const char *get_str() const { return str.data(); }
 
   void parse_str() {
     // TODO: why bgr instead of rgb?
@@ -35,8 +36,14 @@ class rgba_t {
   std::array<char, 8> str { "#000000" };
 };
 
+
+/** BarColors
+ * Collection of all colors relevant to the bar.
+ * DS = Display Server (X11, Wayland, etc)
+ */
+template <typename DS>
 struct BarColors {
   rgba_t background;
-  rgba_t foreground;
-  rgba_t fg_accent;
+  typename DS::font_color foreground;
+  typename DS::font_color fg_accent;
 };

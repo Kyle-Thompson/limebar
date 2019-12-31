@@ -1,5 +1,6 @@
 #pragma once
 
+#include "color.h"
 #include "modules/module.h"
 #include "pixmap.h"
 #include "window.h"
@@ -36,24 +37,24 @@ struct dimension_t {
  *
  * TODO: how to verify that Mods is a tuple?
  */
-template <typename Mods>
+template <typename DS, typename Mods>
 class Section {
  public:
-  Section(std::condition_variable* cond, const BarWindow& win, Mods&& mods)
-    : _pixmap(win.generate_mod_pixmap())
+  Section(std::condition_variable* cond, BarWindow<DS>* win, Mods&& mods)
+    : _pixmap(win->generate_mod_pixmap())
     , _modules(std::move(mods))
   {
     std::apply([&](auto&&... mods) { (mods.subscribe(cond), ...); }, _modules);
   }
 
-  ModulePixmap& collect() {
+  ModulePixmap<DS>& collect() {
     _pixmap.clear();
     std::apply([this](auto&&... mods) { (mods.get(&_pixmap), ...); }, _modules);
     return _pixmap;
   }
 
  private:
-  ModulePixmap _pixmap;
+  ModulePixmap<DS> _pixmap;
   Mods _modules;
 };
 
@@ -62,10 +63,11 @@ class Section {
  * The Bar class maintains the three different sections and the window
  * displaying the bar itself. It will also draw each section into the bar.
  */
-template <typename Left, typename Middle, typename Right>
+template <typename DS, typename Left, typename Middle, typename Right>
 class Bar {
  public:
-  Bar(dimension_t d, Left left, Middle middle, Right right);
+  Bar(dimension_t d, BarColors<DS>&& colors, Left left, Middle middle,
+      Right right);
 
   void operator()();
   void update();
@@ -73,28 +75,28 @@ class Bar {
  private:
   std::condition_variable _condvar;
   size_t _origin_x, _origin_y, _width, _height;
-  BarWindow _win;
-  Section<Left>   _left;
-  Section<Middle> _middle;
-  Section<Right>  _right;
+  BarWindow<DS> _win;
+  Section<DS, Left>   _left;
+  Section<DS, Middle> _middle;
+  Section<DS, Right>  _right;
 };
 
-template <typename Left, typename Middle, typename Right>
-Bar<Left, Middle, Right>::Bar(dimension_t d, Left left, Middle middle,
-                              Right right)
+template <typename DS, typename Left, typename Middle, typename Right>
+Bar<DS, Left, Middle, Right>::Bar(dimension_t d, BarColors<DS>&& colors,
+                                  Left left, Middle middle, Right right)
   : _origin_x(d.origin_x)
   , _origin_y(d.origin_y)
   , _width(d.width)
   , _height(d.height)
-  , _win(_origin_x, _origin_y, _width, _height)
-  , _left(&_condvar, _win, std::move(left))
-  , _middle(&_condvar, _win, std::move(middle))
-  , _right(&_condvar, _win, std::move(right))
+  , _win(std::move(colors), _origin_x, _origin_y, _width, _height)
+  , _left(&_condvar, &_win, std::move(left))
+  , _middle(&_condvar, &_win, std::move(middle))
+  , _right(&_condvar, &_win, std::move(right))
 {}
 
-template <typename Left, typename Middle, typename Right>
+template <typename DS, typename Left, typename Middle, typename Right>
 void
-Bar<Left, Middle, Right>::operator()() {
+Bar<DS, Left, Middle, Right>::operator()() {
   while (true) {
     _win.clear();
     update();
@@ -106,9 +108,9 @@ Bar<Left, Middle, Right>::operator()() {
   }
 }
 
-template <typename Left, typename Middle, typename Right>
+template <typename DS, typename Left, typename Middle, typename Right>
 void
-Bar<Left, Middle, Right>::update() {
+Bar<DS, Left, Middle, Right>::update() {
   _win.update_left(_left.collect());
   _win.update_right(_right.collect());
   _win.update_middle(_middle.collect());

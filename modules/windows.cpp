@@ -32,24 +32,6 @@ mod_windows::~mod_windows() {
   xcb_disconnect(conn);
 }
 
-void mod_windows::extract(ModulePixmap *px) const {
-  // TODO: how to capture windows that don't work here? (e.g. steam)
-
-  for (Window w : windows) {
-    auto workspace = x.get_property<uint32_t>(w, XA_CARDINAL, "_NET_WM_DESKTOP")
-        .value().at(0);
-    std::string title = x.get_window_title(w);
-    if (title.empty() || current_workspace != workspace) continue;
-
-    if (w == current_window) {
-      px->write_with_accent(title);
-    } else {
-      px->write(title);
-    }
-    px->write(" ");  // TODO: don't add a space after the last window
-  }
-}
-
 void mod_windows::trigger() {
   while (true) {
     std::unique_ptr<xcb_generic_event_t, decltype(std::free) *> ev {

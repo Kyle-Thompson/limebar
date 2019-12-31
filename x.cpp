@@ -1,7 +1,9 @@
 #include "x.h"
 
+#include "color.h"
 #include "config.h"
 
+#include <X11/Xft/Xft.h>
 #include <X11/Xlib-xcb.h>
 #include <X11/Xutil.h>
 #include <bits/stdint-intn.h>
@@ -83,25 +85,7 @@ X::X()
   colormap = xcb_generate_id(connection);
   xcb_create_colormap(connection, XCB_COLORMAP_ALLOC_NONE, colormap, screen->root, visual);
 
-  char *val;
-  get_string_resource("background", &val);
-  bgc = rgba_t::parse(val);
-  get_string_resource("foreground", &val);
-  fgc = rgba_t::parse(val);
-  accent = rgba_t::parse("#257fad");
-
   gc_bg = generate_id();
-
-  // TODO: move to color class
-  if (!XftColorAllocName(display, visual_ptr, colormap, accent.get_str(),
-      &acc_color)) {
-    std::cerr << "Couldn't allocate xft color " << accent.get_str() << "\n";
-  }
-
-  if (!XftColorAllocName(display, visual_ptr, colormap, fgc.get_str(),
-      &fg_color)) {
-    std::cerr << "Couldn't allocate xft color " << fgc.get_str() << "\n";
-  }
 }
 
 X::~X() {
@@ -109,9 +93,6 @@ X::~X() {
 
   if (connection) xcb_disconnect(connection);
   if (database) xcb_xrm_database_free(database);
-
-  xft_color_free(&fg_color);
-  xft_color_free(&acc_color);
 }
 
 std::mutex _m;
@@ -143,12 +124,13 @@ X::copy_area(xcb_drawable_t src, xcb_drawable_t dst, int16_t src_x,
 }
 
 void
-X::create_gc(xcb_pixmap_t pixmap) {
-  xcb_create_gc(connection, gc_bg,  pixmap, XCB_GC_FOREGROUND, bgc.val());
+X::create_gc(xcb_pixmap_t pixmap, const rgba_t& rgb) {
+  xcb_create_gc(connection, gc_bg, pixmap, XCB_GC_FOREGROUND, rgb.val());
 }
 
 void
-X::create_pixmap(xcb_pixmap_t pid, xcb_drawable_t drawable, uint16_t width, uint16_t height)
+X::create_pixmap(xcb_pixmap_t pid, xcb_drawable_t drawable, uint16_t width,
+                 uint16_t height)
 {
   xcb_create_pixmap(connection, get_depth(), pid, drawable, width, height);
 }
@@ -160,11 +142,11 @@ X::free_pixmap(xcb_pixmap_t pixmap) {
 
 // TODO: refactor into multiple functions
 void
-X::create_window(xcb_window_t wid,
+X::create_window(xcb_window_t wid, const rgba_t& rgb,
     int16_t x, int16_t y, uint16_t width, uint16_t height, uint16_t _class,
     xcb_visualid_t visual, uint32_t value_mask, bool reserve_space)
 {
-  const std::array<uint32_t, 5> mask { *bgc.val(), *bgc.val(), FORCE_DOCK,
+  const std::array<uint32_t, 5> mask { *rgb.val(), *rgb.val(), FORCE_DOCK,
       XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS |
           XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE,
       colormap };
@@ -353,6 +335,16 @@ X::get_current_workspace() {
 
 // XFT functions
 
+XftColor
+X::alloc_char_color(const rgba_t& rgb) {
+  XftColor color;
+  if (!XftColorAllocName(display, visual_ptr, colormap, rgb.get_str(), &color))
+  {
+    std::cerr << "Couldn't allocate xft color " << rgb.get_str() << "\n";
+  }
+  return color;
+}
+
 bool
 X::xft_char_exists(XftFont *pub, FcChar32 ucs4) {
   return XftCharExists(display, pub, ucs4);
@@ -403,7 +395,8 @@ X::xft_font_open_name(_Xconst char *name) {
 }
 
 void
-X::draw_ucs2_string(XftDraw* draw, const std::vector<uint16_t>& str, size_t x) {
+X::draw_ucs2_string(XftDraw* draw, font_color* color,
+                    const std::vector<uint16_t>& str, size_t x) {
   // TODO: currently the proper font for this character needs to be found twice.
   // This can definitely be optimized.
   // Also, group consecutive characters of the same font so they can be printed
@@ -413,23 +406,7 @@ X::draw_ucs2_string(XftDraw* draw, const std::vector<uint16_t>& str, size_t x) {
     auto& font = fonts.drawable_font(ch);
     const int y = BAR_HEIGHT / 2 + font.height / 2
                   - font.descent + font.offset;
-    XftDrawString16(draw, &fg_color, font.xft_ft, x, y, &ch, 1);
-    x += xft_char_width(ch);
-  }
-}
-
-void
-X::draw_ucs2_string_accent(XftDraw* draw, const std::vector<uint16_t>& str, size_t x) {
-  // TODO: currently the proper font for this character needs to be found twice.
-  // This can definitely be optimized.
-  // Also, group consecutive characters of the same font so they can be printed
-  // in bulk.
-
-  for (auto ch : str) {
-    auto& font = fonts.drawable_font(ch);
-    const int y = BAR_HEIGHT / 2 + font.height / 2
-                  - font.descent + font.offset;
-    XftDrawString16(draw, &acc_color, font.xft_ft, x, y, &ch, 1);
+    XftDrawString16(draw, color->get(), font.xft_ft, x, y, &ch, 1);
     x += xft_char_width(ch);
   }
 }

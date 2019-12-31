@@ -8,11 +8,6 @@ constexpr static std::array<const char*, 12> months {
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", };
 
-void mod_clock::extract(ModulePixmap* px) const {
-  px->write_with_accent(current_time.data());
-  px->write(current_day.data());
-}
-
 void mod_clock::trigger() {
   std::this_thread::sleep_for(std::chrono::minutes(1));
 }

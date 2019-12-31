@@ -22,16 +22,6 @@ mod_workspaces::mod_workspaces()
   xcb_flush(conn);
 }
 
-void mod_workspaces::extract(ModulePixmap *px) const {
-  for (int i = 0; i < names.size(); ++i) {
-    if (i == cur_desktop) {
-      px->write_with_accent(names[i] + " ");
-    } else {
-      px->write(names[i] + " ");
-    }
-  }
-}
-
 void mod_workspaces::trigger() {
   while (true) {
     std::unique_ptr<xcb_generic_event_t, decltype(std::free) *> ev {
