@@ -172,11 +172,11 @@ X::create_window(xcb_window_t wid, const rgba_t& rgb,
   std::array<int, 12> strut = {0};
   // TODO: Find a better way of determining if this is a top-bar
   if (y == 0) {
-    strut[2] = BAR_HEIGHT;
+    strut[2] = height;
     strut[8] = x;
     strut[9] = x + width;
   } else {
-    strut[3]  = BAR_HEIGHT;
+    strut[3]  = height;
     strut[10] = x;
     strut[11] = x + width;
   }
