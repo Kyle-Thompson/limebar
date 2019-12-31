@@ -89,11 +89,6 @@ class X {
   std::unordered_map<uint16_t, char> xft_char_widths;
   std::shared_mutex _char_widths_mutex;
 
- public:
-  // TODO: make these private
-  XftDraw *xft_draw { nullptr };
-
-
  public:  // temp
   class font_color {
    public:
