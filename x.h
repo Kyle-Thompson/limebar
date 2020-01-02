@@ -7,6 +7,7 @@
 #include <fontconfig/fontconfig.h>
 #include <iostream>
 #include <mutex>
+#include <numeric>
 #include <optional>
 #include <shared_mutex>
 #include <unordered_map>
@@ -18,13 +19,16 @@
 #include <X11/Xlib.h>
 
 
+using ucs2 = std::vector<uint16_t>;
+
 class X {
  public:
   class font_color;
+  struct font_t;
   static X& Instance();
 
   // TODO: label
-  void get_string_resource(const char* query, char **out);
+  std::string get_string_resource(const char* query);
   // TODO: provide better API
   void clear_rect(xcb_drawable_t d, uint16_t width, uint16_t height);
   uint32_t generate_id() { return xcb_generate_id(connection); }
@@ -59,43 +63,17 @@ class X {
   xcb_intern_atom_reply_t* get_intern_atom_reply(const char* name);
 
   void set_ewmh_atoms();
-  bool connection_has_error();
 
   xcb_visualid_t get_visual();
 
   // XFT functions
   XftColor alloc_char_color(const rgba_t& rgb);
-  bool     xft_char_exists(XftFont *pub, FcChar32 ucs4);
-  FT_UInt  xft_char_index(XftFont *pub, FcChar32 ucs4);
-  int      xft_char_width(uint16_t ch);
   void     xft_color_free(XftColor* color);
   XftDraw* xft_draw_create(Drawable drawable);
-  void     xft_font_close(XftFont *xft);
   XftFont* xft_font_open_name(_Xconst char *name);
-  void     draw_ucs2_string(XftDraw* draw, font_color* color,
+  void     draw_ucs2_string(XftDraw* draw, font_t *font, font_color *color,
                             const std::vector<uint16_t>& str, size_t x);
-  
- private:
-  X();
-  ~X();
-  uint8_t get_depth();
 
-  Display            *display;
-  xcb_connection_t   *connection;
-  xcb_xrm_database_t *database;
-  xcb_screen_t       *screen;
-
-  // TODO: use a more optimized hash map
-  std::unordered_map<uint16_t, char> xft_char_widths;
-  std::shared_mutex _char_widths_mutex;
-
-  xcb_gcontext_t gc_bg;
-  xcb_colormap_t colormap;
-
-  Visual *visual_ptr;
-  xcb_visualid_t visual;
-
- public:  // temp
   class font_color {
    public:
     font_color(const rgba_t& color)
@@ -115,68 +93,107 @@ class X {
     XftColor _color;
   };
 
+  // TODO: can this struct be replaced with just XftFont?
   struct font_t {
-    font_t() = default;
-    font_t(const char* pattern, int offset, X* x) {
-      _x = x;
-      if ((xft_ft = _x->xft_font_open_name(pattern))) {
-        descent = xft_ft->descent;
-        height = xft_ft->ascent + descent;
-        this->offset = offset;
-      } else {
+    struct glyph_t {
+      FT_UInt id;
+      XGlyphInfo info;
+    };
+
+    explicit font_t(const char* pattern, int offset = 0)
+      : display(X::Instance().display)
+      , xft_ft(XftFontOpenName(display, 0, pattern))
+    {
+      if (!xft_ft) {
         std::cerr << "Could not load font " << pattern << "\n";
         exit(EXIT_FAILURE);
       }
-    }
-    ~font_t() { _x->xft_font_close(xft_ft); }
 
-    bool font_has_glyph(const uint16_t c) {
-      return _x->xft_char_exists(xft_ft, (FcChar32) c);
+      descent = xft_ft->descent;
+      height = xft_ft->ascent + descent;
+      this->offset = offset;
+    }
+    ~font_t() {
+      for (auto& [ch, glyph] : char_to_glyph) {
+        XftFontUnloadGlyphs(display, xft_ft, &glyph.id, 1);
+      }
+      XftFontClose(display, xft_ft);
     }
 
-    X* _x;
-    XftFont *xft_ft { nullptr };
+    font_t(const font_t&) = delete;
+    font_t(font_t&&) = delete;
+    font_t& operator=(const font_t&) = delete;
+    font_t& operator=(font_t&&) = delete;
+
+    auto get_glyph(uint16_t ch) {
+      auto itr = [this, ch] {
+        std::shared_lock lock{_mu};
+        return char_to_glyph.find(ch);
+      }();
+
+      if (itr == char_to_glyph.end()
+          && XftCharExists(display, xft_ft, static_cast<FcChar32>(ch))) {
+        std::unique_lock lock{_mu};
+        return char_to_glyph.emplace(std::make_pair(ch, create_glyph(ch))).first;
+      }
+      return itr;
+    }
+
+    bool has_glyph(uint16_t ch) {
+      return get_glyph(ch) != char_to_glyph.end();
+    }
+
+    // TODO: optimize for monospace fonts
+    uint16_t char_width(uint16_t ch) {
+      return get_glyph(ch)->second.info.xOff;
+    }
+
+    // TODO: can this be made const?
+    // TODO: optimize for monospace fonts
+    size_t string_size(const ucs2& str) {
+      // TODO: cache in font_t instead of Fonts
+      return std::accumulate(str.begin(), str.end(), 0,
+          [this](size_t size, uint16_t ch) { return size + char_width(ch); });
+    }
+
+   private:
+    glyph_t create_glyph(uint16_t ch) {
+      XGlyphInfo glyph_info;
+      FT_UInt glyph_id = XftCharIndex(display, xft_ft, static_cast<FcChar32>(ch));
+      XftFontLoadGlyphs(display, xft_ft, FcFalse, &glyph_id, 1);
+      XftGlyphExtents(display, xft_ft, &glyph_id, 1, &glyph_info);
+      return {glyph_id, glyph_info};
+    }
+
+    Display *display;
+    std::shared_mutex _mu;  // TODO: narrow down use
+    std::unordered_map<uint16_t, glyph_t> char_to_glyph;
+
+   public:
+    XftFont *xft_ft;
     int descent { 0 };
     int height { 0 };
     int offset { 0 };
   };
 
-  struct Fonts {
-    Fonts() = default;
-    void init(X* x) {
-      // initialize fonts
-      std::transform(FONTS.begin(), FONTS.end(), _fonts.begin(),
-          [&](const auto& f) -> font_t {
-            const auto& [font, offset] = f;
-            return { font, offset, x };
-          });
+ private:
+  X();
+  ~X();
 
-      // to make the alignment uniform, find maximum height
-      const int maxh = std::max_element(_fonts.begin(), _fonts.end(),
-          [](const auto& l, const auto& r){
-            return l.height < r.height;
-          })->height;
+  uint8_t get_depth() {
+    return (visual == screen->root_visual) ? XCB_COPY_FROM_PARENT : 32;
+  }
 
-      // set maximum height to all fonts
-      for (auto& font : _fonts)
-        font.height = maxh;
-    }
-    font_t& operator[](size_t index) { return _fonts[index]; }
-    font_t& drawable_font(const uint16_t c) {
-      // If the end is reached without finding an appropriate font, return nullptr.
-      // If the font can draw the character, return it.
-      for (auto& font : _fonts) {
-        if (font.font_has_glyph(c)) {
-          return font;
-        }
-      }
-      return _fonts[0];  // TODO: print error and exit?
-    }
+  Display            *display;
+  xcb_connection_t   *connection;
+  xcb_xrm_database_t *database;
+  xcb_screen_t       *screen;
 
-    std::array<font_t, FONTS.size()> _fonts;
-  };
+  xcb_gcontext_t gc_bg;
+  xcb_colormap_t colormap;
 
-  Fonts fonts;
+  Visual *visual_ptr;
+  xcb_visualid_t visual;
 };
 
 
@@ -210,7 +227,6 @@ X::get_property(Window win, Atom xa_prop_type, const char *prop_name)
 
 
 // helpers
-
 
 xcb_atom_t get_atom(xcb_connection_t *conn, const char *name);
 xcb_connection_t *get_connection();

@@ -16,6 +16,7 @@
 #include <vector>
 #include <xcb/randr.h>
 #include <X11/Xatom.h>
+#include <xcb/xcb.h>
 #include <xcb/xcb_xrm.h>
 
 enum {
@@ -67,7 +68,7 @@ X::X()
     exit(EXIT_FAILURE);
   }
 
-  if (!(connection = XGetXCBConnection(display)) || connection_has_error()) {
+  if (!(connection = XGetXCBConnection(display)) || xcb_connection_has_error(connection)) {
     std::cerr << "Couldn't connect to X\n";
     exit (EXIT_FAILURE);
   }
@@ -95,24 +96,18 @@ X::~X() {
   if (database) xcb_xrm_database_free(database);
 }
 
-std::mutex _m;
-
 X&
 X::Instance() {
   static X instance;
-  static bool temp = true;
-  std::unique_lock lock{_m};  // TODO please god clean this function
-  if (temp) {
-    instance.fonts.init(&instance);
-    temp = false;
-  }
   return instance;
 }
 
 
-void
-X::get_string_resource(const char* query, char **out) {
-  xcb_xrm_resource_get_string(database, query, nullptr, out);
+std::string
+X::get_string_resource(const char* query) {
+  char *str;
+  xcb_xrm_resource_get_string(database, query, nullptr, &str);
+  return std::string(str);
 }
 
 void
@@ -282,11 +277,6 @@ X::get_intern_atom_reply(const char *name) {
   return xcb_intern_atom_reply(connection, get_atom_by_name(name), nullptr);
 }
 
-bool
-X::connection_has_error() {
-  return xcb_connection_has_error(connection);
-}
-
 
 std::string
 X::get_window_title(Window win) {
@@ -345,40 +335,6 @@ X::alloc_char_color(const rgba_t& rgb) {
   return color;
 }
 
-bool
-X::xft_char_exists(XftFont *pub, FcChar32 ucs4) {
-  return XftCharExists(display, pub, ucs4);
-}
-
-FT_UInt
-X::xft_char_index(XftFont *pub, FcChar32 ucs4) {
-  return XftCharIndex(display, pub, ucs4);
-}
-
-int
-X::xft_char_width(uint16_t ch) {
-  auto load_char = [&] {
-    XGlyphInfo gi;
-    XftFont *font = fonts.drawable_font(ch).xft_ft;
-    FT_UInt glyph = XftCharIndex(display, font, (FcChar32) ch);
-    XftFontLoadGlyphs(display, font, FcFalse, &glyph, 1);
-    XftGlyphExtents(display, font, &glyph, 1, &gi);
-    XftFontUnloadGlyphs(display, font, &glyph, 1);
-    return gi.xOff;
-  };
-
-  auto itr = [&] {
-    std::shared_lock lock{_char_widths_mutex};
-    return xft_char_widths.find(ch);
-  }();
-
-  if (itr == xft_char_widths.end()) {
-    std::unique_lock lock{_char_widths_mutex};
-    itr = xft_char_widths.insert({ch, load_char()}).first;
-  }
-  return itr->second;
-}
-
 void
 X::xft_color_free(XftColor* color) {
   XftColorFree(display, visual_ptr, colormap, color);
@@ -389,41 +345,17 @@ X::xft_draw_create(Drawable drawable) {
   return XftDrawCreate(display, drawable, visual_ptr, colormap);
 }
 
-XftFont *
-X::xft_font_open_name(_Xconst char *name) {
-  return XftFontOpenName(display, 0, name);
-}
-
 void
-X::draw_ucs2_string(XftDraw* draw, font_color* color,
+X::draw_ucs2_string(XftDraw* draw, font_t *font, font_color* color,
                     const std::vector<uint16_t>& str, size_t x) {
-  // TODO: currently the proper font for this character needs to be found twice.
-  // This can definitely be optimized.
-  // Also, group consecutive characters of the same font so they can be printed
-  // in bulk.
-
-  for (auto ch : str) {
-    auto& font = fonts.drawable_font(ch);
-    const int y = BAR_HEIGHT / 2 + font.height / 2
-                  - font.descent + font.offset;
-    XftDrawString16(draw, color->get(), font.xft_ft, x, y, &ch, 1);
-    x += xft_char_width(ch);
-  }
-}
-
-void
-X::xft_font_close(XftFont *xft) {
-  XftFontClose(display, xft);
-}
-
-uint8_t
-X::get_depth() {
-  return (visual == screen->root_visual) ? XCB_COPY_FROM_PARENT : 32;
+  const int y = BAR_HEIGHT / 2  + font->height / 2
+                - font->descent + font->offset;
+  XftDrawString16(draw, color->get(), font->xft_ft, x, y, str.data(),
+                  str.size());
 }
 
 
 // helpers
-
 xcb_atom_t get_atom(xcb_connection_t *conn, const char *name) {
   std::unique_ptr<xcb_intern_atom_reply_t, decltype(std::free) *> reply {
       xcb_intern_atom_reply(conn,

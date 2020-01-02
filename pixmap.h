@@ -1,5 +1,6 @@
 #pragma once
 
+#include "font.h"
 #include "x.h"
 #include "color.h"
 
@@ -16,8 +17,7 @@ using ucs2_and_width = std::pair<ucs2, size_t>;
 
 struct Util {
   // TODO: find a better home for this
-  static ucs2_and_width utf8_to_ucs2(const std::string& text) {
-    size_t total_width = 0;
+  static ucs2 utf8_to_ucs2(const std::string& text) {
     ucs2 str;
 
     for (uint8_t *utf = (uint8_t *)text.c_str(); utf != (uint8_t *) &*text.end();) {
@@ -59,10 +59,9 @@ struct Util {
       }
 
       str.push_back(ucs);
-      total_width += X::Instance().xft_char_width(ucs);
     }
 
-    return std::make_pair(str, total_width);
+    return str;
   }
 };
 
@@ -71,13 +70,14 @@ struct Util {
 template <typename DS>
 class ModulePixmap {
  public:
-  ModulePixmap(xcb_drawable_t drawable, BarColors<DS>* colors, uint16_t width,
-               uint16_t height)
+  ModulePixmap(xcb_drawable_t drawable, BarColors<DS>* colors, Fonts<DS>* fonts,
+               uint16_t width, uint16_t height)
     : _used(0)
     , _width(width)
     , _height(height)
     , _x(X::Instance())
     , _colors(colors)
+    , _fonts(fonts)
     , _pixmap_id(_x.generate_id())
     , _xft_draw(_x.xft_draw_create(_pixmap_id))
   {
@@ -109,18 +109,16 @@ class ModulePixmap {
 
   // TODO: overload with const char*
   void write(const std::string& str, bool accented = false) {
-    ucs2_and_width parsed = Util::utf8_to_ucs2(str);
+    ucs2 ucs2_str = Util::utf8_to_ucs2(str);
+    typename Fonts<DS>::Font* font = _fonts->drawable_font(ucs2_str[0]);
+    size_t total_size = font->string_size(ucs2_str);
 
-    // TODO: clamp to max instead of not writing anything
-    if (_used + parsed.second <= _width) {
-      if (accented) {
-        _x.draw_ucs2_string(_xft_draw, &_colors->fg_accent, parsed.first,
-                            _used);
-      } else {
-        _x.draw_ucs2_string(_xft_draw, &_colors->foreground, parsed.first,
-                            _used);
-      }
-      _used += parsed.second;
+    // TODO: write to max instead of not writing anything
+    if (_used + total_size <= _width) {
+      _x.draw_ucs2_string(_xft_draw, font,
+          (accented ? &_colors->fg_accent : &_colors->foreground),
+          ucs2_str, _used);
+      _used += total_size;
     }
   }
 
@@ -129,7 +127,8 @@ class ModulePixmap {
   uint16_t        _width, _height;
   X&              _x;
   BarColors<DS>*  _colors;
+  Fonts<DS>*      _fonts;
   xcb_pixmap_t    _pixmap_id;
   XftDraw*        _xft_draw;
-  std::mutex      _mutex;
+  std::mutex      _mutex;  // TODO: is this needed?
 };

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "color.h"
+#include "font.h"
 #include "pixmap.h"
 #include "x.h"
 
@@ -12,7 +13,8 @@
 template <typename DS>
 class BarWindow {
  public:
-  BarWindow(BarColors<DS>&& colors, size_t x, size_t y, size_t w, size_t h);
+  BarWindow(BarColors<DS>&& colors, Fonts<DS>&& fonts, size_t x, size_t y,
+            size_t w, size_t h);
 
   ~BarWindow() {
     _x.destroy_window(_window);
@@ -39,25 +41,26 @@ class BarWindow {
   }
 
   [[nodiscard]] auto generate_mod_pixmap() {
-    return ModulePixmap<DS>(_window, &_colors, _width, _height);
+    return ModulePixmap<DS>(_window, &_colors, &_fonts, _width, _height);
   }
 
  private:
   X& _x;
-  xcb_window_t _window;
-  xcb_pixmap_t _pixmap;
+  xcb_window_t  _window;
+  xcb_pixmap_t  _pixmap;
   BarColors<DS> _colors;
+  Fonts<DS>     _fonts;
   size_t _origin_x, _origin_y, _width, _height;
   size_t _offset_left { 0 }, _offset_right { 0 };
 };
 
 
 template <typename DS>
-BarWindow<DS>::BarWindow(BarColors<DS>&& colors, size_t x, size_t y, size_t w,
-                         size_t h)
+BarWindow<DS>::BarWindow(BarColors<DS>&& colors,
+    Fonts<DS>&& fonts, size_t x, size_t y, size_t w, size_t h)
   : _x(X::Instance()), _window(_x.generate_id()), _pixmap(_x.generate_id())
-  , _colors(std::move(colors)), _origin_x(x), _origin_y(y), _width(w)
-  , _height(h)
+  , _colors(std::move(colors)), _fonts(std::move(fonts))
+  , _origin_x(x), _origin_y(y), _width(w) , _height(h)
 {
   // create a window with width and height
   _x.create_window(_window, colors.background, _origin_x, _origin_y, _width,

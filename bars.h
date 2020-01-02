@@ -1,6 +1,7 @@
 #pragma once
 
 #include "color.h"
+#include "font.h"
 #include "modules/module.h"
 #include "pixmap.h"
 #include "window.h"
@@ -40,7 +41,8 @@ struct dimension_t {
 template <typename DS, typename Mods>
 class Section {
  public:
-  Section(std::condition_variable* cond, BarWindow<DS>* win, Mods&& mods)
+  Section(std::condition_variable* cond, BarWindow<DS>* win,
+          Mods&& mods)
     : _pixmap(win->generate_mod_pixmap())
     , _modules(std::move(mods))
   {
@@ -66,8 +68,8 @@ class Section {
 template <typename DS, typename Left, typename Middle, typename Right>
 class Bar {
  public:
-  Bar(dimension_t d, BarColors<DS>&& colors, Left left, Middle middle,
-      Right right);
+  Bar(dimension_t d, BarColors<DS>&& colors, Fonts<DS>&& fonts,
+      Left left, Middle middle, Right right);
 
   void operator()();
   void update();
@@ -75,20 +77,22 @@ class Bar {
  private:
   std::condition_variable _condvar;
   size_t _origin_x, _origin_y, _width, _height;
-  BarWindow<DS> _win;
+  BarWindow<DS>       _win;
   Section<DS, Left>   _left;
   Section<DS, Middle> _middle;
   Section<DS, Right>  _right;
 };
 
 template <typename DS, typename Left, typename Middle, typename Right>
-Bar<DS, Left, Middle, Right>::Bar(dimension_t d, BarColors<DS>&& colors,
-                                  Left left, Middle middle, Right right)
+Bar<DS, Left, Middle, Right>::Bar(dimension_t d,
+    BarColors<DS>&& colors, Fonts<DS>&& fonts, Left left,
+    Middle middle, Right right)
   : _origin_x(d.origin_x)
   , _origin_y(d.origin_y)
   , _width(d.width)
   , _height(d.height)
-  , _win(std::move(colors), _origin_x, _origin_y, _width, _height)
+  , _win(std::move(colors), std::move(fonts), _origin_x, _origin_y, _width,
+         _height)
   , _left(&_condvar, &_win, std::move(left))
   , _middle(&_condvar, &_win, std::move(middle))
   , _right(&_condvar, &_win, std::move(right))
