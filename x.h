@@ -27,6 +27,13 @@ class X {
   struct font_t;
   static X& Instance();
 
+  static void init() {
+    if (!XInitThreads()) {
+      std::cerr << "Failed to initialize threading for Xlib\n";
+      exit(EXIT_FAILURE);
+    }
+  }
+
   // TODO: label
   std::string get_string_resource(const char* query);
   // TODO: provide better API

@@ -7,6 +7,7 @@
 #include <functional>
 #include <mutex>
 #include <shared_mutex>
+#include <thread>
 
 struct Area {
   uint16_t begin, end;
@@ -62,4 +63,25 @@ class StaticModule {
   void subscribe(std::condition_variable* cond) {}
   template <typename DS>
   void get(ModulePixmap<DS>* px) const { static_cast<const Mod&>(*this).extract(px); }
+};
+
+// TODO: Specialize on StaticModule to not spawn a thread
+template <typename Mod>
+class ModuleContainer {
+ public:
+  template <typename ...Args>
+  ModuleContainer(Args ...args)
+    : _module(std::forward<Args>(args)...)
+    , _thread(std::ref(_module))
+  {}
+
+  ~ModuleContainer() {
+    _thread.join();
+  }
+
+  Mod& operator*() { return _module; }
+
+ private:
+  Mod _module;
+  std::thread _thread;
 };

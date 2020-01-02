@@ -30,6 +30,16 @@ struct dimension_t {
 };
 
 
+/**
+ * Convert a parameter pack of ModuleContainers to a tuple of modules that can
+ * be used to initialize a Section.
+ */
+template <typename ...Mods>
+std::tuple<Mods& ...> make_section(ModuleContainer<Mods>& ...mods) {
+  return std::tuple<Mods& ...>{*mods...};
+}
+
+
 /** Section
  * A bar is broken up into three sections; left, middle, and right. This class
  * stores the modules in a given section, manages their threads and collects
