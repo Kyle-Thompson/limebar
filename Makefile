@@ -34,10 +34,6 @@ test_addr: ${EXEC}
 test_addr: CFLAGS += ${CFDEBUG} -fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls
 test_addr: LDFLAGS += -fsanitize=address
 
-test_mem: ${EXEC}
-test_mem: CFLAGS += ${CFDEBUG} -fsanitize=memory -fno-omit-frame-pointer -fno-optimize-sibling-calls
-test_mem: LDFLAGS += -fsanitize=memory
-
 test_thread: ${EXEC}
 test_thread: CFLAGS += ${CFDEBUG} -fsanitize=thread
 test_thread: LDFLAGS += -fsanitize=thread
