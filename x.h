@@ -1,6 +1,5 @@
 #pragma once
 
-#include "config.h"
 #include "color.h"
 
 #include <bits/stdint-uintn.h>
@@ -81,107 +80,108 @@ class X {
   void     draw_ucs2_string(XftDraw* draw, font_t *font, font_color *color,
                             const std::vector<uint16_t>& str, size_t x);
 
-  class font_color {
-   public:
-    font_color(const rgba_t& color)
-      : _color(X::Instance().alloc_char_color(color))
-    {}
-    ~font_color() {
-      X::Instance().xft_color_free(&_color);
-    }
-    font_color(const font_color& rhs) : _color(rhs._color) {}
-    font_color(font_color&&) = delete;
-    font_color& operator=(const font_color&) = delete;
-    font_color& operator=(font_color&&) = delete;
 
-    XftColor *get() { return &_color; }
+class font_color {
+ public:
+  font_color(const rgba_t& color)
+    : _color(X::Instance().alloc_char_color(color))
+  {}
+  ~font_color() {
+    X::Instance().xft_color_free(&_color);
+  }
+  font_color(const font_color& rhs) : _color(rhs._color) {}
+  font_color(font_color&&) = delete;
+  font_color& operator=(const font_color&) = delete;
+  font_color& operator=(font_color&&) = delete;
 
-   private:
-    XftColor _color;
+  XftColor *get() { return &_color; }
+
+ private:
+  XftColor _color;
+};
+
+// TODO: can this struct be replaced with just XftFont?
+struct font_t {
+  struct glyph_t {
+    FT_UInt id;
+    XGlyphInfo info;
   };
 
-  // TODO: can this struct be replaced with just XftFont?
-  struct font_t {
-    struct glyph_t {
-      FT_UInt id;
-      XGlyphInfo info;
-    };
-
-    explicit font_t(const char* pattern, int offset = 0)
-      : display(X::Instance().display)
-      , xft_ft(XftFontOpenName(display, 0, pattern))
-    {
-      if (!xft_ft) {
-        std::cerr << "Could not load font " << pattern << "\n";
-        exit(EXIT_FAILURE);
-      }
-
-      descent = xft_ft->descent;
-      height = xft_ft->ascent + descent;
-      this->offset = offset;
-    }
-    ~font_t() {
-      for (auto& [ch, glyph] : char_to_glyph) {
-        XftFontUnloadGlyphs(display, xft_ft, &glyph.id, 1);
-      }
-      XftFontClose(display, xft_ft);
+  explicit font_t(const char* pattern, int offset = 0)
+    : display(X::Instance().display)
+    , xft_ft(XftFontOpenName(display, 0, pattern))
+  {
+    if (!xft_ft) {
+      std::cerr << "Could not load font " << pattern << "\n";
+      exit(EXIT_FAILURE);
     }
 
-    font_t(const font_t&) = delete;
-    font_t(font_t&&) = delete;
-    font_t& operator=(const font_t&) = delete;
-    font_t& operator=(font_t&&) = delete;
-
-    auto get_glyph(uint16_t ch) {
-      auto itr = [this, ch] {
-        std::shared_lock lock{_mu};
-        return char_to_glyph.find(ch);
-      }();
-
-      if (itr == char_to_glyph.end()
-          && XftCharExists(display, xft_ft, static_cast<FcChar32>(ch))) {
-        std::unique_lock lock{_mu};
-        return char_to_glyph.emplace(std::make_pair(ch, create_glyph(ch))).first;
-      }
-      return itr;
+    descent = xft_ft->descent;
+    height = xft_ft->ascent + descent;
+    this->offset = offset;
+  }
+  ~font_t() {
+    for (auto& [ch, glyph] : char_to_glyph) {
+      XftFontUnloadGlyphs(display, xft_ft, &glyph.id, 1);
     }
+    XftFontClose(display, xft_ft);
+  }
 
-    bool has_glyph(uint16_t ch) {
-      return get_glyph(ch) != char_to_glyph.end();
+  font_t(const font_t&) = delete;
+  font_t(font_t&&) = delete;
+  font_t& operator=(const font_t&) = delete;
+  font_t& operator=(font_t&&) = delete;
+
+  auto get_glyph(uint16_t ch) {
+    auto itr = [this, ch] {
+      std::shared_lock lock{_mu};
+      return char_to_glyph.find(ch);
+    }();
+
+    if (itr == char_to_glyph.end()
+        && XftCharExists(display, xft_ft, static_cast<FcChar32>(ch))) {
+      std::unique_lock lock{_mu};
+      return char_to_glyph.emplace(std::make_pair(ch, create_glyph(ch))).first;
     }
+    return itr;
+  }
 
-    // TODO: optimize for monospace fonts
-    uint16_t char_width(uint16_t ch) {
-      return get_glyph(ch)->second.info.xOff;
-    }
+  bool has_glyph(uint16_t ch) {
+    return get_glyph(ch) != char_to_glyph.end();
+  }
 
-    // TODO: can this be made const?
-    // TODO: optimize for monospace fonts
-    size_t string_size(const ucs2& str) {
-      // TODO: cache in font_t instead of Fonts
-      return std::accumulate(str.begin(), str.end(), 0,
-          [this](size_t size, uint16_t ch) { return size + char_width(ch); });
-    }
+  // TODO: optimize for monospace fonts
+  uint16_t char_width(uint16_t ch) {
+    return get_glyph(ch)->second.info.xOff;
+  }
 
-   private:
-    glyph_t create_glyph(uint16_t ch) {
-      XGlyphInfo glyph_info;
-      FT_UInt glyph_id = XftCharIndex(display, xft_ft, static_cast<FcChar32>(ch));
-      XftFontLoadGlyphs(display, xft_ft, FcFalse, &glyph_id, 1);
-      XftGlyphExtents(display, xft_ft, &glyph_id, 1, &glyph_info);
-      return {glyph_id, glyph_info};
-    }
+  // TODO: can this be made const?
+  // TODO: optimize for monospace fonts
+  size_t string_size(const ucs2& str) {
+    // TODO: cache in font_t instead of Fonts
+    return std::accumulate(str.begin(), str.end(), 0,
+        [this](size_t size, uint16_t ch) { return size + char_width(ch); });
+  }
 
-    Display *display;
-    std::shared_mutex _mu;  // TODO: narrow down use
-    std::unordered_map<uint16_t, glyph_t> char_to_glyph;
+ private:
+  glyph_t create_glyph(uint16_t ch) {
+    XGlyphInfo glyph_info;
+    FT_UInt glyph_id = XftCharIndex(display, xft_ft, static_cast<FcChar32>(ch));
+    XftFontLoadGlyphs(display, xft_ft, FcFalse, &glyph_id, 1);
+    XftGlyphExtents(display, xft_ft, &glyph_id, 1, &glyph_info);
+    return {glyph_id, glyph_info};
+  }
 
-   public:
-    XftFont *xft_ft;
-    int descent { 0 };
-    int height { 0 };
-    int offset { 0 };
-  };
+  Display *display;
+  std::shared_mutex _mu;  // TODO: narrow down use
+  std::unordered_map<uint16_t, glyph_t> char_to_glyph;
+
+ public:
+  XftFont *xft_ft;
+  int descent { 0 };
+  int height { 0 };
+  int offset { 0 };
+};
 
  private:
   X();

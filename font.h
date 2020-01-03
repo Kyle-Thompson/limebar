@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include <bits/stdint-uintn.h>
 #include <cstddef>
 #include <initializer_list>
@@ -8,7 +10,6 @@
 #include <utility>
 #include <vector>
 
-template <typename DS>
 class Fonts {
  public:
   using Font = typename DS::font_t;
@@ -35,7 +36,7 @@ class Fonts {
   }
 
  private:
-  auto add_char(uint16_t ch) {
+  std::unordered_map<uint16_t, Font*>::iterator add_char(uint16_t ch) {
     Font *font = [ch, this] {
       for (auto* font : _fonts) {
         if (font->has_glyph(ch)) {

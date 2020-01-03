@@ -22,6 +22,12 @@ mod_workspaces::mod_workspaces()
   xcb_flush(conn);
 }
 
+void mod_workspaces::extract(ModulePixmap *px) const {
+  for (int i = 0; i < names.size(); ++i) {
+    px->write(names[i] + " ", (i == cur_desktop));
+  }
+}
+
 void mod_workspaces::trigger() {
   while (true) {
     std::unique_ptr<xcb_generic_event_t, decltype(std::free) *> ev {

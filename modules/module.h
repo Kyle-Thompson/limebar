@@ -34,8 +34,7 @@ class DynamicModule {
     _conds.push_back(cond);
   }
 
-  template <typename DS>
-  void get(ModulePixmap<DS>* px) const {
+  void get(ModulePixmap* px) const {
     // TODO: use reader/writer lock
     std::unique_lock lock{_mutex};
     static_cast<const Mod&>(*this).extract(px);
@@ -61,8 +60,7 @@ class StaticModule {
   // TODO: can we avoid having to call these functions for StaticModule?
   void operator()() {}
   void subscribe(std::condition_variable* cond) {}
-  template <typename DS>
-  void get(ModulePixmap<DS>* px) const { static_cast<const Mod&>(*this).extract(px); }
+  void get(ModulePixmap* px) const { static_cast<const Mod&>(*this).extract(px); }
 };
 
 // TODO: Specialize on StaticModule to not spawn a thread

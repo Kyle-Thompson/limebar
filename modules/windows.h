@@ -15,8 +15,7 @@ class mod_windows : public DynamicModule<mod_windows> {
   ~mod_windows();
 
  private:
-  template <typename DS>
-  void extract(ModulePixmap<DS>* px) const;
+  void extract(ModulePixmap* px) const;
   void trigger();
   void update();
 
@@ -29,19 +28,3 @@ class mod_windows : public DynamicModule<mod_windows> {
   Window         current_window;
   std::vector<Window> windows;
 };
-
-
-template <typename DS>
-void mod_windows::extract(ModulePixmap<DS> *px) const {
-  // TODO: how to capture windows that don't work here? (e.g. steam)
-
-  for (Window w : windows) {
-    auto workspace = x.get_property<uint32_t>(w, XA_CARDINAL, "_NET_WM_DESKTOP")
-        .value().at(0);
-    std::string title = x.get_window_title(w);
-    if (title.empty() || current_workspace != workspace) continue;
-
-    // TODO: don't add a space after the last window
-    px->write(title + " ", (w == current_window));
-  }
-}

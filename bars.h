@@ -1,11 +1,10 @@
 #pragma once
 
-#include "color.h"
+#include "bar_color.h"
 #include "font.h"
 #include "modules/module.h"
 #include "pixmap.h"
 #include "window.h"
-#include "x.h"
 
 #include <algorithm>
 #include <array>
@@ -48,10 +47,10 @@ std::tuple<Mods& ...> make_section(ModuleContainer<Mods>& ...mods) {
  *
  * TODO: how to verify that Mods is a tuple?
  */
-template <typename DS, typename Mods>
+template <typename Mods>
 class Section {
  public:
-  Section(std::condition_variable* cond, BarWindow<DS>* win,
+  Section(std::condition_variable* cond, BarWindow* win,
           Mods&& mods)
     : _pixmap(win->generate_mod_pixmap())
     , _modules(std::move(mods))
@@ -59,14 +58,14 @@ class Section {
     std::apply([&](auto&&... mods) { (mods.subscribe(cond), ...); }, _modules);
   }
 
-  ModulePixmap<DS>& collect() {
+  ModulePixmap& collect() {
     _pixmap.clear();
     std::apply([this](auto&&... mods) { (mods.get(&_pixmap), ...); }, _modules);
     return _pixmap;
   }
 
  private:
-  ModulePixmap<DS> _pixmap;
+  ModulePixmap _pixmap;
   Mods _modules;
 };
 
@@ -75,10 +74,10 @@ class Section {
  * The Bar class maintains the three different sections and the window
  * displaying the bar itself. It will also draw each section into the bar.
  */
-template <typename DS, typename Left, typename Middle, typename Right>
+template <typename Left, typename Middle, typename Right>
 class Bar {
  public:
-  Bar(dimension_t d, BarColors<DS>&& colors, Fonts<DS>&& fonts,
+  Bar(dimension_t d, BarColors&& colors, Fonts&& fonts,
       Left left, Middle middle, Right right);
 
   void operator()();
@@ -87,15 +86,15 @@ class Bar {
  private:
   std::condition_variable _condvar;
   size_t _origin_x, _origin_y, _width, _height;
-  BarWindow<DS>       _win;
-  Section<DS, Left>   _left;
-  Section<DS, Middle> _middle;
-  Section<DS, Right>  _right;
+  BarWindow       _win;
+  Section<Left>   _left;
+  Section<Middle> _middle;
+  Section<Right>  _right;
 };
 
-template <typename DS, typename Left, typename Middle, typename Right>
-Bar<DS, Left, Middle, Right>::Bar(dimension_t d,
-    BarColors<DS>&& colors, Fonts<DS>&& fonts, Left left,
+template <typename Left, typename Middle, typename Right>
+Bar<Left, Middle, Right>::Bar(dimension_t d,
+    BarColors&& colors, Fonts&& fonts, Left left,
     Middle middle, Right right)
   : _origin_x(d.origin_x)
   , _origin_y(d.origin_y)
@@ -108,9 +107,9 @@ Bar<DS, Left, Middle, Right>::Bar(dimension_t d,
   , _right(&_condvar, &_win, std::move(right))
 {}
 
-template <typename DS, typename Left, typename Middle, typename Right>
+template <typename Left, typename Middle, typename Right>
 void
-Bar<DS, Left, Middle, Right>::operator()() {
+Bar<Left, Middle, Right>::operator()() {
   while (true) {
     _win.clear();
     update();
@@ -122,9 +121,9 @@ Bar<DS, Left, Middle, Right>::operator()() {
   }
 }
 
-template <typename DS, typename Left, typename Middle, typename Right>
+template <typename Left, typename Middle, typename Right>
 void
-Bar<DS, Left, Middle, Right>::update() {
+Bar<Left, Middle, Right>::update() {
   _win.update_left(_left.collect());
   _win.update_right(_right.collect());
   _win.update_middle(_middle.collect());

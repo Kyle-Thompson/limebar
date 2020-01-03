@@ -35,15 +35,3 @@ class rgba_t {
   uint8_t a { 0 };
   std::array<char, 8> str { "#000000" };
 };
-
-
-/** BarColors
- * Collection of all colors relevant to the bar.
- * DS = Display Server (X11, Wayland, etc)
- */
-template <typename DS>
-struct BarColors {
-  rgba_t background;
-  typename DS::font_color foreground;
-  typename DS::font_color fg_accent;
-};
