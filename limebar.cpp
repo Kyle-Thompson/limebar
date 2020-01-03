@@ -45,7 +45,7 @@ main () {
 
   rgba_t bgc = rgba_t::parse(x11.get_string_resource("background").c_str());
   rgba_t fgc = rgba_t::parse(x11.get_string_resource("foreground").c_str());
-  rgba_t acc = rgba_t::parse("#257fad");
+  rgba_t acc = rgba_t::parse(x11.get_string_resource("color4").c_str());
 
   DS::font_t ft("GohuFont:pixelsize=11");
 
