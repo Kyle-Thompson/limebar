@@ -16,6 +16,7 @@
 #include "font.h"
 #include "modules/module.h"
 #include "pixmap.h"
+#include "queue.h"
 #include "window.h"
 
 /** dimension_t
@@ -52,9 +53,13 @@ make_section(ModuleContainer<Mods>&... mods) {
 template <typename Mods>
 class Section {
  public:
-  Section(std::condition_variable* cond, BarWindow* win, Mods&& mods)
+  Section(StaticWorkQueue<size_t>* queue, BarWindow* win, Mods&& mods)
       : _pixmap(win->generate_mod_pixmap()), _modules(std::move(mods)) {
-    std::apply([&](auto&&... mods) { (mods.subscribe(cond), ...); }, _modules);
+    std::apply(
+        [&](auto&&... mods) {
+          (mods.subscribe(register_queue<size_t>(queue, 0)), ...);
+        },
+        _modules);
   }
 
   ModulePixmap& collect() {
@@ -76,14 +81,14 @@ class Section {
 template <typename Left, typename Middle, typename Right>
 class Bar {
  public:
-  Bar(dimension_t d, BarColors&& colors, Fonts&& fonts, Left left,
+  Bar(dimension_t&& d, BarColors&& colors, Fonts&& fonts, Left left,
       Middle middle, Right right);
 
   void operator()();
   void update();
 
  private:
-  std::condition_variable _condvar;
+  StaticWorkQueue<size_t> _work;
   size_t _origin_x, _origin_y, _width, _height;
   BarWindow _win;
   Section<Left> _left;
@@ -92,18 +97,18 @@ class Bar {
 };
 
 template <typename Left, typename Middle, typename Right>
-Bar<Left, Middle, Right>::Bar(dimension_t d, BarColors&& colors, Fonts&& fonts,
-                              Left left, Middle middle, Right right)
+Bar<Left, Middle, Right>::Bar(dimension_t&& d, BarColors&& colors,
+                              Fonts&& fonts, Left left, Middle middle,
+                              Right right)
     : _origin_x(d.origin_x)
     , _origin_y(d.origin_y)
     , _width(d.width)
     , _height(d.height)
     , _win(std::move(colors), std::move(fonts), _origin_x, _origin_y, _width,
            _height)
-    , _left(&_condvar, &_win, std::move(left))
-    , _middle(&_condvar, &_win, std::move(middle))
-    , _right(&_condvar, &_win, std::move(right)) {
-}
+    , _left(&_work, &_win, std::move(left))
+    , _middle(&_work, &_win, std::move(middle))
+    , _right(&_work, &_win, std::move(right)) {}
 
 template <typename Left, typename Middle, typename Right>
 void
@@ -113,9 +118,7 @@ Bar<Left, Middle, Right>::operator()() {
     update();
     _win.render();
 
-    std::mutex mutex;
-    std::unique_lock<std::mutex> lock(mutex);
-    _condvar.wait(lock);
+    _work.pop();
   }
 }
 

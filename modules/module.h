@@ -7,6 +7,7 @@
 #include <shared_mutex>
 #include <thread>
 #include <type_traits>
+#include <vector>
 
 #include "../pixmap.h"
 
@@ -25,13 +26,15 @@ class DynamicModule {
       static_cast<Mod&>(*this).trigger();
       update();
 
-      for (auto& cond : _conds) {
-        cond->notify_one();
+      for (auto& queue : _queues) {
+        queue();
       }
     }
   }
 
-  void subscribe(std::condition_variable* cond) { _conds.push_back(cond); }
+  void subscribe(std::function<void()>&& queue) {
+    _queues.push_back(std::forward<std::function<void()>>(queue));
+  }
 
   void get(ModulePixmap* px) const {
     // TODO: use reader/writer lock
@@ -45,7 +48,8 @@ class DynamicModule {
     static_cast<Mod&>(*this).update();
   }
 
-  std::vector<std::condition_variable*> _conds;  // TODO array?
+  /* std::vector<std::condition_variable*> _conds;  // TODO array? */
+  std::vector<std::function<void()>> _queues;
   mutable std::mutex _mutex;
 };
 
@@ -58,7 +62,7 @@ class StaticModule {
  public:
   // TODO: can we avoid having to call these functions for StaticModule?
   void operator()() {}
-  void subscribe(std::condition_variable* cond) {}
+  void subscribe(std::function<void()>&&) {}
   void get(ModulePixmap* px) const {
     static_cast<const Mod&>(*this).extract(px);
   }

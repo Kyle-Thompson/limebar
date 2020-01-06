@@ -304,7 +304,7 @@ X::get_windows() {
     exit(EXIT_FAILURE);
   }
 
-  return client_list.value();
+  return *client_list;
 }
 
 
