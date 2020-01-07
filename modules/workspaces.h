@@ -1,11 +1,12 @@
 #pragma once
 
-#include "module.h"
-#include "../pixmap.h"
-#include "../x.h"
+#include <xcb/xcb.h>
 
 #include <string>
-#include <xcb/xcb.h>
+
+#include "../pixmap.h"
+#include "../x.h"
+#include "module.h"
 
 class mod_workspaces : public DynamicModule<mod_workspaces> {
   friend class DynamicModule<mod_workspaces>;
@@ -22,6 +23,6 @@ class mod_workspaces : public DynamicModule<mod_workspaces> {
   xcb_atom_t current_desktop;
   X& x;
 
-  uint32_t cur_desktop { 0 };
+  uint32_t cur_desktop{0};
   std::vector<std::string> names;
 };

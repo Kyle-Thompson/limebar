@@ -8,17 +8,21 @@
 class rgba_t {
  public:
   rgba_t() = default;
-  explicit rgba_t(uint32_t v) { set(v); parse_str(); }
+  explicit rgba_t(uint32_t v) {
+    set(v);
+    parse_str();
+  }
   rgba_t(uint8_t r_, uint8_t g_, uint8_t b_, uint8_t a_)
-    : r(r_), g(g_), b(b_), a(a_)
-  {
+      : r(r_), g(g_), b(b_), a(a_) {
     parse_str();
   }
   ~rgba_t() = default;
-  rgba_t(const rgba_t&) = default;
+  rgba_t(const rgba_t &) = default;
 
   void set(uint32_t v) { memcpy(this, &v, sizeof(v)); }
-  const uint32_t* val() const { return reinterpret_cast<const uint32_t*>(this); }
+  const uint32_t *val() const {
+    return reinterpret_cast<const uint32_t *>(this);
+  }
   const char *get_str() const { return str.data(); }
 
   void parse_str() {
@@ -29,9 +33,9 @@ class rgba_t {
   static rgba_t parse(const char *str);
 
  private:
-  uint8_t r { 0 };
-  uint8_t g { 0 };
-  uint8_t b { 0 };
-  uint8_t a { 0 };
-  std::array<char, 8> str { "#000000" };
+  uint8_t r{0};
+  uint8_t g{0};
+  uint8_t b{0};
+  uint8_t a{0};
+  std::array<char, 8> str{"#000000"};
 };

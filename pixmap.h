@@ -1,16 +1,17 @@
 #pragma once
 
-#include "bar_color.h"
-#include "config.h"
-#include "font.h"
-
 #include <X11/Xft/Xft.h>
-#include <algorithm>
 #include <bits/stdint-uintn.h>  // uint16_t
+#include <xcb/xproto.h>         // xcb_drawable_t
+
+#include <algorithm>
 #include <mutex>
 #include <string>
 #include <vector>
-#include <xcb/xproto.h>  // xcb_drawable_t
+
+#include "bar_color.h"
+#include "config.h"
+#include "font.h"
 
 using ucs2 = std::vector<uint16_t>;
 using ucs2_and_width = std::pair<ucs2, size_t>;
@@ -20,12 +21,13 @@ struct Util {
   static ucs2 utf8_to_ucs2(const std::string& text) {
     ucs2 str;
 
-    for (uint8_t *utf = (uint8_t *)text.c_str(); utf != (uint8_t *) &*text.end();) {
+    for (uint8_t* utf = (uint8_t*)text.c_str();
+         utf != (uint8_t*)&*text.end();) {
       uint16_t ucs = 0;
       // ASCII
       if (utf[0] < 0x80) {
         ucs = utf[0];
-        utf  += 1;
+        utf += 1;
       }
       // Two byte utf8 sequence
       else if ((utf[0] & 0xe0) == 0xc0) {
@@ -71,29 +73,26 @@ class ModulePixmap {
  public:
   ModulePixmap(xcb_drawable_t drawable, BarColors* colors, Fonts* fonts,
                uint16_t width, uint16_t height)
-    : _used(0)
-    , _width(width)
-    , _height(height)
-    , _ds(DS::Instance())
-    , _colors(colors)
-    , _fonts(fonts)
-    , _pixmap_id(_ds.generate_id())
-    , _xft_draw(_ds.xft_draw_create(_pixmap_id))
-  {
+      : _used(0)
+      , _width(width)
+      , _height(height)
+      , _ds(DS::Instance())
+      , _colors(colors)
+      , _fonts(fonts)
+      , _pixmap_id(_ds.generate_id())
+      , _xft_draw(_ds.xft_draw_create(_pixmap_id)) {
     _ds.create_pixmap(_pixmap_id, drawable, width, height);
     clear();
   }
 
-  ~ModulePixmap() {
-    DS::Instance().free_pixmap(_pixmap_id);
-  }
+  ~ModulePixmap() { DS::Instance().free_pixmap(_pixmap_id); }
 
   ModulePixmap(const ModulePixmap&) = delete;
   ModulePixmap(ModulePixmap&&) = delete;
   ModulePixmap& operator=(const ModulePixmap&) = delete;
   ModulePixmap& operator=(ModulePixmap&&) = delete;
 
-  [[nodiscard]] uint16_t     size()   const { return _used; }
+  [[nodiscard]] uint16_t size() const { return _used; }
   [[nodiscard]] xcb_pixmap_t pixmap() const { return _pixmap_id; }
 
   void clear() {
@@ -114,20 +113,21 @@ class ModulePixmap {
 
     // TODO: write to max instead of not writing anything
     if (_used + total_size <= _width) {
-      _ds.draw_ucs2_string(_xft_draw, font,
-          (accented ? &_colors->fg_accent : &_colors->foreground),
-          ucs2_str, _used);
+      _ds.draw_ucs2_string(
+          _xft_draw, font,
+          (accented ? &_colors->fg_accent : &_colors->foreground), ucs2_str,
+          _used);
       _used += total_size;
     }
   }
 
  private:
-  uint16_t     _used;
-  uint16_t     _width, _height;
-  DS&          _ds;
-  BarColors*   _colors;
-  Fonts*       _fonts;
+  uint16_t _used;
+  uint16_t _width, _height;
+  DS& _ds;
+  BarColors* _colors;
+  Fonts* _fonts;
   xcb_pixmap_t _pixmap_id;
-  XftDraw*     _xft_draw;
-  std::mutex   _mutex;  // TODO: is this needed?
+  XftDraw* _xft_draw;
+  std::mutex _mutex;  // TODO: is this needed?
 };

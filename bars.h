@@ -1,14 +1,9 @@
 #pragma once
 
-#include "bar_color.h"
-#include "font.h"
-#include "modules/module.h"
-#include "pixmap.h"
-#include "window.h"
+#include <bits/stdint-uintn.h>  // int_t
 
 #include <algorithm>
 #include <array>
-#include <bits/stdint-uintn.h>  // int_t
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>  // size_t
@@ -16,6 +11,12 @@
 #include <thread>
 #include <tuple>
 #include <utility>  // pair, make_index_sequence
+
+#include "bar_color.h"
+#include "font.h"
+#include "modules/module.h"
+#include "pixmap.h"
+#include "window.h"
 
 /** dimension_t
  * Utility struct for passing dimensions to bar_t.
@@ -33,9 +34,10 @@ struct dimension_t {
  * Convert a parameter pack of ModuleContainers to a tuple of modules that can
  * be used to initialize a Section.
  */
-template <typename ...Mods>
-std::tuple<Mods& ...> make_section(ModuleContainer<Mods>& ...mods) {
-  return std::tuple<Mods& ...>{*mods...};
+template <typename... Mods>
+std::tuple<Mods&...>
+make_section(ModuleContainer<Mods>&... mods) {
+  return std::tuple<Mods&...>{*mods...};
 }
 
 
@@ -50,11 +52,8 @@ std::tuple<Mods& ...> make_section(ModuleContainer<Mods>& ...mods) {
 template <typename Mods>
 class Section {
  public:
-  Section(std::condition_variable* cond, BarWindow* win,
-          Mods&& mods)
-    : _pixmap(win->generate_mod_pixmap())
-    , _modules(std::move(mods))
-  {
+  Section(std::condition_variable* cond, BarWindow* win, Mods&& mods)
+      : _pixmap(win->generate_mod_pixmap()), _modules(std::move(mods)) {
     std::apply([&](auto&&... mods) { (mods.subscribe(cond), ...); }, _modules);
   }
 
@@ -77,8 +76,8 @@ class Section {
 template <typename Left, typename Middle, typename Right>
 class Bar {
  public:
-  Bar(dimension_t d, BarColors&& colors, Fonts&& fonts,
-      Left left, Middle middle, Right right);
+  Bar(dimension_t d, BarColors&& colors, Fonts&& fonts, Left left,
+      Middle middle, Right right);
 
   void operator()();
   void update();
@@ -86,26 +85,25 @@ class Bar {
  private:
   std::condition_variable _condvar;
   size_t _origin_x, _origin_y, _width, _height;
-  BarWindow       _win;
-  Section<Left>   _left;
+  BarWindow _win;
+  Section<Left> _left;
   Section<Middle> _middle;
-  Section<Right>  _right;
+  Section<Right> _right;
 };
 
 template <typename Left, typename Middle, typename Right>
-Bar<Left, Middle, Right>::Bar(dimension_t d,
-    BarColors&& colors, Fonts&& fonts, Left left,
-    Middle middle, Right right)
-  : _origin_x(d.origin_x)
-  , _origin_y(d.origin_y)
-  , _width(d.width)
-  , _height(d.height)
-  , _win(std::move(colors), std::move(fonts), _origin_x, _origin_y, _width,
-         _height)
-  , _left(&_condvar, &_win, std::move(left))
-  , _middle(&_condvar, &_win, std::move(middle))
-  , _right(&_condvar, &_win, std::move(right))
-{}
+Bar<Left, Middle, Right>::Bar(dimension_t d, BarColors&& colors, Fonts&& fonts,
+                              Left left, Middle middle, Right right)
+    : _origin_x(d.origin_x)
+    , _origin_y(d.origin_y)
+    , _width(d.width)
+    , _height(d.height)
+    , _win(std::move(colors), std::move(fonts), _origin_x, _origin_y, _width,
+           _height)
+    , _left(&_condvar, &_win, std::move(left))
+    , _middle(&_condvar, &_win, std::move(middle))
+    , _right(&_condvar, &_win, std::move(right)) {
+}
 
 template <typename Left, typename Middle, typename Right>
 void
@@ -133,12 +131,11 @@ Bar<Left, Middle, Right>::update() {
 /** Bars
  * Run each bar in their own thread.
  */
-template <typename ...Bar>
+template <typename... Bar>
 class BarContainer {
  public:
-  explicit BarContainer(Bar& ...bars)
-    : _threads{std::thread(std::ref(bars))...}
-  {}
+  explicit BarContainer(Bar&... bars)
+      : _threads{std::thread(std::ref(bars))...} {}
 
   ~BarContainer() {
     for (auto& t : _threads) {

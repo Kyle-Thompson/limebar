@@ -1,7 +1,5 @@
 #pragma once
 
-#include "../pixmap.h"
-
 #include <array>
 #include <condition_variable>
 #include <functional>
@@ -9,6 +7,8 @@
 #include <shared_mutex>
 #include <thread>
 #include <type_traits>
+
+#include "../pixmap.h"
 
 struct Area {
   uint16_t begin, end;
@@ -18,7 +18,7 @@ struct Area {
 template <typename Mod>
 class DynamicModule {
  public:
-  void operator()[[noreturn]]() {
+  void operator() [[noreturn]] () {
     update();
 
     while (true) {
@@ -31,9 +31,7 @@ class DynamicModule {
     }
   }
 
-  void subscribe(std::condition_variable* cond) {
-    _conds.push_back(cond);
-  }
+  void subscribe(std::condition_variable* cond) { _conds.push_back(cond); }
 
   void get(ModulePixmap* px) const {
     // TODO: use reader/writer lock
@@ -61,7 +59,9 @@ class StaticModule {
   // TODO: can we avoid having to call these functions for StaticModule?
   void operator()() {}
   void subscribe(std::condition_variable* cond) {}
-  void get(ModulePixmap* px) const { static_cast<const Mod&>(*this).extract(px); }
+  void get(ModulePixmap* px) const {
+    static_cast<const Mod&>(*this).extract(px);
+  }
 };
 
 
@@ -69,15 +69,11 @@ class StaticModule {
 template <typename Mod, typename = void>
 class ModuleContainer {
  public:
-  template <typename ...Args>
-  ModuleContainer(Args&& ...args)
-    : _module(std::forward<Args>(args)...)
-    , _thread(std::ref(_module))
-  {}
+  template <typename... Args>
+  ModuleContainer(Args&&... args)
+      : _module(std::forward<Args>(args)...), _thread(std::ref(_module)) {}
 
-  ~ModuleContainer() {
-    _thread.join();
-  }
+  ~ModuleContainer() { _thread.join(); }
 
   Mod& operator*() { return _module; }
 
@@ -93,10 +89,8 @@ using IsStaticModule = std::enable_if_t<std::is_base_of_v<StaticModule<T>, T>>;
 template <typename Mod>
 struct ModuleContainer<Mod, IsStaticModule<Mod>> {
  public:
-  template <typename ...Args>
-  ModuleContainer(Args&& ...args)
-    : _module(std::forward<Args>(args)...)
-  {}
+  template <typename... Args>
+  ModuleContainer(Args&&... args) : _module(std::forward<Args>(args)...) {}
 
   Mod& operator*() { return _module; }
 

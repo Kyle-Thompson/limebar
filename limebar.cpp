@@ -13,33 +13,34 @@
  * - Replace current use of module notifications via condvars with work queues.
  */
 
+#include <X11/Xlib.h>
+
+#include <iostream>
+#include <tuple>
+
 #include "bars.h"
 #include "color.h"
 #include "config.h"
 #include "font.h"
-#include "modules/module.h"
-#include "modules/workspaces.h"
-#include "modules/windows.h"
 #include "modules/clock.h"
 #include "modules/fill.h"
-
-#include <iostream>
-#include <tuple>
-#include <X11/Xlib.h>
+#include "modules/module.h"
+#include "modules/windows.h"
+#include "modules/workspaces.h"
 
 int
-main () {
+main() {
   DS::init();
 
-  ModuleContainer<mod_fill>       space(" ");
+  ModuleContainer<mod_fill> space(" ");
   ModuleContainer<mod_workspaces> workspaces;
-  ModuleContainer<mod_fill>       sep("| ");
-  ModuleContainer<mod_windows>    windows;
-  ModuleContainer<mod_clock>      clock;
+  ModuleContainer<mod_fill> sep("| ");
+  ModuleContainer<mod_windows> windows;
+  ModuleContainer<mod_clock> clock;
 
-  auto left_section   { make_section(space, workspaces, sep, windows) };
-  auto middle_section { make_section(clock) };
-  auto right_section  { make_section() };
+  auto left_section{make_section(space, workspaces, sep, windows)};
+  auto middle_section{make_section(clock)};
+  auto right_section{make_section()};
 
   X& x11 = X::Instance();
 
@@ -49,20 +50,17 @@ main () {
 
   DS::font_t ft("GohuFont:pixelsize=11");
 
-  Bar left_bar(
-    { .origin_x = 0, .origin_y = 0, .width = 1920, .height = 20 },
-    { .background = bgc, .foreground = fgc, .fg_accent = acc },
-    { &ft }, left_section, middle_section, right_section);
+  Bar left_bar({.origin_x = 0, .origin_y = 0, .width = 1920, .height = 20},
+               {.background = bgc, .foreground = fgc, .fg_accent = acc}, {&ft},
+               left_section, middle_section, right_section);
 
-  Bar middle_bar(
-    { .origin_x = 1920, .origin_y = 0, .width = 1920, .height = 20 },
-    { .background = bgc, .foreground = fgc, .fg_accent = acc },
-    { &ft }, left_section, middle_section, right_section);
+  Bar middle_bar({.origin_x = 1920, .origin_y = 0, .width = 1920, .height = 20},
+                 {.background = bgc, .foreground = fgc, .fg_accent = acc},
+                 {&ft}, left_section, middle_section, right_section);
 
-  Bar right_bar(
-    { .origin_x = 3840, .origin_y = 0, .width = 1920, .height = 20 },
-    { .background = bgc, .foreground = fgc, .fg_accent = acc },
-    { &ft }, left_section, middle_section, right_section);
+  Bar right_bar({.origin_x = 3840, .origin_y = 0, .width = 1920, .height = 20},
+                {.background = bgc, .foreground = fgc, .fg_accent = acc}, {&ft},
+                left_section, middle_section, right_section);
 
   BarContainer bars(left_bar, middle_bar, right_bar);
 }

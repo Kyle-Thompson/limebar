@@ -1,19 +1,20 @@
 #pragma once
 
+#include <xcb/xproto.h>
+
+#include <array>
+#include <cstddef>  // size_t
+#include <memory>
+
 #include "bar_color.h"
 #include "config.h"
 #include "font.h"
 #include "pixmap.h"
 
-#include <array>
-#include <cstddef>  // size_t
-#include <memory>
-#include <xcb/xproto.h>
-
 class BarWindow {
  public:
-  BarWindow(BarColors&& colors, Fonts&& fonts, size_t x, size_t y,
-            size_t w, size_t h);
+  BarWindow(BarColors&& colors, Fonts&& fonts, size_t x, size_t y, size_t w,
+            size_t h);
 
   ~BarWindow() {
     _ds.destroy_window(_window);
@@ -25,9 +26,7 @@ class BarWindow {
     _ds.copy_area(_pixmap, _window, 0, 0, _width, _height);
   }
 
-  void render() {
-    _ds.flush();
-  }
+  void render() { _ds.flush(); }
 
   void update_left(const ModulePixmap& pixmap);
   void update_middle(const ModulePixmap& pixmap);
@@ -47,8 +46,8 @@ class BarWindow {
   DS& _ds;
   xcb_window_t _window;
   xcb_pixmap_t _pixmap;
-  BarColors    _colors;
-  Fonts        _fonts;
+  BarColors _colors;
+  Fonts _fonts;
   size_t _origin_x, _origin_y, _width, _height;
-  size_t _offset_left { 0 }, _offset_right { 0 };
+  size_t _offset_left{0}, _offset_right{0};
 };

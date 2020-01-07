@@ -1,9 +1,9 @@
 #pragma once
 
-#include "module.h"
-
-#include <xcb/xcb.h>
 #include <X11/Xatom.h>
+#include <xcb/xcb.h>
+
+#include "module.h"
 
 // TODO: make special window container
 
@@ -24,7 +24,7 @@ class mod_windows : public DynamicModule<mod_windows> {
   const xcb_atom_t active_window;
   X& x;
 
-  unsigned long  current_workspace;
-  Window         current_window;
+  unsigned long current_workspace;
+  Window current_window;
   std::vector<Window> windows;
 };

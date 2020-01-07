@@ -9,8 +9,10 @@ AllowShortLambdasOnASingleLine: All
 AlwaysBreakAfterReturnType: TopLevelDefinitions
 BraceWrapping:
   AfterControlStatement: true
+  SplitEmptyFunction: false
 BreakBeforeTernaryOperators: true
 BreakConstructorInitializers: BeforeComma
 ColumnLimit: 80
+MaxEmptyLinesToKeep: 2
 SpaceBeforeParens: ControlStatements
 ---

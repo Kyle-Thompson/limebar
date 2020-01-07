@@ -1,8 +1,7 @@
 #pragma once
 
-#include "config.h"
-
 #include <bits/stdint-uintn.h>
+
 #include <cstddef>
 #include <initializer_list>
 #include <iostream>
@@ -10,18 +9,19 @@
 #include <utility>
 #include <vector>
 
+#include "config.h"
+
 class Fonts {
  public:
   using Font = typename DS::font_t;
 
-  Fonts(std::initializer_list<Font *> fonts)
-    :_fonts(fonts)
-  {
+  Fonts(std::initializer_list<Font*> fonts) : _fonts(fonts) {
     // to make the alignment uniform, find maximum height
     const int maxh = (*std::max_element(_fonts.begin(), _fonts.end(),
-        [](const auto& l, const auto& r){
-          return l->height < r->height;
-        }))->height;
+                                        [](const auto& l, const auto& r) {
+                                          return l->height < r->height;
+                                        }))
+                         ->height;
 
     // set maximum height to all fonts
     for (auto& font : _fonts) {
@@ -37,7 +37,7 @@ class Fonts {
 
  private:
   std::unordered_map<uint16_t, Font*>::iterator add_char(uint16_t ch) {
-    Font *font = [ch, this] {
+    Font* font = [ch, this] {
       for (auto* font : _fonts) {
         if (font->has_glyph(ch)) {
           return font;

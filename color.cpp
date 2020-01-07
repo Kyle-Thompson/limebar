@@ -6,10 +6,9 @@
 
 rgba_t
 rgba_t::parse(const char *str) {
-  static const rgba_t ERR_COLOR { 0xffffffffU };
+  static const rgba_t ERR_COLOR{0xffffffffU};
 
-  if (!str)
-    return ERR_COLOR;
+  if (!str) return ERR_COLOR;
 
   // Hex representation
   if (str[0] != '#') {
@@ -19,7 +18,7 @@ rgba_t::parse(const char *str) {
 
   errno = 0;
   char *ep;
-  rgba_t tmp { (uint32_t)strtoul(str + 1, &ep, 16) };
+  rgba_t tmp{(uint32_t)strtoul(str + 1, &ep, 16)};
 
   // Some error checking is definitely good
   if (errno) {
@@ -31,9 +30,8 @@ rgba_t::parse(const char *str) {
   switch (string_len) {
     case 3:
       // Expand the #rgb format into #rrggbb (aa is set to 0xff)
-      tmp.set((*tmp.val() & 0xf00) * 0x1100
-            | (*tmp.val() & 0x0f0) * 0x0110
-            | (*tmp.val() & 0x00f) * 0x0011);
+      tmp.set((*tmp.val() & 0xf00) * 0x1100 | (*tmp.val() & 0x0f0) * 0x0110 |
+              (*tmp.val() & 0x00f) * 0x0011);
       [[fallthrough]];
     case 6:
       // If the code is in #rrggbb form then assume it's opaque
@@ -52,12 +50,12 @@ rgba_t::parse(const char *str) {
   if (tmp.a) {
     // The components are clamped automagically as the rgba_t is made of uint8_t
     return {
-      static_cast<uint8_t>((tmp.r * tmp.a) / 255),
-      static_cast<uint8_t>((tmp.g * tmp.a) / 255),
-      static_cast<uint8_t>((tmp.b * tmp.a) / 255),
-      tmp.a,
+        static_cast<uint8_t>((tmp.r * tmp.a) / 255),
+        static_cast<uint8_t>((tmp.g * tmp.a) / 255),
+        static_cast<uint8_t>((tmp.b * tmp.a) / 255),
+        tmp.a,
     };
   }
 
-  return rgba_t { 0U };
+  return rgba_t{0U};
 }

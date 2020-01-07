@@ -1,23 +1,24 @@
 #include "x.h"
 
-#include "color.h"
-#include "config.h"
-
+#include <X11/Xatom.h>
 #include <X11/Xft/Xft.h>
 #include <X11/Xlib-xcb.h>
 #include <X11/Xutil.h>
 #include <bits/stdint-intn.h>
 #include <bits/stdint-uintn.h>
+#include <xcb/randr.h>
+#include <xcb/xcb.h>
+#include <xcb/xcb_xrm.h>
+
 #include <cstdlib>
 #include <iostream>
 #include <mutex>
 #include <shared_mutex>
 #include <unordered_map>
 #include <vector>
-#include <xcb/randr.h>
-#include <X11/Xatom.h>
-#include <xcb/xcb.h>
-#include <xcb/xcb_xrm.h>
+
+#include "color.h"
+#include "config.h"
 
 enum {
   NET_WM_WINDOW_TYPE,
@@ -31,21 +32,21 @@ enum {
 };
 
 static constexpr size_t atom_names_size = 8;
-static constexpr std::array<const char *, atom_names_size> atom_names {
-  "_NET_WM_WINDOW_TYPE",
-  "_NET_WM_WINDOW_TYPE_DOCK",
-  "_NET_WM_DESKTOP",
-  "_NET_WM_STRUT_PARTIAL",
-  "_NET_WM_STRUT",
-  "_NET_WM_STATE",
-  // Leave those at the end since are batch-set
-  "_NET_WM_STATE_STICKY",
-  "_NET_WM_STATE_ABOVE",
+static constexpr std::array<const char*, atom_names_size> atom_names{
+    "_NET_WM_WINDOW_TYPE",
+    "_NET_WM_WINDOW_TYPE_DOCK",
+    "_NET_WM_DESKTOP",
+    "_NET_WM_STRUT_PARTIAL",
+    "_NET_WM_STRUT",
+    "_NET_WM_STATE",
+    // Leave those at the end since are batch-set
+    "_NET_WM_STATE_STICKY",
+    "_NET_WM_STATE_ABOVE",
 };
 
 xcb_visualid_t
-X::get_visual () {
-  XVisualInfo xv; 
+X::get_visual() {
+  XVisualInfo xv;
   xv.depth = 32;
   int result = 0;
   XVisualInfo* result_ptr = get_visual_info(VisualDepthMask, &xv, &result);
@@ -61,16 +62,16 @@ X::get_visual () {
   return screen->root_visual;
 }
 
-X::X()
-{
+X::X() {
   if (!(display = XOpenDisplay(nullptr))) {
     std::cerr << "Couldnt open display\n";
     exit(EXIT_FAILURE);
   }
 
-  if (!(connection = XGetXCBConnection(display)) || xcb_connection_has_error(connection)) {
+  if (!(connection = XGetXCBConnection(display)) ||
+      xcb_connection_has_error(connection)) {
     std::cerr << "Couldn't connect to X\n";
-    exit (EXIT_FAILURE);
+    exit(EXIT_FAILURE);
   }
 
   XSetEventQueueOwner(display, XCBOwnsEventQueue);
@@ -84,7 +85,8 @@ X::X()
   /* Try to get a RGBA visual and build the colormap for that */
   visual = get_visual();
   colormap = xcb_generate_id(connection);
-  xcb_create_colormap(connection, XCB_COLORMAP_ALLOC_NONE, colormap, screen->root, visual);
+  xcb_create_colormap(connection, XCB_COLORMAP_ALLOC_NONE, colormap,
+                      screen->root, visual);
 
   gc_bg = generate_id();
 }
@@ -105,17 +107,15 @@ X::Instance() {
 
 std::string
 X::get_string_resource(const char* query) {
-  char *str;
+  char* str;
   xcb_xrm_resource_get_string(database, query, nullptr, &str);
   return std::string(str);
 }
 
 void
 X::copy_area(xcb_drawable_t src, xcb_drawable_t dst, int16_t src_x,
-             int16_t dst_x, uint16_t width, uint16_t height)
-{
-  xcb_copy_area(connection, src, dst, gc_bg, src_x, 0, dst_x, 0, width,
-                height);
+             int16_t dst_x, uint16_t width, uint16_t height) {
+  xcb_copy_area(connection, src, dst, gc_bg, src_x, 0, dst_x, 0, width, height);
 }
 
 void
@@ -125,8 +125,7 @@ X::create_gc(xcb_pixmap_t pixmap, const rgba_t& rgb) {
 
 void
 X::create_pixmap(xcb_pixmap_t pid, xcb_drawable_t drawable, uint16_t width,
-                 uint16_t height)
-{
+                 uint16_t height) {
   xcb_create_pixmap(connection, get_depth(), pid, drawable, width, height);
 }
 
@@ -137,16 +136,17 @@ X::free_pixmap(xcb_pixmap_t pixmap) {
 
 // TODO: refactor into multiple functions
 void
-X::create_window(xcb_window_t wid, const rgba_t& rgb,
-    int16_t x, int16_t y, uint16_t width, uint16_t height, uint16_t _class,
-    xcb_visualid_t visual, uint32_t value_mask, bool reserve_space)
-{
-  const std::array<uint32_t, 5> mask { *rgb.val(), *rgb.val(), FORCE_DOCK,
+X::create_window(xcb_window_t wid, const rgba_t& rgb, int16_t x, int16_t y,
+                 uint16_t width, uint16_t height, uint16_t _class,
+                 xcb_visualid_t visual, uint32_t value_mask,
+                 bool reserve_space) {
+  const std::array<uint32_t, 5> mask{
+      *rgb.val(), *rgb.val(), FORCE_DOCK,
       XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS |
           XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE,
-      colormap };
+      colormap};
   xcb_create_window(connection, get_depth(), wid, screen->root, x, y, width,
-      height, 0, _class, visual, value_mask, mask.data());
+                    height, 0, _class, visual, value_mask, mask.data());
 
   if (!reserve_space) return;
 
@@ -154,10 +154,11 @@ X::create_window(xcb_window_t wid, const rgba_t& rgb,
   // As suggested fetch all the cookies first (yum!) and then retrieve the
   // atoms to exploit the async'ness
   std::array<xcb_atom_t, atom_names_size> atom_list;
-  std::transform(atom_names.begin(), atom_names.end(), atom_list.begin(),
-      [this](auto name){
-        std::unique_ptr<xcb_intern_atom_reply_t, decltype(std::free) *>
-            atom_reply { get_intern_atom_reply(name), std::free };
+  std::transform(
+      atom_names.begin(), atom_names.end(), atom_list.begin(),
+      [this](auto name) {
+        std::unique_ptr<xcb_intern_atom_reply_t, decltype(std::free)*>
+            atom_reply{get_intern_atom_reply(name), std::free};
         if (!atom_reply) {
           std::cerr << "atom reply failed.\n";
           exit(EXIT_FAILURE);
@@ -171,42 +172,44 @@ X::create_window(xcb_window_t wid, const rgba_t& rgb,
     strut[8] = x;
     strut[9] = x + width;
   } else {
-    strut[3]  = height;
+    strut[3] = height;
     strut[10] = x;
     strut[11] = x + width;
   }
 
   xcb_change_property(connection, XCB_PROP_MODE_REPLACE, wid,
-      atom_list[NET_WM_WINDOW_TYPE], XCB_ATOM_ATOM, 32, 1,
-      &atom_list[NET_WM_WINDOW_TYPE_DOCK]);
+                      atom_list[NET_WM_WINDOW_TYPE], XCB_ATOM_ATOM, 32, 1,
+                      &atom_list[NET_WM_WINDOW_TYPE_DOCK]);
   xcb_change_property(connection, XCB_PROP_MODE_APPEND, wid,
-      atom_list[NET_WM_STATE], XCB_ATOM_ATOM, 32, 2,
-      &atom_list[NET_WM_STATE_STICKY]);
+                      atom_list[NET_WM_STATE], XCB_ATOM_ATOM, 32, 2,
+                      &atom_list[NET_WM_STATE_STICKY]);
   xcb_change_property(connection, XCB_PROP_MODE_REPLACE, wid,
-      atom_list[NET_WM_DESKTOP], XCB_ATOM_CARDINAL, 32, 1,
-      (std::array<uint32_t, 1> { 0u - 1u }).data() );
+                      atom_list[NET_WM_DESKTOP], XCB_ATOM_CARDINAL, 32, 1,
+                      (std::array<uint32_t, 1>{0u - 1u}).data());
   xcb_change_property(connection, XCB_PROP_MODE_REPLACE, wid,
-      atom_list[NET_WM_STRUT_PARTIAL], XCB_ATOM_CARDINAL, 32, 12, strut.data());
+                      atom_list[NET_WM_STRUT_PARTIAL], XCB_ATOM_CARDINAL, 32,
+                      12, strut.data());
   xcb_change_property(connection, XCB_PROP_MODE_REPLACE, wid,
-      atom_list[NET_WM_STRUT], XCB_ATOM_CARDINAL, 32, 4, strut.data());
+                      atom_list[NET_WM_STRUT], XCB_ATOM_CARDINAL, 32, 4,
+                      strut.data());
   xcb_change_property(connection, XCB_PROP_MODE_REPLACE, wid, XCB_ATOM_WM_NAME,
-      XCB_ATOM_STRING, 8, 3, "bar");
-  xcb_change_property(connection, XCB_PROP_MODE_REPLACE, wid,
-      XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, 12, "lemonbar\0Bar");
+                      XCB_ATOM_STRING, 8, 3, "bar");
+  xcb_change_property(connection, XCB_PROP_MODE_REPLACE, wid, XCB_ATOM_WM_CLASS,
+                      XCB_ATOM_STRING, 8, 12, "lemonbar\0Bar");
 
   map_window(wid);
 
   // Make sure that the window really gets in the place it's supposed to be
   // Some WM such as Openbox need this
-  const std::array<uint32_t, 2> xy {
-      static_cast<uint32_t>(x), static_cast<uint32_t>(y) };
-  configure_window(wid, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y,
-      xy.data());
+  const std::array<uint32_t, 2> xy{static_cast<uint32_t>(x),
+                                   static_cast<uint32_t>(y)};
+  configure_window(wid, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, xy.data());
 
   // Set the WM_NAME atom to the user specified value
   if constexpr (WM_NAME != nullptr) {
     xcb_change_property(connection, XCB_PROP_MODE_REPLACE, wid,
-        XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, strlen(WM_NAME), WM_NAME);
+                        XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, strlen(WM_NAME),
+                        WM_NAME);
   }
 
   // set the WM_CLASS atom instance to the executable name
@@ -218,8 +221,9 @@ X::create_window(xcb_window_t wid, const rgba_t& rgb,
     strncpy(wm_class.data(), WM_CLASS.data(), WM_CLASS.size());
     strcpy(wm_class.data() + WM_CLASS.size(), "\0Bar");
 
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, wid, XCB_ATOM_WM_CLASS,
-        XCB_ATOM_STRING, 8, size, wm_class.data());
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, wid,
+                        XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8, size,
+                        wm_class.data());
   }
 }
 
@@ -229,7 +233,7 @@ X::destroy_window(xcb_window_t window) {
 }
 
 void
-X::configure_window(xcb_window_t window, uint16_t mask, const void *list) {
+X::configure_window(xcb_window_t window, uint16_t mask, const void* list) {
   xcb_configure_window(connection, window, mask, list);
 }
 
@@ -244,9 +248,8 @@ X::wait_for_event() {
 }
 
 void
-X::clear_rect(xcb_drawable_t d, uint16_t width, uint16_t height)
-{
-  xcb_rectangle_t rect = { 0, 0, width, height };
+X::clear_rect(xcb_drawable_t d, uint16_t width, uint16_t height) {
+  xcb_rectangle_t rect = {0, 0, width, height};
   xcb_poly_fill_rectangle(connection, d, gc_bg, 1, &rect);
 }
 
@@ -260,10 +263,9 @@ X::get_intern_atom() {
   return XInternAtom(display, "UTF8_STRING", 0);
 }
 
-XVisualInfo *
-X::get_visual_info(int64_t vinfo_mask, XVisualInfo *vinfo_template,
-                   int *nitems_return)
-{
+XVisualInfo*
+X::get_visual_info(int64_t vinfo_mask, XVisualInfo* vinfo_template,
+                   int* nitems_return) {
   return XGetVisualInfo(display, vinfo_mask, vinfo_template, nitems_return);
 }
 
@@ -273,7 +275,7 @@ X::get_atom_by_name(const char* name) {
 }
 
 xcb_intern_atom_reply_t*
-X::get_intern_atom_reply(const char *name) {
+X::get_intern_atom_reply(const char* name) {
   return xcb_intern_atom_reply(connection, get_atom_by_name(name), nullptr);
 }
 
@@ -293,8 +295,8 @@ std::vector<Window>
 X::get_windows() {
   Window root = get_default_root_window();
   auto client_list =
-       get_property<Window>(root, XA_WINDOW, "_NET_CLIENT_LIST")
-    ?: get_property<Window>(root, XA_CARDINAL, "_WIN_CLIENT_LIST");
+      get_property<Window>(root, XA_WINDOW, "_NET_CLIENT_LIST")
+          ?: get_property<Window>(root, XA_CARDINAL, "_WIN_CLIENT_LIST");
 
   if (!client_list) {
     std::cerr << "Cannot get client list properties. "
@@ -310,8 +312,8 @@ uint32_t
 X::get_current_workspace() {
   Window root = get_default_root_window();
   auto cur_desktop =
-       get_property<uint64_t>(root, XA_CARDINAL, "_NET_CURRENT_DESKTOP")
-    ?: get_property<uint64_t>(root, XA_CARDINAL, "_WIN_WORKSPACE");
+      get_property<uint64_t>(root, XA_CARDINAL, "_NET_CURRENT_DESKTOP")
+          ?: get_property<uint64_t>(root, XA_CARDINAL, "_WIN_WORKSPACE");
 
   if (!cur_desktop) {
     std::cerr << "Cannot get current desktop properties. "
@@ -328,8 +330,8 @@ X::get_current_workspace() {
 XftColor
 X::alloc_char_color(const rgba_t& rgb) {
   XftColor color;
-  if (!XftColorAllocName(display, visual_ptr, colormap, rgb.get_str(), &color))
-  {
+  if (!XftColorAllocName(display, visual_ptr, colormap, rgb.get_str(),
+                         &color)) {
     std::cerr << "Couldn't allocate xft color " << rgb.get_str() << "\n";
   }
   return color;
@@ -340,33 +342,36 @@ X::xft_color_free(XftColor* color) {
   XftColorFree(display, visual_ptr, colormap, color);
 }
 
-XftDraw *
+XftDraw*
 X::xft_draw_create(Drawable drawable) {
   return XftDrawCreate(display, drawable, visual_ptr, colormap);
 }
 
 void
-X::draw_ucs2_string(XftDraw* draw, font_t *font, font_color* color,
+X::draw_ucs2_string(XftDraw* draw, font_t* font, font_color* color,
                     const std::vector<uint16_t>& str, size_t x) {
-  const int y = BAR_HEIGHT / 2  + font->height / 2
-                - font->descent + font->offset;
+  const int y =
+      BAR_HEIGHT / 2 + font->height / 2 - font->descent + font->offset;
   XftDrawString16(draw, color->get(), font->xft_ft, x, y, str.data(),
                   str.size());
 }
 
 
 // helpers
-xcb_atom_t get_atom(xcb_connection_t *conn, const char *name) {
-  std::unique_ptr<xcb_intern_atom_reply_t, decltype(std::free) *> reply {
-      xcb_intern_atom_reply(conn,
-          xcb_intern_atom(conn, 0, static_cast<uint16_t>(strlen(name)),
-                          name),
-          nullptr), std::free };
+xcb_atom_t
+get_atom(xcb_connection_t* conn, const char* name) {
+  std::unique_ptr<xcb_intern_atom_reply_t, decltype(std::free)*> reply{
+      xcb_intern_atom_reply(
+          conn,
+          xcb_intern_atom(conn, 0, static_cast<uint16_t>(strlen(name)), name),
+          nullptr),
+      std::free};
   return reply ? reply->atom : XCB_NONE;
 }
 
-xcb_connection_t *get_connection() {
-  auto *conn = xcb_connect(nullptr, nullptr);
+xcb_connection_t*
+get_connection() {
+  auto* conn = xcb_connect(nullptr, nullptr);
   if (xcb_connection_has_error(conn)) {
     std::cerr << "Cannot create X connection.\n";
     exit(EXIT_FAILURE);
