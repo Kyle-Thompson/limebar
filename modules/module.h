@@ -70,7 +70,7 @@ template <typename Mod, typename = void>
 class ModuleContainer {
  public:
   template <typename ...Args>
-  ModuleContainer(Args ...args)
+  ModuleContainer(Args&& ...args)
     : _module(std::forward<Args>(args)...)
     , _thread(std::ref(_module))
   {}
@@ -94,7 +94,7 @@ template <typename Mod>
 struct ModuleContainer<Mod, IsStaticModule<Mod>> {
  public:
   template <typename ...Args>
-  ModuleContainer(Args ...args)
+  ModuleContainer(Args&& ...args)
     : _module(std::forward<Args>(args)...)
   {}
 
