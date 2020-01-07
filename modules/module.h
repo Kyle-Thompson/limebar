@@ -8,6 +8,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include <thread>
+#include <type_traits>
 
 struct Area {
   uint16_t begin, end;
@@ -63,8 +64,9 @@ class StaticModule {
   void get(ModulePixmap* px) const { static_cast<const Mod&>(*this).extract(px); }
 };
 
+
 // TODO: Specialize on StaticModule to not spawn a thread
-template <typename Mod>
+template <typename Mod, typename = void>
 class ModuleContainer {
  public:
   template <typename ...Args>
@@ -82,4 +84,22 @@ class ModuleContainer {
  private:
   Mod _module;
   std::thread _thread;
+};
+
+
+template <typename T>
+using IsStaticModule = std::enable_if_t<std::is_base_of_v<StaticModule<T>, T>>;
+
+template <typename Mod>
+struct ModuleContainer<Mod, IsStaticModule<Mod>> {
+ public:
+  template <typename ...Args>
+  ModuleContainer(Args ...args)
+    : _module(std::forward<Args>(args)...)
+  {}
+
+  Mod& operator*() { return _module; }
+
+ private:
+  Mod _module;
 };
