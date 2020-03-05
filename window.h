@@ -21,12 +21,10 @@ class BarWindow {
     _ds.free_pixmap(_pixmap);
   }
 
-  void clear() {
-    _offset_left = _offset_right = 0;
+  void render() {
     _ds.copy_area(_pixmap, _window, 0, 0, _width, _height);
+    _offset_left = _offset_right = 0;
   }
-
-  void render() { _ds.flush(); }
 
   void update_left(const ModulePixmap& pixmap);
   void update_middle(const ModulePixmap& pixmap);
