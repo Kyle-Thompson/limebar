@@ -48,7 +48,6 @@ class DynamicModule {
     static_cast<Mod&>(*this).update();
   }
 
-  /* std::vector<std::condition_variable*> _conds;  // TODO array? */
   std::vector<std::function<void()>> _queues;
   mutable std::mutex _mutex;
 };

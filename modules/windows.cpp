@@ -67,7 +67,6 @@ mod_windows::trigger() {
 
 void
 mod_windows::update() {
-  // %{A:wmctrl -i -a 0x00c00003:}Firefox%{A}
   current_workspace = x.get_current_workspace();
   current_window = x.get_property<Window>(x.get_default_root_window(),
                                           XA_WINDOW, "_NET_ACTIVE_WINDOW")
