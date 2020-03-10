@@ -1,5 +1,5 @@
 CC        = clang++
-CFLAGS   += -std=c++2a -I/usr/include/freetype2
+CFLAGS   += -std=c++20 -I/usr/include/freetype2
 LDFLAGS  += -lxcb -lxcb-xrm -lX11 -lX11-xcb -lXft -lfreetype -lfontconfig -lpthread
 CFDEBUG   = -Wall -g3
 CFWARN    = -Weverything -Wno-c++98-compat -Wno-c++98-compat-pedantic
