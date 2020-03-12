@@ -21,6 +21,12 @@ class BarWindow {
     _ds.free_pixmap(_pixmap);
   }
 
+  // Resets the underlying pixelmap used for drawing to the window. Has no
+  // effect on the window itself.
+  void reset() {
+    _ds.clear_rect(_pixmap, _width, _height);
+  }
+
   void render() {
     _ds.copy_area(_pixmap, _window, 0, 0, _width, _height);
     _offset_left = _offset_right = 0;

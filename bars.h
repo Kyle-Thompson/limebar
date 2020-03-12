@@ -114,6 +114,7 @@ template <typename Left, typename Middle, typename Right>
 void
 Bar<Left, Middle, Right>::operator()() {
   while (true) {
+    _win.reset();
     update();
     _win.render();
 
