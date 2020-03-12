@@ -24,7 +24,7 @@ class mod_windows : public DynamicModule<mod_windows> {
   const xcb_atom_t active_window;
   X& x;
 
-  unsigned long _current_workspace;
-  Window _current_window;
+  unsigned long _current_workspace { 0 };
+  Window _current_window { 0 };
   std::vector<Window> _windows;
 };
