@@ -6,8 +6,9 @@ Checks: '
   clang-diagnostic-*,
   clang-analyzer-*,
   cppcoreguidelines-*,
-    -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+    -cppcoreguidelines-avoid-magic-numbers,
     -cppcoreguidelines-owning-memory,
+    -cppcoreguidelines-pro-bounds-pointer-arithmetic,
   google-*,
     -google-readability-todo,
   llvm-*,
@@ -16,6 +17,7 @@ Checks: '
     -modernize-use-trailing-return-type,
   performance-*,
   portability-*,
-  readability-*
+  readability-*,
+    -readability-magic-numbers
   '
 ...
