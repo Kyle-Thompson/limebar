@@ -72,7 +72,7 @@ StaticWorkQueue<T, N>::pop() {
   read_lock.unlock();
 
   std::unique_lock main_lock{_main_mu};
-  T&& temp = std::move(static_cast<T>(_arr[_head]));
+  T&& temp = std::move(static_cast<T>(_arr[(_head + _size) * sizeof(T) % N]));
   _head = _head + sizeof(T) % N;
   --_size;
 
