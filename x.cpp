@@ -107,9 +107,11 @@ X::Instance() {
 
 std::string
 X::get_string_resource(const char* query) {
-  char* str;
+  char* str = nullptr;
   xcb_xrm_resource_get_string(database, query, nullptr, &str);
-  return std::string(str);
+  std::string ret(str);
+  free(str);
+  return ret;
 }
 
 void
