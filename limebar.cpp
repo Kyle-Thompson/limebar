@@ -42,13 +42,12 @@ main() {
   auto middle_section{make_section(clock)};
   auto right_section{make_section()};
 
-  X& x11 = X::Instance();
+  auto& ds = DS::Instance();
 
-  rgba_t bgc = rgba_t::parse(x11.get_string_resource("background").c_str());
-  rgba_t fgc = rgba_t::parse(x11.get_string_resource("foreground").c_str());
-  rgba_t acc = rgba_t::parse(x11.get_string_resource("color4").c_str());
-
-  DS::font_t ft("GohuFont:pixelsize=11");
+  rgba_t bgc = rgba_t::parse(ds.get_string_resource("background").c_str());
+  rgba_t fgc = rgba_t::parse(ds.get_string_resource("foreground").c_str());
+  rgba_t acc = rgba_t::parse(ds.get_string_resource("color4").c_str());
+  DS::font_t ft(ds.get_string_resource("font").c_str());
 
   Bar left_bar({.origin_x = 0, .origin_y = 0, .width = 1920, .height = 20},
                {.background = bgc, .foreground = fgc, .fg_accent = acc}, {&ft},
