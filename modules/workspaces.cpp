@@ -35,8 +35,7 @@ mod_workspaces::trigger() {
   while (true) {
     std::unique_ptr<xcb_generic_event_t, decltype(std::free) *> ev{
         xcb_wait_for_event(conn), std::free};
-    if (!ev) continue;  // TODO: what is the right behavior here?
-    if ((ev->response_type & 0x7F) == XCB_PROPERTY_NOTIFY &&
+    if (ev && (ev->response_type & 0x7F) == XCB_PROPERTY_NOTIFY &&
         reinterpret_cast<xcb_property_notify_event_t *>(ev.get())->atom ==
             current_desktop) {
       return;
