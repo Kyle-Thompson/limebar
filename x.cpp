@@ -375,8 +375,36 @@ get_atom(xcb_connection_t* conn, const char* name) {
 xcb_connection_t*
 get_connection() {
   auto* conn = xcb_connect(nullptr, nullptr);
-  if (xcb_connection_has_error(conn)) {
-    std::cerr << "Cannot create X connection.\n";
+  if (int ret = xcb_connection_has_error(conn); ret > 0) {
+    std::cerr << "ERROR: Cannot create X connection: ";
+    switch (ret) {
+      case XCB_CONN_ERROR:
+        std::cerr << "XCB_CONN_ERROR, because of socket errors, pipe errors or "
+                     "other stream errors.\n";
+        break;
+      case XCB_CONN_CLOSED_EXT_NOTSUPPORTED:
+        std::cerr << "XCB_CONN_CLOSED_EXT_NOTSUPPORTED, when extension not "
+                     "supported.\n";
+        break;
+      case XCB_CONN_CLOSED_MEM_INSUFFICIENT:
+        std::cerr << "XCB_CONN_CLOSED_MEM_INSUFFICIENT, when memory not "
+                     "available.\n";
+        break;
+      case XCB_CONN_CLOSED_REQ_LEN_EXCEED:
+        std::cerr << "XCB_CONN_CLOSED_REQ_LEN_EXCEED, exceeding request length "
+                     "that server accepts.\n";
+        break;
+      case XCB_CONN_CLOSED_PARSE_ERR:
+        std::cerr << "XCB_CONN_CLOSED_PARSE_ERR, error during parsing display "
+                     "string.\n";
+        break;
+      case XCB_CONN_CLOSED_INVALID_SCREEN:
+        std::cerr << "XCB_CONN_CLOSED_INVALID_SCREEN, because the server does "
+                     "not have a screen matching the display.\n";
+        break;
+      default:
+        std::cerr << "UNKNOWN ERROR\n";
+    }
     exit(EXIT_FAILURE);
   }
   return conn;
