@@ -351,9 +351,10 @@ X::xft_draw_create(Drawable drawable) {
 
 void
 X::draw_ucs2_string(XftDraw* draw, font_t* font, font_color* color,
-                    const std::vector<uint16_t>& str, size_t x) {
-  const int y =
-      BAR_HEIGHT / 2 + font->height / 2 - font->descent + font->offset;
+                    const std::vector<uint16_t>& str, uint16_t height,
+                    size_t x) {
+  const int y = static_cast<int>(height) / 2 + font->height / 2 -
+                font->descent + font->offset;
   XftDrawString16(draw, color->get(), font->xft_ft, x, y, str.data(),
                   str.size());
 }

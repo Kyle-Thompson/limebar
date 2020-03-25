@@ -116,7 +116,7 @@ class ModulePixmap {
       _ds.draw_ucs2_string(
           _xft_draw, font,
           (accented ? &_colors->fg_accent : &_colors->foreground), ucs2_str,
-          _used);
+          _height, _used);
       _used += total_size;
     }
   }

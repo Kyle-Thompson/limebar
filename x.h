@@ -80,7 +80,8 @@ class X {
   XftDraw* xft_draw_create(Drawable drawable);
   XftFont* xft_font_open_name(_Xconst char* name);
   void draw_ucs2_string(XftDraw* draw, font_t* font, font_color* color,
-                        const std::vector<uint16_t>& str, size_t x);
+                        const std::vector<uint16_t>& str, uint16_t height,
+                        size_t x);
 
 
   class font_color {
