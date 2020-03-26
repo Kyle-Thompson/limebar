@@ -50,15 +50,15 @@ main() {
   DS::font_t ft(ds.get_string_resource("font").c_str());
 
   Bar left_bar({.origin_x = 0, .origin_y = 0, .width = 1920, .height = 20},
-               {.background = bgc, .foreground = fgc, .fg_accent = acc}, {&ft},
+               {.background{bgc}, .foreground{fgc}, .fg_accent{acc}}, {&ft},
                left_section, middle_section, right_section);
 
   Bar middle_bar({.origin_x = 1920, .origin_y = 0, .width = 1920, .height = 20},
-                 {.background = bgc, .foreground = fgc, .fg_accent = acc},
-                 {&ft}, left_section, middle_section, right_section);
+                 {.background{bgc}, .foreground{fgc}, .fg_accent{acc}}, {&ft},
+                 left_section, middle_section, right_section);
 
   Bar right_bar({.origin_x = 3840, .origin_y = 0, .width = 1920, .height = 20},
-                {.background = bgc, .foreground = fgc, .fg_accent = acc}, {&ft},
+                {.background{bgc}, .foreground{fgc}, .fg_accent{acc}}, {&ft},
                 left_section, middle_section, right_section);
 
   BarContainer bars(left_bar, middle_bar, right_bar);

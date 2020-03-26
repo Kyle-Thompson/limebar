@@ -78,21 +78,20 @@ class X {
   XftColor alloc_char_color(const rgba_t& rgb);
   void xft_color_free(XftColor* color);
   XftDraw* xft_draw_create(Drawable drawable);
-  XftFont* xft_font_open_name(_Xconst char* name);
-  void draw_ucs2_string(XftDraw* draw, font_t* font, font_color* color,
-                        const std::vector<uint16_t>& str, uint16_t height,
-                        size_t x);
+  static void draw_ucs2_string(XftDraw* draw, font_t* font, font_color* color,
+                               const std::vector<uint16_t>& str,
+                               uint16_t height, size_t x);
 
 
   class font_color {
    public:
-    font_color(const rgba_t& color)
+    explicit font_color(const rgba_t& color)
         : _color(X::Instance().alloc_char_color(color)) {}
     ~font_color() { X::Instance().xft_color_free(&_color); }
-    font_color(const font_color& rhs) : _color(rhs._color) {}
-    font_color(font_color&&) = delete;
-    font_color& operator=(const font_color&) = delete;
-    font_color& operator=(font_color&&) = delete;
+    font_color(const font_color& rhs) = default;
+    font_color(font_color&&) = default;
+    font_color& operator=(const font_color&) = default;
+    font_color& operator=(font_color&&) = default;
 
     XftColor* get() { return &_color; }
 

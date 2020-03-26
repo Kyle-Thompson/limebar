@@ -113,7 +113,7 @@ class ModulePixmap {
 
     // TODO: write to max instead of not writing anything
     if (_used + total_size <= _width) {
-      _ds.draw_ucs2_string(
+      DS::draw_ucs2_string(
           _xft_draw, font,
           (accented ? &_colors->fg_accent : &_colors->foreground), ucs2_str,
           _height, _used);
