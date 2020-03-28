@@ -16,6 +16,11 @@ class BarWindow {
   BarWindow(BarColors&& colors, Fonts&& fonts, size_t x, size_t y, size_t w,
             size_t h);
 
+  BarWindow(const BarWindow&) = delete;
+  BarWindow(BarWindow&&) = default;
+  BarWindow& operator=(const BarWindow&) = delete;
+  BarWindow& operator=(BarWindow&&) = delete;
+
   ~BarWindow() {
     _ds.destroy_window(_window);
     _ds.free_pixmap(_pixmap);
