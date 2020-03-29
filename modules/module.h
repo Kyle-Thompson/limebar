@@ -11,11 +11,6 @@
 
 #include "../pixmap.h"
 
-struct Area {
-  uint16_t begin, end;
-  std::function<void(uint8_t button)> action;
-};
-
 template <typename Mod>
 class DynamicModule {
  public:

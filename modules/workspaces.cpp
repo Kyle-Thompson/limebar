@@ -31,7 +31,8 @@ mod_workspaces::extract(ModulePixmap *px) const {
         .str = names[i] + ' ',
         .color = (i == cur_desktop ? ACCENT_COLOR : NORMAL_COLOR)};
 
-    segment_t seg{.segments{text_seg}};
+    segment_t seg{.segments{text_seg},
+                  .action = [this, i](uint8_t button) { x.switch_desktop(i); }};
     px->write(seg);
   }
 }

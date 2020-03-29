@@ -99,12 +99,22 @@ class ModulePixmap {
 
   void clear() {
     _used = 0;
+    _areas = std::vector<area_t>();
     _ds.clear_rect(_pixmap_id, _width, _height);
   }
 
   void append(const ModulePixmap& rhs) {
     _ds.copy_area(rhs.pixmap(), _pixmap_id, 0, _used, rhs.size(), _height);
     _used += rhs._used;
+  }
+
+  void click(size_t x, uint8_t button) {
+    for (auto& area : _areas) {
+      if (x >= area.begin && x <= area.end) {
+        area.action(button);
+        break;
+      }
+    }
   }
 
   void write(const segment_t& seg) {
@@ -133,7 +143,13 @@ class ModulePixmap {
                                : &_colors->fg_accent;
 
         DS::draw_ucs2_string(_xft_draw, font, color, str, _height, _used);
-        _used += size;
+        if (seg.action) {
+          uint16_t end = _used + size;
+          _areas.push_back({.begin = _used, .end = end, .action = *seg.action});
+          _used = end;
+        } else {
+          _used += size;
+        }
       }
     }
   }
@@ -146,4 +162,5 @@ class ModulePixmap {
   Fonts* _fonts;
   xcb_pixmap_t _pixmap_id;
   XftDraw* _xft_draw;
+  std::vector<area_t> _areas;
 };

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <X11/Xatom.h>
 #include <X11/Xft/Xft.h>
 #include <X11/Xlib-xcb.h>
 #include <X11/Xlib.h>
@@ -34,6 +35,11 @@ class X {
     }
   }
 
+  // actions
+  void activate_window(Window win);
+  void switch_desktop(int desktop);
+
+
   // TODO: label
   std::string get_string_resource(const char* query);
   // TODO: provide better API
@@ -56,7 +62,7 @@ class X {
   void map_window(xcb_window_t window);
   xcb_generic_event_t* wait_for_event();
 
-  // TODO: label
+  // queries
   template <typename T>
   std::optional<std::vector<T>> get_property(Window win, Atom xa_prop_type,
                                              const char* prop_name);

@@ -115,6 +115,56 @@ X::get_string_resource(const char* query) {
 }
 
 void
+X::activate_window(Window win) {
+  // TODO: why do we need a new display here? why not use X's display member?
+  Display* disp = XOpenDisplay(nullptr);
+
+  XEvent event;
+  int64_t mask = SubstructureRedirectMask | SubstructureNotifyMask;
+
+  event.xclient.type = ClientMessage;
+  event.xclient.serial = 0;
+  event.xclient.send_event = True;
+  event.xclient.message_type = XInternAtom(disp, "_NET_ACTIVE_WINDOW", False);
+  event.xclient.window = win;
+  event.xclient.format = 32;
+  event.xclient.data.l[0] = 0;
+  event.xclient.data.l[1] = 0;
+  event.xclient.data.l[2] = 0;
+  event.xclient.data.l[3] = 0;
+  event.xclient.data.l[4] = 0;
+
+  XSendEvent(disp, DefaultRootWindow(disp), False, mask, &event);
+  XMapRaised(disp, win);
+  XCloseDisplay(disp);
+}
+
+void
+X::switch_desktop(int desktop) {
+  // TODO: why do we need a new display here? why not use X's display member?
+  Display* disp = XOpenDisplay(nullptr);
+  Window win = DefaultRootWindow(disp);
+
+  XEvent event;
+  int64_t mask = SubstructureRedirectMask | SubstructureNotifyMask;
+
+  event.xclient.type = ClientMessage;
+  event.xclient.serial = 0;
+  event.xclient.send_event = True;
+  event.xclient.message_type = XInternAtom(disp, "_NET_CURRENT_DESKTOP", False);
+  event.xclient.window = win;
+  event.xclient.format = 32;
+  event.xclient.data.l[0] = desktop;
+  event.xclient.data.l[1] = 0;
+  event.xclient.data.l[2] = 0;
+  event.xclient.data.l[3] = 0;
+  event.xclient.data.l[4] = 0;
+
+  XSendEvent(disp, win, False, mask, &event);
+  XCloseDisplay(disp);
+}
+
+void
 X::copy_area(xcb_drawable_t src, xcb_drawable_t dst, int16_t src_x,
              int16_t dst_x, uint16_t width, uint16_t height) {
   xcb_copy_area(connection, src, dst, gc_bg, src_x, 0, dst_x, 0, width, height);

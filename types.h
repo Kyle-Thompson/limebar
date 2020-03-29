@@ -8,6 +8,12 @@
 #include "config.h"
 #include "font.h"
 
+
+struct area_t {
+  uint16_t begin, end;
+  std::function<void(uint8_t button)> action;
+};
+
 struct padding_t {
   uint8_t size;
   bool pad_ends;
@@ -26,7 +32,7 @@ struct text_segment_t {
 
 struct segment_t {
   std::vector<text_segment_t> segments;
-  std::optional<std::function<void()>> action;
+  std::optional<std::function<void(uint8_t)>> action;
 
   /* padding_t padding; */
 };

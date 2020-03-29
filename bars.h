@@ -7,6 +7,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>  // size_t
+#include <memory>
 #include <mutex>
 #include <thread>
 #include <tuple>
@@ -62,11 +63,13 @@ class Section {
         _modules);
   }
 
-  ModulePixmap& collect() {
+  const ModulePixmap& collect() {
     _pixmap.clear();
     std::apply([this](auto&&... mods) { (mods.get(&_pixmap), ...); }, _modules);
     return _pixmap;
   }
+
+  ModulePixmap* get_pixmap() { return &_pixmap; }
 
  private:
   ModulePixmap _pixmap;
@@ -85,15 +88,17 @@ class Bar {
       Middle middle, Right right);
 
   void operator()();
-  void update();
 
  private:
   StaticWorkQueue<size_t> _work;
   size_t _origin_x, _origin_y, _width, _height;
+  DS& _ds;
   BarWindow _win;
   Section<Left> _left;
   Section<Middle> _middle;
   Section<Right> _right;
+  std::thread _bar_event_thread;
+  std::array<std::tuple<size_t, size_t, ModulePixmap*>, 3> _regions;
 };
 
 template <typename Left, typename Middle, typename Right>
@@ -104,30 +109,50 @@ Bar<Left, Middle, Right>::Bar(dimension_t&& d, BarColors&& colors,
     , _origin_y(d.origin_y)
     , _width(d.width)
     , _height(d.height)
+    , _ds(DS::Instance())
     , _win(std::move(colors), std::move(fonts), _origin_x, _origin_y, _width,
            _height)
     , _left(&_work, &_win, std::move(left))
     , _middle(&_work, &_win, std::move(middle))
-    , _right(&_work, &_win, std::move(right)) {}
+    , _right(&_work, &_win, std::move(right))
+    , _bar_event_thread([this] {
+      while (true) {
+        std::unique_ptr<xcb_generic_event_t, decltype(std::free)*> ev{
+            _ds.wait_for_event(), std::free};
+        // TODO: hover action with XCB_MOTION_NOTIFY
+        if (ev && (ev->response_type & 0x7F) == XCB_BUTTON_PRESS) {
+          auto* press = reinterpret_cast<xcb_button_press_event_t*>(ev.get());
+          for (auto region : _regions) {
+            if (press->event_x >= std::get<0>(region) &&
+                press->event_x <= std::get<1>(region)) {
+              std::get<2>(region)->click(press->event_x - std::get<0>(region),
+                                         press->detail);
+              break;
+            }
+          }
+        }
+      }
+    }) {
+}
 
 template <typename Left, typename Middle, typename Right>
 void
 Bar<Left, Middle, Right>::operator()() {
   while (true) {
     _win.reset();
-    update();
+
+    std::pair<size_t, size_t> p;
+    p = _win.update_left(_left.collect());
+    _regions[0] = {p.first, p.second, _left.get_pixmap()};
+    p = _win.update_right(_right.collect());
+    _regions[1] = {p.first, p.second, _right.get_pixmap()};
+    p = _win.update_middle(_middle.collect());
+    _regions[2] = {p.first, p.second, _middle.get_pixmap()};
+
     _win.render();
 
     _work.pop();
   }
-}
-
-template <typename Left, typename Middle, typename Right>
-void
-Bar<Left, Middle, Right>::update() {
-  _win.update_left(_left.collect());
-  _win.update_right(_right.collect());
-  _win.update_middle(_middle.collect());
 }
 
 

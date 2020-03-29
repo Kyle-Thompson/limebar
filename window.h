@@ -5,11 +5,13 @@
 #include <array>
 #include <cstddef>  // size_t
 #include <memory>
+#include <thread>
 
 #include "bar_color.h"
 #include "config.h"
 #include "font.h"
 #include "pixmap.h"
+#include "queue.h"
 
 class BarWindow {
  public:
@@ -28,18 +30,16 @@ class BarWindow {
 
   // Resets the underlying pixelmap used for drawing to the window. Has no
   // effect on the window itself.
-  void reset() {
-    _ds.clear_rect(_pixmap, _width, _height);
-  }
+  void reset() { _ds.clear_rect(_pixmap, _width, _height); }
 
   void render() {
     _ds.copy_area(_pixmap, _window, 0, 0, _width, _height);
     _offset_left = _offset_right = 0;
   }
 
-  void update_left(const ModulePixmap& pixmap);
-  void update_middle(const ModulePixmap& pixmap);
-  void update_right(const ModulePixmap& pixmap);
+  std::pair<size_t, size_t> update_left(const ModulePixmap& pixmap);
+  std::pair<size_t, size_t> update_middle(const ModulePixmap& pixmap);
+  std::pair<size_t, size_t> update_right(const ModulePixmap& pixmap);
 
   [[nodiscard]] xcb_pixmap_t generate_pixmap() const {
     xcb_pixmap_t pixmap = _ds.generate_id();
