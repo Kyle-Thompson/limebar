@@ -9,7 +9,9 @@ class mod_fill : public StaticModule<mod_fill> {
  public:
   explicit mod_fill(const char* str) : _str(str) {}
 
-  void extract(ModulePixmap* px) const { px->write(_str); }
+  void extract(ModulePixmap* px) const {
+    px->write({.segments{{.str = _str, .color = NORMAL_COLOR}}});
+  }
 
  private:
   const char* _str;

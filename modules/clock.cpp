@@ -4,6 +4,8 @@
 #include <ctime>
 #include <thread>
 
+#include "../types.h"
+
 constexpr static std::array<const char*, 12> months{
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -11,8 +13,8 @@ constexpr static std::array<const char*, 12> months{
 
 void
 mod_clock::extract(ModulePixmap* px) const {
-  px->write(current_time.data(), true);
-  px->write(current_day.data());
+  px->write({.segments{{.str = current_time.data(), .color = ACCENT_COLOR},
+                       {.str = current_date.data(), .color = NORMAL_COLOR}}});
 }
 
 void
@@ -28,7 +30,7 @@ mod_clock::update() {
   snprintf(current_time.data(), 6, "%02d:%02d", local->tm_hour, local->tm_min);
   current_time[5] = '\0';
 
-  snprintf(current_day.data(), 8, " %s %02d", months.at(local->tm_mon),
+  snprintf(current_date.data(), 8, " %s %02d", months.at(local->tm_mon),
            local->tm_mday);
-  current_day[7] = '\0';
+  current_date[7] = '\0';
 }

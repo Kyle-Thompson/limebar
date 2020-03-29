@@ -11,6 +11,7 @@
 #include <iostream>
 #include <sstream>
 
+#include "../types.h"
 #include "../x.h"
 
 mod_workspaces::mod_workspaces()
@@ -26,7 +27,12 @@ mod_workspaces::mod_workspaces()
 void
 mod_workspaces::extract(ModulePixmap *px) const {
   for (int i = 0; i < names.size(); ++i) {
-    px->write(names[i] + " ", (i == cur_desktop));
+    text_segment_t text_seg{
+        .str = names[i] + ' ',
+        .color = (i == cur_desktop ? ACCENT_COLOR : NORMAL_COLOR)};
+
+    segment_t seg{.segments{text_seg}};
+    px->write(seg);
   }
 }
 

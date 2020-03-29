@@ -10,5 +10,5 @@ class mod_clock : public DynamicModule<mod_clock> {
   void update();
 
   std::array<char, 6> current_time;
-  std::array<char, 8> current_day;
+  std::array<char, 8> current_date;
 };

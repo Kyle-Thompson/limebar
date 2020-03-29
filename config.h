@@ -10,3 +10,5 @@ constexpr std::string_view WM_CLASS = "limebar";
 
 // specify the display server to use. (currently only supports X)
 using DS = X;
+
+using FontColor = typename DS::font_color;

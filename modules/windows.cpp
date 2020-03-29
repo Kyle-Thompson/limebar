@@ -36,13 +36,18 @@ mod_windows::~mod_windows() {
 
 void
 mod_windows::extract(ModulePixmap *px) const {
-  for (const window_t& window : _windows) {
+  for (const window_t &window : _windows) {
     if (window.workspace != _current_workspace) {
       continue;
     }
 
-    // TODO: don't add a space after the last window
-    px->write(window.title + " ", (window.id == _current_window));
+    // TODO: use padding_t when available to replace padding with spaces
+    text_segment_t text_seg{
+        .str = window.title + ' ',
+        .color = (window.id == _current_window ? ACCENT_COLOR : NORMAL_COLOR)};
+
+    segment_t seg{.segments{text_seg}};
+    px->write(seg);
   }
 }
 
@@ -81,11 +86,7 @@ mod_windows::update() {
             .value()
             .at(0);
 
-    _windows.push_back({
-        .id = window,
-        .workspace = workspace,
-        .title = std::move(title)
-    });
-
+    _windows.push_back(
+        {.id = window, .workspace = workspace, .title = std::move(title)});
   }
 }

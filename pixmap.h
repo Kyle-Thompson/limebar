@@ -7,11 +7,13 @@
 #include <algorithm>
 #include <mutex>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include "bar_color.h"
 #include "config.h"
 #include "font.h"
+#include "types.h"
 
 using ucs2 = std::vector<uint16_t>;
 using ucs2_and_width = std::pair<ucs2, size_t>;
@@ -105,19 +107,34 @@ class ModulePixmap {
     _used += rhs._used;
   }
 
-  // TODO: overload with const char*
-  void write(const std::string& str, bool accented = false) {
-    ucs2 ucs2_str = Util::utf8_to_ucs2(str);
-    typename Fonts::Font* font = _fonts->drawable_font(ucs2_str[0]);
-    size_t total_size = font->string_size(ucs2_str);
+  void write(const segment_t& seg) {
+    using FontType = typename Fonts::Font;
+    using StringContainer = std::tuple<ucs2, FontType*, size_t>;
 
-    // TODO: write to max instead of not writing anything
+    std::vector<StringContainer> ucs2_vec;
+    ucs2_vec.reserve(seg.segments.size());
+    for (const auto& s : seg.segments) {
+      ucs2 str = Util::utf8_to_ucs2(s.str);
+      FontType* font = _fonts->drawable_font(str[0]);
+      ucs2_vec.emplace_back(std::move(str), font, font->string_size(str));
+    }
+
+    const size_t total_size =
+        std::accumulate(ucs2_vec.begin(), ucs2_vec.end(), 0,
+                        [](size_t cur, const StringContainer& p) {
+                          return cur + std::get<2>(p);
+                        });
+
     if (_used + total_size <= _width) {
-      DS::draw_ucs2_string(
-          _xft_draw, font,
-          (accented ? &_colors->fg_accent : &_colors->foreground), ucs2_str,
-          _height, _used);
-      _used += total_size;
+      for (size_t i = 0; i < ucs2_vec.size(); ++i) {
+        auto [str, font, size] = ucs2_vec[i];
+        FontColor* color = seg.segments[i].color == NORMAL_COLOR
+                               ? &_colors->foreground
+                               : &_colors->fg_accent;
+
+        DS::draw_ucs2_string(_xft_draw, font, color, str, _height, _used);
+        _used += size;
+      }
     }
   }
 

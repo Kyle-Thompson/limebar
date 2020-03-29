@@ -8,6 +8,6 @@
  */
 struct BarColors {
   rgba_t background;
-  typename DS::font_color foreground;
-  typename DS::font_color fg_accent;
+  FontColor foreground;
+  FontColor fg_accent;
 };
