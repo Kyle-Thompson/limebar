@@ -1,18 +1,3 @@
-/** TODO
- * - Replace module calls to system where possible.
- * - Each module should have its own areas
- * - Handle bar events in addition to module events.
- * - Isolate X11 code into a DS module that can be swapped with something else
- *   like Wayland down the road.
- * - Should each section have it's own pixmap to reduce the number of modules
- *   that need to be queried when another module changes?
- * - Introduce concept of fixed size modules where an update to the module
- *   doesn't require redrawing any of the other modules at all.
- * - Fix startup race condition where some bars might not have an initial value.
- * - Add option for padding around text in the bar.
- * - Replace current use of module notifications via condvars with work queues.
- */
-
 #include <X11/Xlib.h>
 
 #include <iostream>
