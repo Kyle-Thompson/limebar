@@ -53,9 +53,6 @@ class DynamicModule {
 };
 
 
-/** TODO
- * can we avoid spawning a thread for static modules?
- */
 template <typename Mod>
 class StaticModule {
  public:
