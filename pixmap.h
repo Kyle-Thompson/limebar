@@ -146,5 +146,4 @@ class ModulePixmap {
   Fonts* _fonts;
   xcb_pixmap_t _pixmap_id;
   XftDraw* _xft_draw;
-  std::mutex _mutex;  // TODO: is this needed?
 };
