@@ -1,4 +1,5 @@
 CC        = clang++
+LIB       = -stdlib=libc++
 CFLAGS   += -std=c++20 -I/usr/include/freetype2
 LDFLAGS  += -lxcb -lxcb-xrm -lX11 -lX11-xcb -lXft -lfreetype -lfontconfig -lpthread
 CFDEBUG   = -Wall -g3
@@ -15,10 +16,10 @@ BINDIR  = ${PREFIX}/bin
 all: ${EXEC}
 
 .cpp.o:
-	${CC} ${CFLAGS} -o $@ -c $<
+	${CC} ${LIB} ${CFLAGS} -o $@ -c $<
 
 ${EXEC}: ${OBJS}
-	${CC} -o ${EXEC} ${OBJS} ${LDFLAGS}
+	${CC} ${LIB} -o ${EXEC} ${OBJS} ${LDFLAGS}
 
 debug: ${EXEC}
 debug: CFLAGS += ${CFDEBUG}
