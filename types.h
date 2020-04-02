@@ -5,9 +5,25 @@
 #include <string>
 #include <vector>
 
-#include "config.h"
-#include "font.h"
 
+using ucs2 = std::vector<uint16_t>;
+
+
+struct coordinate_t {
+  int16_t x;
+  int16_t y;
+};
+
+/** rectangle_t
+ * Utility struct for representing a rectangle.
+ * NOTE: {x,y} refers to the coordinate pair for the top left pixel.
+ */
+struct rectangle_t {
+  int16_t x;
+  int16_t y;
+  uint16_t width;
+  uint16_t height;
+};
 
 struct area_t {
   uint16_t begin, end;

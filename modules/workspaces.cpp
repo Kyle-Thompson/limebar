@@ -2,7 +2,6 @@
 
 #include <X11/X.h>
 #include <X11/Xatom.h>
-#include <bits/stdint-uintn.h>
 #include <xcb/xcb.h>
 
 #include <cstdio>
@@ -17,7 +16,7 @@
 mod_workspaces::mod_workspaces()
     : conn(get_connection())
     , current_desktop(get_atom(conn, "_NET_CURRENT_DESKTOP"))
-    , x(X::Instance()) {
+    , x(X11::Instance()) {
   uint32_t values = XCB_EVENT_MASK_PROPERTY_CHANGE;
   xcb_screen_t *screen = xcb_setup_roots_iterator(xcb_get_setup(conn)).data;
   xcb_change_window_attributes(conn, screen->root, XCB_CW_EVENT_MASK, &values);
@@ -52,19 +51,6 @@ mod_workspaces::trigger() {
 
 void
 mod_workspaces::update() {
-  Window root = x.get_default_root_window();
-  cur_desktop =
-      x.get_property<uint64_t>(root, XA_CARDINAL, "_NET_CURRENT_DESKTOP")
-          .value()
-          .at(0);
-
-  auto vec =
-      x.get_property<char>(root, x.get_intern_atom(), "_NET_DESKTOP_NAMES")
-          .value();
-  char *chars = vec.data();
-
-  names.clear();
-  for (char *str = chars; str - chars < vec.size(); str += strlen(str) + 1) {
-    names.emplace_back(str);
-  }
+  cur_desktop = x.get_current_workspace();
+  names = x.get_workspace_names();
 }

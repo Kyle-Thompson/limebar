@@ -2,7 +2,6 @@
 
 #include <X11/X.h>
 #include <X11/Xatom.h>
-#include <bits/stdint-uintn.h>
 
 #include <cstdlib>
 #include <cstring>
@@ -18,7 +17,7 @@ mod_windows::mod_windows()
     : _conn(xcb_connect(nullptr, nullptr))
     , _current_desktop(get_atom(_conn, "_NET_CURRENT_DESKTOP"))
     , _active_window(get_atom(_conn, "_NET_ACTIVE_WINDOW"))
-    , _x(X::Instance()) {
+    , _x(X11::Instance()) {
   if (xcb_connection_has_error(_conn)) {
     std::cerr << "Cannot X connection for workspaces daemon.\n";
     exit(EXIT_FAILURE);
@@ -72,10 +71,7 @@ mod_windows::trigger() {
 void
 mod_windows::update() {
   _current_workspace = _x.get_current_workspace();
-  _current_window = _x.get_property<Window>(_x.get_default_root_window(),
-                                            XA_WINDOW, "_NET_ACTIVE_WINDOW")
-                        .value()
-                        .at(0);
+  _current_window = _x.get_active_window();
 
   _windows.clear();
   for (auto windows = _x.get_windows(); auto window : windows) {
@@ -84,12 +80,10 @@ mod_windows::update() {
       continue;
     }
 
-    auto workspace =
-        _x.get_property<uint32_t>(window, XA_CARDINAL, "_NET_WM_DESKTOP")
-            .value()
-            .at(0);
-
-    _windows.push_back(
-        {.id = window, .workspace = workspace, .title = std::move(title)});
+    auto workspace = _x.get_workspace_of_window(window);
+    if (workspace.has_value()) {
+      _windows.push_back(
+          {.id = window, .workspace = *workspace, .title = std::move(title)});
+    }
   }
 }

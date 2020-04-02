@@ -30,9 +30,9 @@ class mod_windows : public DynamicModule<mod_windows> {
   xcb_connection_t* _conn;
   const xcb_atom_t _current_desktop;
   const xcb_atom_t _active_window;
-  X& _x;
+  X11& _x;
 
-  unsigned long _current_workspace { 0 };
-  Window _current_window { 0 };
+  unsigned long _current_workspace{0};
+  Window _current_window{0};
   std::vector<window_t> _windows;
 };

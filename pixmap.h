@@ -1,9 +1,5 @@
 #pragma once
 
-#include <X11/Xft/Xft.h>
-#include <bits/stdint-uintn.h>  // uint16_t
-#include <xcb/xproto.h>         // xcb_drawable_t
-
 #include <algorithm>
 #include <mutex>
 #include <string>
@@ -73,7 +69,7 @@ struct Util {
 // limit access to what modules can do when getting a ModulePixmap
 class ModulePixmap {
  public:
-  ModulePixmap(xcb_drawable_t drawable, BarColors* colors, Fonts* fonts,
+  ModulePixmap(DS::pixmap_t pixmap, BarColors* colors, Fonts* fonts,
                uint16_t width, uint16_t height)
       : _used(0)
       , _width(width)
@@ -81,30 +77,28 @@ class ModulePixmap {
       , _ds(DS::Instance())
       , _colors(colors)
       , _fonts(fonts)
-      , _pixmap_id(_ds.generate_id())
-      , _xft_draw(_ds.xft_draw_create(_pixmap_id)) {
-    _ds.create_pixmap(_pixmap_id, drawable, width, height);
-    clear();
-  }
+      , _pixmap(std::move(pixmap))
+      , _xft_draw(_pixmap.create_xft_draw()) {}
 
-  ~ModulePixmap() { DS::Instance().free_pixmap(_pixmap_id); }
-
+  ~ModulePixmap() = default;
   ModulePixmap(const ModulePixmap&) = delete;
   ModulePixmap(ModulePixmap&&) = delete;
   ModulePixmap& operator=(const ModulePixmap&) = delete;
   ModulePixmap& operator=(ModulePixmap&&) = delete;
 
   [[nodiscard]] uint16_t size() const { return _used; }
-  [[nodiscard]] xcb_pixmap_t pixmap() const { return _pixmap_id; }
+  [[nodiscard]] const DS::pixmap_t& pixmap() const { return _pixmap; }
 
   void clear() {
     _used = 0;
     _areas = std::vector<area_t>();
-    _ds.clear_rect(_pixmap_id, _width, _height);
+    _pixmap.clear();
   }
 
   void append(const ModulePixmap& rhs) {
-    _ds.copy_area(rhs.pixmap(), _pixmap_id, 0, _used, rhs.size(), _height);
+    // TODO: figure out what the right type is to use for _used
+    _pixmap.copy_from(rhs._pixmap, {0, 0}, {static_cast<int16_t>(_used), 0},
+                      rhs.size(), _height);
     _used += rhs._used;
   }
 
@@ -142,7 +136,7 @@ class ModulePixmap {
                                ? &_colors->foreground
                                : &_colors->fg_accent;
 
-        DS::draw_ucs2_string(_xft_draw, font, color, str, _height, _used);
+        font->draw_ucs2(_xft_draw, color, str, _height, _used);
         if (seg.action) {
           uint16_t end = _used + size;
           _areas.push_back({.begin = _used, .end = end, .action = *seg.action});
@@ -160,7 +154,7 @@ class ModulePixmap {
   DS& _ds;
   BarColors* _colors;
   Fonts* _fonts;
-  xcb_pixmap_t _pixmap_id;
+  DS::pixmap_t _pixmap;
   XftDraw* _xft_draw;
   std::vector<area_t> _areas;
 };

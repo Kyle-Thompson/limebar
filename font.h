@@ -1,7 +1,5 @@
 #pragma once
 
-#include <bits/stdint-uintn.h>
-
 #include <cstddef>
 #include <initializer_list>
 #include <iostream>
@@ -19,13 +17,13 @@ class Fonts {
     // to make the alignment uniform, find maximum height
     const int maxh = (*std::max_element(_fonts.begin(), _fonts.end(),
                                         [](const auto& l, const auto& r) {
-                                          return l->height < r->height;
+                                          return l->height() < r->height();
                                         }))
-                         ->height;
+                         ->height();
 
     // set maximum height to all fonts
     for (auto& font : _fonts) {
-      font->height = maxh;
+      font->height(maxh);
     }
   }
 

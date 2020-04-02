@@ -1,7 +1,5 @@
 #pragma once
 
-#include <bits/stdint-uintn.h>  // int_t
-
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -19,17 +17,6 @@
 #include "pixmap.h"
 #include "queue.h"
 #include "window.h"
-
-/** dimension_t
- * Utility struct for passing dimensions to bar_t.
- * NOTE: origin_{x,y} refers to the coordinate pair for the top left pixel.
- */
-struct dimension_t {
-  size_t origin_x;
-  size_t origin_y;
-  size_t width;
-  size_t height;
-};
 
 
 /**
@@ -84,14 +71,14 @@ class Section {
 template <typename Left, typename Middle, typename Right>
 class Bar {
  public:
-  Bar(dimension_t&& d, BarColors&& colors, Fonts&& fonts, Left left,
+  Bar(rectangle_t&& d, BarColors&& colors, Fonts&& fonts, Left left,
       Middle middle, Right right);
 
   void operator()();
 
  private:
   StaticWorkQueue<size_t> _work;
-  size_t _origin_x, _origin_y, _width, _height;
+  size_t _width, _height;
   DS& _ds;
   BarWindow _win;
   Section<Left> _left;
@@ -102,23 +89,19 @@ class Bar {
 };
 
 template <typename Left, typename Middle, typename Right>
-Bar<Left, Middle, Right>::Bar(dimension_t&& d, BarColors&& colors,
+Bar<Left, Middle, Right>::Bar(rectangle_t&& d, BarColors&& colors,
                               Fonts&& fonts, Left left, Middle middle,
                               Right right)
-    : _origin_x(d.origin_x)
-    , _origin_y(d.origin_y)
-    , _width(d.width)
+    : _width(d.width)
     , _height(d.height)
     , _ds(DS::Instance())
-    , _win(std::move(colors), std::move(fonts), _origin_x, _origin_y, _width,
-           _height)
+    , _win(std::move(colors), std::move(fonts), d)
     , _left(&_work, &_win, std::move(left))
     , _middle(&_work, &_win, std::move(middle))
     , _right(&_work, &_win, std::move(right))
     , _bar_event_thread([this] {
       while (true) {
-        std::unique_ptr<xcb_generic_event_t, decltype(std::free)*> ev{
-            _ds.wait_for_event(), std::free};
+        auto ev = _ds.wait_for_event();
         // TODO: hover action with XCB_MOTION_NOTIFY
         if (ev && (ev->response_type & 0x7F) == XCB_BUTTON_PRESS) {
           auto* press = reinterpret_cast<xcb_button_press_event_t*>(ev.get());

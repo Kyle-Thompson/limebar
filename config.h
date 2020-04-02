@@ -9,6 +9,6 @@ constexpr const char* WM_NAME = nullptr;
 constexpr std::string_view WM_CLASS = "limebar";
 
 // specify the display server to use. (currently only supports X)
-using DS = X;
+using DS = X11;
 
-using FontColor = typename DS::font_color;
+using FontColor = typename DS::font_color_t;

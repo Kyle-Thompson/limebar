@@ -21,7 +21,7 @@ class mod_workspaces : public DynamicModule<mod_workspaces> {
 
   xcb_connection_t* conn;
   xcb_atom_t current_desktop;
-  X& x;
+  X11& x;
 
   uint32_t cur_desktop{0};
   std::vector<std::string> names;
