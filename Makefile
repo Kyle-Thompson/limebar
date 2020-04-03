@@ -7,7 +7,7 @@ CFWARN    = -Weverything -Wno-c++98-compat -Wno-c++98-compat-pedantic
 CFREL     = -O3 -flto
 
 EXEC = limebar
-SRCS = limebar.cpp x.cpp modules/windows.cpp modules/workspaces.cpp modules/clock.cpp color.cpp window.cpp
+SRCS = limebar.cpp x.cpp modules/windows.cpp modules/workspaces.cpp modules/clock.cpp color.cpp window.cpp pixmap.cpp
 OBJS = ${SRCS:.cpp=.o}
 
 PREFIX ?= /usr
