@@ -1,4 +1,6 @@
-CC        = clang++
+proj_dir := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+
+CC        = clang++ -isystem ${proj_dir}lib/range-v3/include
 LIB       = -stdlib=libc++
 CFLAGS   += -std=c++20 -I/usr/include/freetype2
 LDFLAGS  += -lxcb -lxcb-xrm -lX11 -lX11-xcb -lXft -lfreetype -lfontconfig -lpthread

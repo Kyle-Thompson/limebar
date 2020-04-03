@@ -1,17 +1,12 @@
 #pragma once
 
-#include <algorithm>
 #include <string>
-#include <tuple>
 #include <vector>
 
 #include "bar_color.h"
 #include "config.h"
 #include "font.h"
 #include "types.h"
-
-using ucs2 = std::vector<uint16_t>;
-using ucs2_and_width = std::pair<ucs2, size_t>;
 
 // TODO: create a wrapper class that only allows appending and not clearing to
 // limit access to what modules can do when getting a ModulePixmap

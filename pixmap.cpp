@@ -1,4 +1,8 @@
+#include <range/v3/view/transform.hpp>
+#include <range/v3/numeric/accumulate.hpp>
+
 #include "pixmap.h"
+
 
 ucs2 utf8_to_ucs2(const std::string& text) {
   ucs2 str;
@@ -94,24 +98,18 @@ ModulePixmap::write(const segment_t& seg) {
   using FontType = typename Fonts::Font;
   using StringContainer = std::tuple<ucs2, FontType*, size_t>;
 
-  const std::vector<StringContainer> ucs2_vec = [&] {
-    std::vector<StringContainer> vec;
-    vec.reserve(seg.segments.size());
-    std::transform(seg.segments.begin(), seg.segments.end(),
-                   std::back_inserter(vec),
-                   [this](const auto& s) -> StringContainer { 
-                       ucs2 str = utf8_to_ucs2(s.str);
-                       FontType* font = _fonts->drawable_font(str[0]);
-                       return {str, font, font->string_size(str)};
-                   });
-    return vec;
-  }();
+  const auto ucs2_vec = seg.segments
+      | ranges::views::transform([this](const auto& s) -> StringContainer {
+             ucs2 str = utf8_to_ucs2(s.str);
+             FontType* font = _fonts->drawable_font(str[0]);
+             return {str, font, font->string_size(str)};
+         });
 
   const size_t total_size =
-      std::accumulate(ucs2_vec.cbegin(), ucs2_vec.cend(), 0,
-                      [](size_t cur, const StringContainer& p) {
-                        return cur + std::get<2>(p);
-                      });
+      ranges::accumulate(ucs2_vec, 0,
+                         [](size_t cur, const StringContainer& p) {
+                           return cur + std::get<2>(p);
+                         });
 
   if (_used + total_size <= _width) {
     for (size_t i = 0; i < ucs2_vec.size(); ++i) {
