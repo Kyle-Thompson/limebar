@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cppcoro/generator.hpp>
+
 #include <array>
 #include <condition_variable>
 #include <functional>
@@ -9,7 +11,8 @@
 #include <type_traits>
 #include <vector>
 
-#include "../pixmap.h"
+#include "../types.h"
+
 
 template <typename Mod>
 class DynamicModule {
@@ -31,10 +34,14 @@ class DynamicModule {
     _queues.push_back(std::forward<std::function<void()>>(queue));
   }
 
-  void get(ModulePixmap* px) const {
-    // TODO: use reader/writer lock
+
+  cppcoro::generator<segment_t> get() const {
+    // TODO: Converting to coroutines likely breaks the thread safety given by
+    // this lock. If this proves to be an issue, pass the lock to the extract
+    // function for it to lock. That being said, this won't be an issue when all
+    // threads are completely replaced with coroutines anyway.
     std::unique_lock lock{_mutex};
-    static_cast<const Mod&>(*this).extract(px);
+    return static_cast<const Mod&>(*this).extract();
   }
 
  private:
@@ -54,13 +61,12 @@ class StaticModule {
   // TODO: can we avoid having to call these functions for StaticModule?
   void operator()() {}
   void subscribe(std::function<void()>&&) {}
-  void get(ModulePixmap* px) const {
-    static_cast<const Mod&>(*this).extract(px);
+  cppcoro::generator<segment_t> get() const {
+    return static_cast<const Mod&>(*this).extract();
   }
 };
 
 
-// TODO: Specialize on StaticModule to not spawn a thread
 template <typename Mod, typename = void>
 class ModuleContainer {
  public:

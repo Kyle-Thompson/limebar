@@ -15,7 +15,7 @@ class mod_workspaces : public DynamicModule<mod_workspaces> {
   mod_workspaces();
 
  private:
-  void extract(ModulePixmap* px) const;
+  cppcoro::generator<segment_t> extract() const;
   void trigger();
   void update();
 

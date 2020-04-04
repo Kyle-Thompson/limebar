@@ -23,8 +23,8 @@ mod_workspaces::mod_workspaces()
   xcb_flush(conn);
 }
 
-void
-mod_workspaces::extract(ModulePixmap *px) const {
+cppcoro::generator<segment_t>
+mod_workspaces::extract() const {
   for (int i = 0; i < names.size(); ++i) {
     text_segment_t text_seg{
         .str = names[i] + ' ',
@@ -32,7 +32,7 @@ mod_workspaces::extract(ModulePixmap *px) const {
 
     segment_t seg{.segments{text_seg},
                   .action = [this, i](uint8_t button) { x.switch_desktop(i); }};
-    px->write(seg);
+    co_yield seg;
   }
 }
 

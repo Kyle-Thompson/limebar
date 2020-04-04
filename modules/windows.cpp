@@ -33,8 +33,8 @@ mod_windows::~mod_windows() {
   xcb_disconnect(_conn);
 }
 
-void
-mod_windows::extract(ModulePixmap *px) const {
+cppcoro::generator<segment_t>
+mod_windows::extract() const {
   for (const window_t &window : _windows) {
     if (window.workspace != _current_workspace) {
       continue;
@@ -49,7 +49,7 @@ mod_windows::extract(ModulePixmap *px) const {
                   .action = [this, &window](uint8_t button) {
                     _x.activate_window(window.id);
                   }};
-    px->write(seg);
+    co_yield seg;
   }
 }
 

@@ -6,6 +6,7 @@
 #include <string>
 
 #include "module.h"
+#include "../x.h"
 
 // TODO: make special window container
 
@@ -23,7 +24,7 @@ class mod_windows : public DynamicModule<mod_windows> {
   ~mod_windows();
 
  private:
-  void extract(ModulePixmap* px) const;
+  cppcoro::generator<segment_t> extract() const;
   void trigger();
   void update();
 

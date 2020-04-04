@@ -52,7 +52,18 @@ class Section {
 
   const ModulePixmap& collect() {
     _pixmap.clear();
-    std::apply([this](auto&&... mods) { (mods.get(&_pixmap), ...); }, _modules);
+    std::apply(
+        [this](auto&&... mods) {
+          // TODO: use ranges to get -> ((mods.get() | _pixmap), ...)
+          (
+              [&] {
+                for (auto&& s : mods.get()) {
+                  _pixmap.write(s);
+                }
+              }(),
+              ...);
+        },
+        _modules);
     return _pixmap;
   }
 

@@ -11,10 +11,10 @@ constexpr static std::array<const char*, 12> months{
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 };
 
-void
-mod_clock::extract(ModulePixmap* px) const {
-  px->write({.segments{{.str = current_time.data(), .color = ACCENT_COLOR},
-                       {.str = current_date.data(), .color = NORMAL_COLOR}}});
+cppcoro::generator<segment_t>
+mod_clock::extract() const {
+  co_yield {.segments{{.str = current_time.data(), .color = ACCENT_COLOR},
+                      {.str = current_date.data(), .color = NORMAL_COLOR}}};
 }
 
 void
