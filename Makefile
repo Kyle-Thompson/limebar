@@ -1,7 +1,11 @@
 proj_dir := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-CC        = clang++ -isystem ${proj_dir}lib/range-v3/include
-LIB       = -stdlib=libc++
+CC        = clang++
+STDLIB    = -stdlib=libc++
+# TODO: define LIBS in a loop
+LIBS      =
+LIBS     += -isystem ${proj_dir}lib/cppcoro/include
+LIBS     += -isystem ${proj_dir}lib/range-v3/include
 CFLAGS   += -std=c++20 -I/usr/include/freetype2
 LDFLAGS  += -lxcb -lxcb-xrm -lX11 -lX11-xcb -lXft -lfreetype -lfontconfig -lpthread
 CFDEBUG   = -Wall -g3
@@ -18,10 +22,10 @@ BINDIR  = ${PREFIX}/bin
 all: ${EXEC}
 
 .cpp.o:
-	${CC} ${LIB} ${CFLAGS} -o $@ -c $<
+	${CC} ${LIBS} ${STDLIB} ${CFLAGS} -o $@ -c $<
 
 ${EXEC}: ${OBJS}
-	${CC} ${LIB} -o ${EXEC} ${OBJS} ${LDFLAGS}
+	${CC} ${STDLIB} -o ${EXEC} ${OBJS} ${LDFLAGS}
 
 debug: ${EXEC}
 debug: CFLAGS += ${CFDEBUG}
