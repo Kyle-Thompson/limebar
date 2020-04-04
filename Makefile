@@ -1,13 +1,11 @@
 proj_dir := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+lib_dir  := ${proj_dir}lib/
 
 CC        = clang++
 STDLIB    = -stdlib=libc++
-# TODO: define LIBS in a loop
-LIBS      =
-LIBS     += -isystem ${proj_dir}lib/cppcoro/include
-LIBS     += -isystem ${proj_dir}lib/range-v3/include
-CFLAGS   += -std=c++20 -I/usr/include/freetype2
-LDFLAGS  += -lxcb -lxcb-xrm -lX11 -lX11-xcb -lXft -lfreetype -lfontconfig -lpthread
+LIBS      = $(foreach d, $(shell ls $(lib_dir)),-isystem ${lib_dir}$(d)/include)
+CFLAGS    = -std=c++20 -I/usr/include/freetype2
+LDFLAGS   = -lxcb -lxcb-xrm -lX11 -lX11-xcb -lXft -lfreetype -lfontconfig -lpthread
 CFDEBUG   = -Wall -g3
 CFWARN    = -Weverything -Wno-c++98-compat -Wno-c++98-compat-pedantic
 CFREL     = -O3 -flto
