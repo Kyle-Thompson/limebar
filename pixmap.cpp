@@ -83,8 +83,8 @@ ModulePixmap::append(const ModulePixmap& rhs) {
 
 
 void
-ModulePixmap::click(size_t x, uint8_t button) {
-  for (auto& area : _areas) {
+ModulePixmap::click(size_t x, uint8_t button) const {
+  for (const auto& area : _areas) {
     if (x >= area.begin && x <= area.end) {
       area.action(button);
       break;

@@ -27,7 +27,7 @@ class ModulePixmap {
   void append(const ModulePixmap& rhs);
   void write(const segment_t& seg);
 
-  void click(size_t x, uint8_t button);
+  void click(size_t x, uint8_t button) const;
 
  private:
   uint16_t _used;
