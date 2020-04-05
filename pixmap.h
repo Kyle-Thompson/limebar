@@ -8,8 +8,6 @@
 #include "font.h"
 #include "types.h"
 
-// TODO: create a wrapper class that only allows appending and not clearing to
-// limit access to what modules can do when getting a ModulePixmap
 class ModulePixmap {
  public:
   ModulePixmap(DS::pixmap_t pixmap, BarColors* colors, Fonts* fonts,

@@ -3,7 +3,6 @@
 #include <array>
 #include <cstddef>  // size_t
 #include <memory>
-#include <thread>
 
 #include "bar_color.h"
 #include "config.h"
