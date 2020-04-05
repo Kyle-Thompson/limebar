@@ -79,7 +79,6 @@ class X11 {
   uint32_t generate_id() { return xcb_generate_id(_connection); }
 
   Display* _display;
-  // TODO: use unique_ptr
   xcb_connection_t* _connection;
   xcb_screen_t* _screen;
 
@@ -131,11 +130,11 @@ class X11::font_t {
   bool has_glyph(uint16_t ch);
   size_t string_size(const ucs2& str);
 
-  int descent() const { return _descent; }
-  int height() const { return _height; }
+  [[nodiscard]] int descent() const { return _descent; }
+  [[nodiscard]] int height() const { return _height; }
+  [[nodiscard]] int offset() const { return _offset; }
+
   void height(int h) { _height = h; }
-  int offset() const { return _offset; }
-  XftFont* xft_font() { return _xft_ft; }
 
  private:
   friend X11;
