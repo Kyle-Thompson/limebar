@@ -1,11 +1,8 @@
 #include "x.h"
 
-#include <X11/Xatom.h>
-#include <X11/Xft/Xft.h>
-#include <X11/Xlib-xcb.h>
-#include <X11/Xutil.h>
 #include <xcb/randr.h>
 #include <xcb/xcb.h>
+#include <xcb/xcb_ewmh.h>
 #include <xcb/xcb_xrm.h>
 
 #include <cstdlib>
@@ -44,13 +41,13 @@ static constexpr std::array<const char*, atom_names_size> atom_names{
 };
 
 std::pair<xcb_visualid_t, Visual*>
-X11::get_visual() {
+X11::get_xlib_visual() {
   XVisualInfo xv{.depth = 32};
   int results = 0;
-  std::unique_ptr<XVisualInfo, decltype(XFree)*> result_ptr{
-      XGetVisualInfo(_display, VisualDepthMask, &xv, &results), XFree};
+  auto *visual_info = XGetVisualInfo(_display, VisualDepthMask, &xv, &results);
+  std::unique_ptr<XVisualInfo, decltype(XFree)*> result_ptr{visual_info, XFree};
 
-  using ret_t = decltype(get_visual());
+  using ret_t = decltype(get_xlib_visual());
   return results > 0 ? ret_t(result_ptr->visualid, result_ptr->visual)
                      : ret_t(_screen->root_visual, DefaultVisual(_display, 0));
 }
@@ -67,13 +64,19 @@ X11::X11() {
     exit(EXIT_FAILURE);
   }
 
+  auto* ewmh_cookie = xcb_ewmh_init_atoms(_connection, &_ewmh);
+  if (xcb_ewmh_init_atoms_replies(&_ewmh, ewmh_cookie, nullptr) == 0) {
+    std::cerr << "Couldn't initialize EWMH atoms\n";
+    exit(EXIT_FAILURE);
+  }
+
   XSetEventQueueOwner(_display, XCBOwnsEventQueue);
 
   _screen = xcb_setup_roots_iterator(xcb_get_setup(_connection)).data;
-  std::tie(_visual, _visual_ptr) = get_visual();
+  std::tie(_xlib_visual, _xlib_visual_ptr) = get_xlib_visual();
   _colormap = xcb_generate_id(_connection);
   xcb_create_colormap(_connection, XCB_COLORMAP_ALLOC_NONE, _colormap,
-                      _screen->root, _visual);
+                      _screen->root, _xlib_visual);
   _gc_bg = generate_id();
 }
 
@@ -81,6 +84,7 @@ X11::~X11() {
   if (_gc_bg > 1) {
     xcb_free_gc(_connection, _gc_bg);
   }
+  xcb_ewmh_connection_wipe(&_ewmh);
   if (_connection != nullptr) {
     xcb_disconnect(_connection);
   }
@@ -101,53 +105,20 @@ X11::init() {
 }
 
 void
-X11::activate_window(Window win) {
-  // TODO: why do we need a new display here? why not use X11's display member?
-  Display* disp = XOpenDisplay(nullptr);
-
-  XEvent event;
-  int64_t mask = SubstructureRedirectMask | SubstructureNotifyMask;
-
-  event.xclient = {
-      .type = ClientMessage,
-      .serial = 0,
-      .send_event = True,
-      .display = disp,
-      .window = win,
-      .message_type = XInternAtom(disp, "_NET_ACTIVE_WINDOW", False),
-      .format = 32,
-      .data = {{
-          0,
-      }}};
-
-  XSendEvent(disp, DefaultRootWindow(disp), False, mask, &event);
-  XMapRaised(disp, win);
-  XCloseDisplay(disp);
+X11::activate_window(xcb_window_t window) {
+  const xcb_ewmh_client_source_type_t source_indication =
+      XCB_EWMH_CLIENT_SOURCE_TYPE_NORMAL;
+  const xcb_timestamp_t timestamp{};
+  xcb_ewmh_request_change_active_window(&_ewmh, 0, window, source_indication,
+                                        timestamp, get_active_window());
+  xcb_flush(_connection);
 }
 
 void
-X11::switch_desktop(int desktop) {
-  // TODO: why do we need a new display here? why not use X11's display member?
-  Display* disp = XOpenDisplay(nullptr);
-  Window win = DefaultRootWindow(disp);
-
-  XEvent event;
-  event.xclient = {
-      .type = ClientMessage,
-      .serial = 0,
-      .send_event = True,
-      .display = disp,
-      .window = win,
-      .message_type = XInternAtom(disp, "_NET_CURRENT_DESKTOP", False),
-      .format = 32,
-      .data = {{
-          0,
-      }}};
-  event.xclient.data.l[0] = desktop;
-
-  int64_t mask = SubstructureRedirectMask | SubstructureNotifyMask;
-  XSendEvent(disp, win, False, mask, &event);
-  XCloseDisplay(disp);
+X11::switch_desktop(uint8_t desktop) {
+  const xcb_timestamp_t timestamp{};
+  xcb_ewmh_request_change_current_desktop(&_ewmh, 0, desktop, timestamp);
+  xcb_flush(_connection);
 }
 
 X11::font_color_t
@@ -169,14 +140,15 @@ X11::create_window(rectangle_t dim, const rgba_t& rgb, bool reserve_space) {
   const uint32_t value_mask = XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL |
                               XCB_CW_OVERRIDE_REDIRECT | XCB_CW_EVENT_MASK |
                               XCB_CW_COLORMAP;
-  const std::array<uint32_t, 5> mask{
+  const std::array<uint32_t, 5> value_list{
       *rgb.val(), *rgb.val(), FORCE_DOCK,
       XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS |
           XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE,
       _colormap};
+  const uint16_t border_width = 0;
   xcb_create_window(_connection, get_depth(), win._id, _screen->root, x, y,
-                    width, height, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, _visual,
-                    value_mask, mask.data());
+                    width, height, border_width, XCB_WINDOW_CLASS_INPUT_OUTPUT,
+                    _xlib_visual, value_mask, value_list.data());
 
   if (!reserve_space) {
     return win;
@@ -273,16 +245,6 @@ X11::wait_for_event() {
   return {xcb_wait_for_event(_connection), std::free};
 }
 
-Window
-X11::get_default_root_window() {
-  return DefaultRootWindow(_display);
-}
-
-Atom
-X11::get_intern_atom() {
-  return XInternAtom(_display, "UTF8_STRING", 0);
-}
-
 xcb_intern_atom_cookie_t
 X11::get_atom_by_name(const char* name) {
   return xcb_intern_atom(_connection, 0, strlen(name), name);
@@ -290,96 +252,86 @@ X11::get_atom_by_name(const char* name) {
 
 
 std::string
-X11::get_window_title(Window win) {
-  XClassHint hint;
-  XGetClassHint(_display, win, &hint);
-  std::string ret(hint.res_class);
-  if (hint.res_class != nullptr) {
-    XFree(hint.res_class);
-  }
-  if (hint.res_name != nullptr) {
-    XFree(hint.res_name);
-  }
-  return ret;
+X11::get_window_title(xcb_window_t win) {
+  // TODO: error checking
+  constexpr uint32_t length = 32;  // length * 4 = amount of bytes returned
+  auto cookie = xcb_get_property(_connection, False, win, XCB_ATOM_WM_CLASS,
+                                 XCB_ATOM_STRING, 0, length);
+  std::unique_ptr<xcb_get_property_reply_t, decltype(std::free)*> reply {
+      xcb_get_property_reply(_connection, cookie, nullptr), std::free};
+  char* c_str = static_cast<char *>(xcb_get_property_value(reply.get()));
+
+  // XCB_ATOM_WM_CLASS returns two names where the second is more useful
+  return {c_str + strlen(c_str) + 1 /* NULL byte */};
 }
 
 
-std::vector<Window>
+std::vector<xcb_window_t>
 X11::get_windows() {
-  Window root = get_default_root_window();
-  auto client_list =
-      get_property<Window>(root, XA_WINDOW, "_NET_CLIENT_LIST")
-          ?: get_property<Window>(root, XA_CARDINAL, "_WIN_CLIENT_LIST");
-
-  if (!client_list) {
-    std::cerr << "Cannot get client list properties. "
-                 "(_NET_CLIENT_LIST or _WIN_CLIENT_LIST)\n";
-    exit(EXIT_FAILURE);
+  xcb_ewmh_get_windows_reply_t clients{};
+  xcb_get_property_cookie_t cookie = xcb_ewmh_get_client_list(&_ewmh, 0);
+  xcb_ewmh_get_client_list_reply(&_ewmh, cookie, &clients, nullptr);
+  std::vector<xcb_window_t> windows;
+  // TODO: use constructor to do this in one line
+  for (int i = 0; i < clients.windows_len; ++i) {
+    windows.push_back(clients.windows[i]);
   }
-
-  return *client_list;
+  return windows;
 }
 
 
-Window
+xcb_window_t
 X11::get_active_window() {
-  Window root = get_default_root_window();
-  const char* query = "_NET_ACTIVE_WINDOW";
-  return get_property<Window>(root, XA_WINDOW, query).value().at(0);
+  // TODO: error checking
+  xcb_window_t active_window = 0;
+  xcb_get_property_cookie_t cookie = xcb_ewmh_get_active_window(&_ewmh, 0);
+  xcb_ewmh_get_active_window_reply(&_ewmh, cookie, &active_window, nullptr);
+  return active_window;
 }
 
 
 std::vector<std::string>
 X11::get_workspace_names() {
-  Window root = get_default_root_window();
-  auto atom = get_intern_atom();
-  // TODO: holy shit this is hacky. Fix this.
-  // likely solution: create specification on string to avoid this
-  auto vec = get_property<char>(root, atom, "_NET_DESKTOP_NAMES").value();
-  char* chars = vec.data();
-  std::vector<std::string> names;
-  for (char* str = chars; str - chars < vec.size(); str += strlen(str) + 1) {
-    names.emplace_back(str);
+  xcb_ewmh_get_utf8_strings_reply_t names;
+  xcb_get_property_cookie_t cookie = xcb_ewmh_get_desktop_names(&_ewmh, 0);
+  xcb_ewmh_get_desktop_names_reply(&_ewmh, cookie, &names, nullptr);
+
+  std::vector<std::string> ret;
+  char* c_str = names.strings;
+  for (size_t i = 0; i < names.strings_len;) {
+    std::string& s = ret.emplace_back(c_str);
+    c_str += s.size() + 1;
+    i += s.size() + 1;
   }
-  return names;
+  return ret;
 }
 
 
 uint32_t
 X11::get_current_workspace() {
-  Window root = get_default_root_window();
-  auto cur_desktop =
-      get_property<uint64_t>(root, XA_CARDINAL, "_NET_CURRENT_DESKTOP")
-          ?: get_property<uint64_t>(root, XA_CARDINAL, "_WIN_WORKSPACE");
-
-  if (!cur_desktop) {
-    std::cerr << "Cannot get current desktop properties. "
-                 "(_NET_CURRENT_DESKTOP or _WIN_WORKSPACE property)\n";
-    exit(EXIT_FAILURE);
-  }
-
-  return cur_desktop.value().at(0);
+  // TODO: error checking
+  uint32_t current_desktop = 0;
+  xcb_get_property_cookie_t cookie = xcb_ewmh_get_current_desktop(&_ewmh, 0);
+  xcb_ewmh_get_current_desktop_reply(&_ewmh, cookie, &current_desktop, nullptr);
+  return current_desktop;
 }
 
 
 std::optional<uint32_t>
-X11::get_workspace_of_window(Window window) {
-  auto p = get_property<uint32_t>(window, XA_CARDINAL, "_NET_WM_DESKTOP");
-  if (!p.has_value()) {
-    std::cerr << "No desktop found for window " << get_window_title(window)
-              << " (" << window << ")\n";
-    return std::nullopt;
-  }
-  return p.value()[0];
+X11::get_workspace_of_window(xcb_window_t window) {
+  // TODO: error checking
+  uint32_t desktop = 0;
+  xcb_get_property_cookie_t cookie = xcb_ewmh_get_wm_desktop(&_ewmh, window);
+  xcb_ewmh_get_wm_desktop_reply(&_ewmh, cookie, &desktop, nullptr);
+  return desktop;
 }
 
 
 X11::font_color_t::font_color_t(X11* x, const rgba_t& rgb)
-    : _x(x)
-    , _color([this, rgb] {
+    : _x(x), _color([this, rgb] {
       XftColor color;
       // TODO: use XftColorAllocValue instead
-      if (XftColorAllocName(_x->_display, _x->_visual_ptr, _x->_colormap,
+      if (XftColorAllocName(_x->_display, _x->_xlib_visual_ptr, _x->_colormap,
                             rgb.get_str(), &color) == 0) {
         std::cerr << "Couldn't allocate xft color " << rgb.get_str() << "\n";
       }
@@ -388,13 +340,12 @@ X11::font_color_t::font_color_t(X11* x, const rgba_t& rgb)
 }
 
 X11::font_color_t::~font_color_t() {
-  XftColorFree(_x->_display, _x->_visual_ptr, _x->_colormap, &_color);
+  XftColorFree(_x->_display, _x->_xlib_visual_ptr, _x->_colormap, &_color);
 }
 
 
 X11::font_t::font_t(Display* dpy, const char* pattern, int offset)
-    : _display(dpy)
-    , _xft_ft(XftFontOpenName(_display, 0, pattern)) {
+    : _display(dpy), _xft_ft(XftFontOpenName(_display, 0, pattern)) {
   if (_xft_ft == nullptr) {
     std::cerr << "Could not load font " << pattern << "\n";
     exit(EXIT_FAILURE);
@@ -542,12 +493,12 @@ X11::pixmap_t::copy_from(const pixmap_t& rhs, coordinate_t src,
 
 XftDraw*
 X11::pixmap_t::create_xft_draw() const {
-  return XftDrawCreate(_x->_display, _id, _x->_visual_ptr, _x->_colormap);
+  return XftDrawCreate(_x->_display, _id, _x->_xlib_visual_ptr, _x->_colormap);
 }
 
 
-X11::rdb_t::rdb_t(X11* x)
-    : _db(xcb_xrm_database_from_default(x->_connection)) {}
+X11::rdb_t::rdb_t(X11* x) : _db(xcb_xrm_database_from_default(x->_connection)) {
+}
 
 X11::rdb_t::~rdb_t() {
   if (_db != nullptr) {
@@ -555,10 +506,10 @@ X11::rdb_t::~rdb_t() {
   }
 }
 
-X11::rdb_t::rdb_t(rdb_t&& rhs) noexcept
-    : _db(std::exchange(rhs._db, nullptr)) {}
+X11::rdb_t::rdb_t(rdb_t&& rhs) noexcept : _db(std::exchange(rhs._db, nullptr)) {
+}
 
-template<>
+template <>
 std::string
 X11::rdb_t::get<std::string>(const char* query) {
   char* str = nullptr;
@@ -572,12 +523,10 @@ X11::rdb_t::get<std::string>(const char* query) {
 // helpers
 xcb_atom_t
 get_atom(xcb_connection_t* conn, const char* name) {
+  auto str_len = static_cast<uint16_t>(strlen(name));
+  auto cookie = xcb_intern_atom(conn, 0, str_len, name);
   std::unique_ptr<xcb_intern_atom_reply_t, decltype(std::free)*> reply{
-      xcb_intern_atom_reply(
-          conn,
-          xcb_intern_atom(conn, 0, static_cast<uint16_t>(strlen(name)), name),
-          nullptr),
-      std::free};
+      xcb_intern_atom_reply(conn, cookie, nullptr), std::free};
   return reply ? reply->atom : XCB_NONE;
 }
 

@@ -20,7 +20,7 @@ class mod_workspaces : public DynamicModule<mod_workspaces> {
   void update();
 
   xcb_connection_t* conn;
-  xcb_atom_t current_desktop;
+  const xcb_atom_t current_desktop;
   X11& x;
 
   uint32_t cur_desktop{0};

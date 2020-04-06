@@ -1,6 +1,5 @@
 #pragma once
 
-#include <X11/Xatom.h>
 #include <xcb/xcb.h>
 
 #include <string>
@@ -14,7 +13,7 @@ class mod_windows : public DynamicModule<mod_windows> {
   friend class DynamicModule<mod_windows>;
 
   struct window_t {
-    Window id;
+    xcb_window_t id;
     xcb_atom_t workspace;
     std::string title;
   };
@@ -34,6 +33,6 @@ class mod_windows : public DynamicModule<mod_windows> {
   X11& _x;
 
   unsigned long _current_workspace{0};
-  Window _current_window{0};
+  xcb_window_t _current_window{0};
   std::vector<window_t> _windows;
 };

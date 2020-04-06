@@ -2,13 +2,14 @@
 
 // TODO: switch completely to xcb from X11 libraries
 
-#include <X11/Xatom.h>
 #include <X11/Xft/Xft.h>
 #include <X11/Xlib-xcb.h>
 #include <X11/Xlib.h>
 #include <fontconfig/fontconfig.h>
 #include <xcb/xcb.h>
+#include <xcb/xcb_ewmh.h>
 #include <xcb/xcb_xrm.h>
+#include <xcb/xproto.h>
 
 #include <iostream>
 #include <mutex>
@@ -41,13 +42,14 @@ class X11 {
   ~X11();
 
   // actions
-  void activate_window(Window win);
-  void switch_desktop(int desktop);
+  void activate_window(xcb_window_t window);
+  void switch_desktop(uint8_t desktop);
 
   // resource creators
   auto create_font_color(const rgba_t& rgb) -> font_color_t;
   auto create_font(const char* pattern, int offset = 0) -> font_t;
-  auto create_window(rectangle_t dim, const rgba_t& rgb, bool reserve_space) -> window_t;
+  auto create_window(rectangle_t dim, const rgba_t& rgb, bool reserve_space)
+      -> window_t;
   auto create_resource_database() -> rdb_t;
 
   // events
@@ -55,38 +57,34 @@ class X11 {
   std::unique_ptr<xcb_generic_event_t, decltype(std::free)*> wait_for_event();
 
   // queries
-  auto get_windows() -> std::vector<Window>;
-  auto get_active_window() -> Window;  // TODO: what if no window is selected?
-  auto get_window_title(Window win) -> std::string;
+  auto get_windows() -> std::vector<xcb_window_t>;
+  auto get_active_window() -> xcb_window_t;  // TODO: what if no window is selected?
+  auto get_window_title(xcb_window_t win) -> std::string;
   auto get_workspace_names() -> std::vector<std::string>;
   auto get_current_workspace() -> uint32_t;
-  auto get_workspace_of_window(Window window) -> std::optional<uint32_t>;
+  auto get_workspace_of_window(xcb_window_t window) -> std::optional<uint32_t>;
 
  private:
   X11();
 
   // query internal X state
-  template <typename T>
-  auto get_property(Window win, Atom xa_prop_type, const char* prop_name)
-      -> std::optional<std::vector<T>>;
   uint8_t get_depth() {
-    return (_visual == _screen->root_visual) ? XCB_COPY_FROM_PARENT : 32;
+    return (_xlib_visual == _screen->root_visual) ? XCB_COPY_FROM_PARENT : 32;
   }
-  auto get_default_root_window() -> Window;
-  auto get_visual() -> std::pair<xcb_visualid_t, Visual*>;
+  auto get_xlib_visual() -> std::pair<xcb_visualid_t, Visual*>;
   auto get_atom_by_name(const char* name) -> xcb_intern_atom_cookie_t;
-  auto get_intern_atom() -> Atom;
   uint32_t generate_id() { return xcb_generate_id(_connection); }
 
   Display* _display;
   xcb_connection_t* _connection;
+  xcb_ewmh_connection_t _ewmh;
   xcb_screen_t* _screen;
 
   xcb_gcontext_t _gc_bg;
   xcb_colormap_t _colormap;
 
-  Visual* _visual_ptr;
-  xcb_visualid_t _visual;
+  Visual* _xlib_visual_ptr;
+  xcb_visualid_t _xlib_visual;
 };
 
 
@@ -104,7 +102,7 @@ class X11::font_color_t {
   friend X11;
   font_color_t(X11* x, const rgba_t& rgb);
 
-  X11*  _x;
+  X11* _x;
   XftColor _color;
 };
 
@@ -220,38 +218,12 @@ class X11::rdb_t {
   rdb_t& operator=(const rdb_t&) = delete;
   rdb_t& operator=(rdb_t&&) noexcept;
 
-  template<typename T>
+  template <typename T>
   T get(const char* query);
 
  private:
   xcb_xrm_database_t* _db;
 };
-
-
-template <typename T>
-std::optional<std::vector<T>>
-X11::get_property(Window win, Atom xa_prop_type, const char* prop_name) {
-  Atom xa_ret_type{};
-  int ret_format{};
-  uint64_t ret_nitems{};
-  uint64_t ret_bytes_after{};
-  unsigned char* ret_prop{};
-
-  Atom xa_prop_name = XInternAtom(_display, prop_name, False);
-
-  if (XGetWindowProperty(_display, win, xa_prop_name, 0, 1024, False,
-                         xa_prop_type, &xa_ret_type, &ret_format, &ret_nitems,
-                         &ret_bytes_after, &ret_prop) != Success) {
-    return std::nullopt;
-  }
-
-  if (xa_ret_type != xa_prop_type || ret_bytes_after > 0) {
-    XFree(ret_prop);
-    return std::nullopt;
-  }
-
-  return std::vector<T>((T*)ret_prop, (T*)(ret_prop + ret_nitems * sizeof(T)));
-}
 
 
 // helpers

@@ -5,7 +5,7 @@ CC        = clang++
 STDLIB    = -stdlib=libc++
 LIBS      = $(foreach d, $(shell ls $(lib_dir)),-isystem ${lib_dir}$(d)/include)
 CFLAGS    = -std=c++20 -I/usr/include/freetype2
-LDFLAGS   = -lxcb -lxcb-xrm -lX11 -lX11-xcb -lXft -lfreetype -lfontconfig -lpthread
+LDFLAGS   = -lxcb -lxcb-xrm -lxcb-ewmh -lX11 -lX11-xcb -lXft -lfreetype -lfontconfig -lpthread
 CFDEBUG   = -Wall -g3
 CFWARN    = -Weverything -Wno-c++98-compat -Wno-c++98-compat-pedantic
 CFREL     = -O3 -flto

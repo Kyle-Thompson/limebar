@@ -1,7 +1,5 @@
 #include "workspaces.h"
 
-#include <X11/X.h>
-#include <X11/Xatom.h>
 #include <xcb/xcb.h>
 
 #include <cstdio>
