@@ -66,18 +66,8 @@ template <typename Mods>
 const SectionPixmap&
 Section<Mods>::collect() {
   _pixmap.clear();
-  std::apply(
-      [this](auto&&... mods) {
-        // ((mods.get() | _pixmap), ...)
-        (
-            [&] {
-              for (const auto& s : mods.get()) {
-                _pixmap.write(s);
-              }
-            }(),
-            ...);
-      },
-      _modules);
+  std::apply([this](const auto&... mod) { ((mod.get() | _pixmap), ...); },
+             _modules);
   return _pixmap;
 }
 

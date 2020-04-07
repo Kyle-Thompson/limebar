@@ -37,3 +37,6 @@ class SectionPixmap {
   XftDraw* _xft_draw;
   std::vector<area_t> _areas;
 };
+
+void operator|(cppcoro::generator<const segment_t&> generator,
+               SectionPixmap& pixmap);
