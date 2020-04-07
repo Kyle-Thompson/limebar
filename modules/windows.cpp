@@ -8,12 +8,10 @@
 #include "../x.h"
 
 
-// TODO it's probably an issue to have two different x connections. (conn, _x)
-
 mod_windows::mod_windows()
-    : _conn(xcb_connect(nullptr, nullptr))
-    , _current_desktop(get_atom(_conn, "_NET_CURRENT_DESKTOP"))
-    , _active_window(get_atom(_conn, "_NET_ACTIVE_WINDOW"))
+    : _conn(get_connection())
+    , _current_desktop_atom(get_atom(_conn, "_NET_CURRENT_DESKTOP"))
+    , _active_window_atom(get_atom(_conn, "_NET_ACTIVE_WINDOW"))
     , _x(X11::Instance()) {
   if (xcb_connection_has_error(_conn)) {
     std::cerr << "Cannot X connection for workspaces daemon.\n";
@@ -30,22 +28,10 @@ mod_windows::~mod_windows() {
   xcb_disconnect(_conn);
 }
 
+// TODO: const segment_t&
 cppcoro::generator<segment_t>
 mod_windows::extract() const {
-  for (const window_t &window : _windows) {
-    if (window.workspace != _current_workspace) {
-      continue;
-    }
-
-    // TODO: use padding_t when available to replace padding with spaces
-    text_segment_t text_seg{
-        .str = window.title + ' ',
-        .color = (window.id == _current_window ? ACCENT_COLOR : NORMAL_COLOR)};
-
-    segment_t seg{.segments{text_seg},
-                  .action = [this, &window](uint8_t button) {
-                    _x.activate_window(window.id);
-                  }};
+  for (segment_t seg : _segments) {
     co_yield seg;
   }
 }
@@ -58,7 +44,7 @@ mod_windows::trigger() {
     if (ev && (ev->response_type & 0x7F) == XCB_PROPERTY_NOTIFY) {
       auto atom =
           reinterpret_cast<xcb_property_notify_event_t *>(ev.get())->atom;
-      if (atom == _active_window || atom == _current_desktop) {
+      if (atom == _active_window_atom || atom == _current_desktop_atom) {
         return;
       }
     }
@@ -67,20 +53,29 @@ mod_windows::trigger() {
 
 void
 mod_windows::update() {
-  _current_workspace = _x.get_current_workspace();
-  _current_window = _x.get_active_window();
+  uint32_t current_workspace = _x.get_current_workspace();
+  xcb_window_t current_window = _x.get_active_window();
 
-  _windows.clear();
-  for (auto window : _x.get_windows()) {
+  _segments.clear();
+  for (xcb_window_t window : _x.get_windows()) {
     std::string title = _x.get_window_title(window);
     if (title.empty()) {
       continue;
     }
 
     auto workspace = _x.get_workspace_of_window(window);
-    if (workspace.has_value()) {
-      _windows.push_back(
-          {.id = window, .workspace = *workspace, .title = std::move(title)});
+    if (!workspace.has_value() || workspace != current_workspace) {
+      continue;
     }
+
+    _segments.push_back(
+        {.segments{{.str = title + ' ',
+                    .color = (window == current_window ? ACCENT_COLOR
+                                                       : NORMAL_COLOR)}},
+         .action = [this, window](uint8_t button) {
+           if (button == 1) {
+             _x.activate_window(window);
+           }
+         }});
   }
 }

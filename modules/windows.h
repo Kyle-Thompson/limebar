@@ -12,27 +12,19 @@
 class mod_windows : public DynamicModule<mod_windows> {
   friend class DynamicModule<mod_windows>;
 
-  struct window_t {
-    xcb_window_t id;
-    xcb_atom_t workspace;
-    std::string title;
-  };
-
  public:
   mod_windows();
   ~mod_windows();
 
  private:
-  cppcoro::generator<segment_t> extract() const;
+  auto extract() const -> cppcoro::generator<segment_t>;
   void trigger();
   void update();
 
   xcb_connection_t* _conn;
-  const xcb_atom_t _current_desktop;
-  const xcb_atom_t _active_window;
+  const xcb_atom_t _current_desktop_atom;
+  const xcb_atom_t _active_window_atom;
   X11& _x;
 
-  uint32_t _current_workspace{0};
-  xcb_window_t _current_window{0};
-  std::vector<window_t> _windows;
+  std::vector<segment_t> _segments;
 };
