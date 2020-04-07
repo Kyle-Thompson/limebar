@@ -1,3 +1,5 @@
+#include <range/v3/range/conversion.hpp>
+
 #include "workspaces.h"
 
 #include <xcb/xcb.h>
@@ -50,5 +52,5 @@ mod_workspaces::trigger() {
 void
 mod_workspaces::update() {
   cur_desktop = x.get_current_workspace();
-  names = x.get_workspace_names();
+  names = x.get_workspace_names() | ranges::to_vector;
 }

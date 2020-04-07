@@ -71,7 +71,7 @@ mod_windows::update() {
   _current_window = _x.get_active_window();
 
   _windows.clear();
-  for (auto windows = _x.get_windows(); auto window : windows) {
+  for (auto window : _x.get_windows()) {
     std::string title = _x.get_window_title(window);
     if (title.empty()) {
       continue;

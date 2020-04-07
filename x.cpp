@@ -44,7 +44,7 @@ std::pair<xcb_visualid_t, Visual*>
 X11::get_xlib_visual() {
   XVisualInfo xv{.depth = 32};
   int results = 0;
-  auto *visual_info = XGetVisualInfo(_display, VisualDepthMask, &xv, &results);
+  auto* visual_info = XGetVisualInfo(_display, VisualDepthMask, &xv, &results);
   std::unique_ptr<XVisualInfo, decltype(XFree)*> result_ptr{visual_info, XFree};
 
   using ret_t = decltype(get_xlib_visual());
@@ -257,26 +257,22 @@ X11::get_window_title(xcb_window_t win) {
   constexpr uint32_t length = 32;  // length * 4 = amount of bytes returned
   auto cookie = xcb_get_property(_connection, False, win, XCB_ATOM_WM_CLASS,
                                  XCB_ATOM_STRING, 0, length);
-  std::unique_ptr<xcb_get_property_reply_t, decltype(std::free)*> reply {
+  std::unique_ptr<xcb_get_property_reply_t, decltype(std::free)*> reply{
       xcb_get_property_reply(_connection, cookie, nullptr), std::free};
-  char* c_str = static_cast<char *>(xcb_get_property_value(reply.get()));
+  char* c_str = static_cast<char*>(xcb_get_property_value(reply.get()));
 
   // XCB_ATOM_WM_CLASS returns two names where the second is more useful
   return {c_str + strlen(c_str) + 1 /* NULL byte */};
 }
 
-
-std::vector<xcb_window_t>
+cppcoro::generator<xcb_window_t>
 X11::get_windows() {
   xcb_ewmh_get_windows_reply_t clients{};
   xcb_get_property_cookie_t cookie = xcb_ewmh_get_client_list(&_ewmh, 0);
   xcb_ewmh_get_client_list_reply(&_ewmh, cookie, &clients, nullptr);
-  std::vector<xcb_window_t> windows;
-  // TODO: use constructor to do this in one line
   for (int i = 0; i < clients.windows_len; ++i) {
-    windows.push_back(clients.windows[i]);
+    co_yield clients.windows[i];
   }
-  return windows;
 }
 
 
@@ -290,20 +286,16 @@ X11::get_active_window() {
 }
 
 
-std::vector<std::string>
+cppcoro::generator<std::string>
 X11::get_workspace_names() {
   xcb_ewmh_get_utf8_strings_reply_t names;
   xcb_get_property_cookie_t cookie = xcb_ewmh_get_desktop_names(&_ewmh, 0);
   xcb_ewmh_get_desktop_names_reply(&_ewmh, cookie, &names, nullptr);
 
-  std::vector<std::string> ret;
-  char* c_str = names.strings;
-  for (size_t i = 0; i < names.strings_len;) {
-    std::string& s = ret.emplace_back(c_str);
-    c_str += s.size() + 1;
-    i += s.size() + 1;
+  for (char* str = names.strings; str < names.strings + names.strings_len;
+       str += strlen(str) + 1) {
+    co_yield str;
   }
-  return ret;
 }
 
 

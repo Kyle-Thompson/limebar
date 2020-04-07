@@ -32,7 +32,7 @@ class mod_windows : public DynamicModule<mod_windows> {
   const xcb_atom_t _active_window;
   X11& _x;
 
-  unsigned long _current_workspace{0};
+  uint32_t _current_workspace{0};
   xcb_window_t _current_window{0};
   std::vector<window_t> _windows;
 };
