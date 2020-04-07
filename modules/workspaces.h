@@ -4,9 +4,8 @@
 
 #include <string>
 
-#include "../pixmap.h"
-#include "../x.h"
 #include "module.h"
+#include "../x.h"
 
 class mod_workspaces : public DynamicModule<mod_workspaces> {
   friend class DynamicModule<mod_workspaces>;
@@ -15,14 +14,13 @@ class mod_workspaces : public DynamicModule<mod_workspaces> {
   mod_workspaces();
 
  private:
-  cppcoro::generator<segment_t> extract() const;
+  auto extract() const -> cppcoro::generator<segment_t>;
   void trigger();
   void update();
 
-  xcb_connection_t* conn;
-  const xcb_atom_t current_desktop;
-  X11& x;
+  xcb_connection_t* _conn;
+  const xcb_atom_t _current_desktop;
+  X11& _x;
 
-  uint32_t cur_desktop{0};
-  std::vector<std::string> names;
+  std::vector<segment_t> _segments;
 };
