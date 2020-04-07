@@ -33,7 +33,7 @@ warnings: CFLAGS += ${CFDEBUG} ${CFWARN}
 
 release: ${EXEC}
 release: CFLAGS += ${CFREL}
-release: LDFLAGS += -flto
+release: LDFLAGS += -flto -fuse-ld=gold
 
 test_addr: ${EXEC}
 test_addr: CFLAGS += ${CFDEBUG} -fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls
