@@ -17,7 +17,7 @@ BarWindow::BarWindow(BarColors&& colors, Fonts&& fonts, rectangle_t rect)
 }
 
 std::pair<size_t, size_t>
-BarWindow::update_left(const ModulePixmap& pixmap) {
+BarWindow::update_left(const SectionPixmap& pixmap) {
   if (pixmap.size() + _offset_left <= _width) {
     _pixmap.copy_from(pixmap.pixmap(), {0, 0},
                       {static_cast<int16_t>(_offset_left), 0}, pixmap.size(),
@@ -29,7 +29,7 @@ BarWindow::update_left(const ModulePixmap& pixmap) {
 }
 
 std::pair<size_t, size_t>
-BarWindow::update_middle(const ModulePixmap& pixmap) {
+BarWindow::update_middle(const SectionPixmap& pixmap) {
   // TODO(1): remove
   size_t largest_offset = std::max(_offset_left, _offset_right);
   auto half_width = _width / 2;
@@ -45,7 +45,7 @@ BarWindow::update_middle(const ModulePixmap& pixmap) {
 }
 
 std::pair<size_t, size_t>
-BarWindow::update_right(const ModulePixmap& pixmap) {
+BarWindow::update_right(const SectionPixmap& pixmap) {
   // TODO: check if this would overflow onto left modules.
   // we don't care about middle as they have last priority.
 

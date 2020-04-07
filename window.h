@@ -30,16 +30,17 @@ class BarWindow {
     _offset_left = _offset_right = 0;
   }
 
-  std::pair<size_t, size_t> update_left(const ModulePixmap& pixmap);
-  std::pair<size_t, size_t> update_middle(const ModulePixmap& pixmap);
-  std::pair<size_t, size_t> update_right(const ModulePixmap& pixmap);
+  std::pair<size_t, size_t> update_left(const SectionPixmap& pixmap);
+  std::pair<size_t, size_t> update_middle(const SectionPixmap& pixmap);
+  std::pair<size_t, size_t> update_right(const SectionPixmap& pixmap);
 
   [[nodiscard]] DS::pixmap_t generate_pixmap() const {
     return _window.create_pixmap();
   }
 
   [[nodiscard]] auto generate_mod_pixmap() {
-    return ModulePixmap(_window.create_pixmap(), &_colors, &_fonts, _width, _height);
+    return SectionPixmap(_window.create_pixmap(), &_colors, &_fonts, _width,
+                         _height);
   }
 
  private:

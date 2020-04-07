@@ -53,8 +53,8 @@ ucs2 utf8_to_ucs2(const std::string& text) {
 }
 
 
-ModulePixmap::ModulePixmap(DS::pixmap_t pixmap, BarColors* colors, Fonts* fonts,
-                           uint16_t width, uint16_t height)
+SectionPixmap::SectionPixmap(DS::pixmap_t pixmap, BarColors* colors,
+                             Fonts* fonts, uint16_t width, uint16_t height)
       : _used(0)
       , _width(width)
       , _height(height)
@@ -66,7 +66,7 @@ ModulePixmap::ModulePixmap(DS::pixmap_t pixmap, BarColors* colors, Fonts* fonts,
 
 
 void
-ModulePixmap::clear() {
+SectionPixmap::clear() {
   _used = 0;
   _areas = std::vector<area_t>();
   _pixmap.clear();
@@ -74,7 +74,7 @@ ModulePixmap::clear() {
 
 
 void
-ModulePixmap::append(const ModulePixmap& rhs) {
+SectionPixmap::append(const SectionPixmap& rhs) {
   // TODO: figure out what the right type is to use for _used
   _pixmap.copy_from(rhs._pixmap, {0, 0}, {static_cast<int16_t>(_used), 0},
                     rhs.size(), _height);
@@ -83,7 +83,7 @@ ModulePixmap::append(const ModulePixmap& rhs) {
 
 
 void
-ModulePixmap::click(size_t x, uint8_t button) const {
+SectionPixmap::click(size_t x, uint8_t button) const {
   for (const auto& area : _areas) {
     if (x >= area.begin && x <= area.end) {
       area.action(button);
@@ -94,7 +94,7 @@ ModulePixmap::click(size_t x, uint8_t button) const {
 
 
 void
-ModulePixmap::write(const segment_t& seg) {
+SectionPixmap::write(const segment_t& seg) {
   using FontType = typename Fonts::Font;
   using StringContainer = std::tuple<ucs2, FontType*, size_t>;
 

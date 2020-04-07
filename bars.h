@@ -41,38 +41,45 @@ make_section(ModuleContainer<Mods>&... mods) {
 template <typename Mods>
 class Section {
  public:
-  Section(StaticWorkQueue<size_t>* queue, BarWindow* win, Mods&& mods)
-      : _pixmap(win->generate_mod_pixmap()), _modules(std::move(mods)) {
-    std::apply(
-        [&](auto&&... mods) {
-          (mods.subscribe(register_queue<size_t>(queue, 0)), ...);
-        },
-        _modules);
-  }
+  Section(StaticWorkQueue<size_t>* queue, BarWindow* win, Mods&& mods);
 
-  const ModulePixmap& collect() {
-    _pixmap.clear();
-    std::apply(
-        [this](auto&&... mods) {
-          // TODO: use ranges to get -> ((mods.get() | _pixmap), ...)
-          (
-              [&] {
-                for (const auto& s : mods.get()) {
-                  _pixmap.write(s);
-                }
-              }(),
-              ...);
-        },
-        _modules);
-    return _pixmap;
-  }
+  const SectionPixmap& collect();
 
-  ModulePixmap* get_pixmap() { return &_pixmap; }
+  SectionPixmap* get_pixmap() { return &_pixmap; }
 
  private:
-  ModulePixmap _pixmap;
+  SectionPixmap _pixmap;
   Mods _modules;
 };
+
+template <typename Mods>
+Section<Mods>::Section(StaticWorkQueue<size_t>* queue, BarWindow* win, Mods&& mods)
+    : _pixmap(win->generate_mod_pixmap()), _modules(std::move(mods)) {
+  std::apply(
+      [&](auto&&... mods) {
+        (mods.subscribe(register_queue<size_t>(queue, 0)), ...);
+      },
+      _modules);
+}
+
+template <typename Mods>
+const SectionPixmap&
+Section<Mods>::collect() {
+  _pixmap.clear();
+  std::apply(
+      [this](auto&&... mods) {
+        // ((mods.get() | _pixmap), ...)
+        (
+            [&] {
+              for (const auto& s : mods.get()) {
+                _pixmap.write(s);
+              }
+            }(),
+            ...);
+      },
+      _modules);
+  return _pixmap;
+}
 
 
 /** Bar
@@ -96,7 +103,7 @@ class Bar {
   Section<Middle> _middle;
   Section<Right> _right;
   std::thread _bar_event_thread;
-  std::array<std::tuple<size_t, size_t, ModulePixmap*>, 3> _regions;
+  std::array<std::tuple<size_t, size_t, SectionPixmap*>, 3> _regions;
 };
 
 template <typename Left, typename Middle, typename Right>

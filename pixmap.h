@@ -8,21 +8,21 @@
 #include "font.h"
 #include "types.h"
 
-class ModulePixmap {
+class SectionPixmap {
  public:
-  ModulePixmap(DS::pixmap_t pixmap, BarColors* colors, Fonts* fonts,
-               uint16_t width, uint16_t height);
-  ~ModulePixmap() = default;
-  ModulePixmap(const ModulePixmap&) = delete;
-  ModulePixmap(ModulePixmap&&) = delete;
-  ModulePixmap& operator=(const ModulePixmap&) = delete;
-  ModulePixmap& operator=(ModulePixmap&&) = delete;
+  SectionPixmap(DS::pixmap_t pixmap, BarColors* colors, Fonts* fonts,
+                uint16_t width, uint16_t height);
+  ~SectionPixmap() = default;
+  SectionPixmap(const SectionPixmap&) = delete;
+  SectionPixmap(SectionPixmap&&) = delete;
+  SectionPixmap& operator=(const SectionPixmap&) = delete;
+  SectionPixmap& operator=(SectionPixmap&&) = delete;
 
   [[nodiscard]] uint16_t size() const { return _used; }
   [[nodiscard]] const DS::pixmap_t& pixmap() const { return _pixmap; }
 
   void clear();
-  void append(const ModulePixmap& rhs);
+  void append(const SectionPixmap& rhs);
   void write(const segment_t& seg);
 
   void click(size_t x, uint8_t button) const;
