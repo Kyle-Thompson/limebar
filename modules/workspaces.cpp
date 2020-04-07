@@ -28,13 +28,6 @@ mod_workspaces::mod_workspaces()
   xcb_flush(_conn);
 }
 
-cppcoro::generator<segment_t>
-mod_workspaces::extract() const {
-  for (auto seg : _segments) {
-    co_yield seg;
-  }
-}
-
 void
 mod_workspaces::trigger() {
   while (true) {

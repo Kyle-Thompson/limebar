@@ -11,13 +11,6 @@ constexpr static std::array<const char*, 12> months{
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 };
 
-cppcoro::generator<segment_t>
-mod_clock::extract() const {
-  for (auto seg : _segments) {
-    co_yield seg;
-  }
-}
-
 void
 mod_clock::trigger() {
   std::this_thread::sleep_for(std::chrono::minutes(1));

@@ -57,7 +57,7 @@ class Section {
           // TODO: use ranges to get -> ((mods.get() | _pixmap), ...)
           (
               [&] {
-                for (auto&& s : mods.get()) {
+                for (const auto& s : mods.get()) {
                   _pixmap.write(s);
                 }
               }(),

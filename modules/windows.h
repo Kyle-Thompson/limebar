@@ -17,7 +17,6 @@ class mod_windows : public DynamicModule<mod_windows> {
   ~mod_windows();
 
  private:
-  auto extract() const -> cppcoro::generator<segment_t>;
   void trigger();
   void update();
 

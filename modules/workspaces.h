@@ -14,7 +14,6 @@ class mod_workspaces : public DynamicModule<mod_workspaces> {
   mod_workspaces();
 
  private:
-  auto extract() const -> cppcoro::generator<segment_t>;
   void trigger();
   void update();
 

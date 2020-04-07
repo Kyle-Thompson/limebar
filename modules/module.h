@@ -35,13 +35,11 @@ class DynamicModule {
   }
 
 
-  cppcoro::generator<segment_t> get() const {
-    // TODO: Converting to coroutines likely breaks the thread safety given by
-    // this lock. If this proves to be an issue, pass the lock to the extract
-    // function for it to lock. That being said, this won't be an issue when all
-    // threads are completely replaced with coroutines anyway.
+  cppcoro::generator<const segment_t&> get() const {
     std::unique_lock lock{_mutex};
-    return static_cast<const Mod&>(*this).extract();
+    for (const auto& seg : static_cast<const Mod&>(*this)._segments) {
+      co_yield seg;
+    }
   }
 
  private:
@@ -61,8 +59,10 @@ class StaticModule {
   // TODO: can we avoid having to call these functions for StaticModule?
   void operator()() {}
   void subscribe(std::function<void()>&&) {}
-  cppcoro::generator<segment_t> get() const {
-    return static_cast<const Mod&>(*this).extract();
+  cppcoro::generator<const segment_t&> get() const {
+    for (const auto& seg : static_cast<const Mod&>(*this)._segments) {
+      co_yield seg;
+    }
   }
 };
 

@@ -28,14 +28,6 @@ mod_windows::~mod_windows() {
   xcb_disconnect(_conn);
 }
 
-// TODO: const segment_t&
-cppcoro::generator<segment_t>
-mod_windows::extract() const {
-  for (segment_t seg : _segments) {
-    co_yield seg;
-  }
-}
-
 void
 mod_windows::trigger() {
   while (true) {
