@@ -1,6 +1,5 @@
 #include "color.h"
 
-#include <cerrno>
 #include <cstdlib>
 #include <iostream>
 
@@ -16,15 +15,8 @@ rgba_t::parse(const char *str) {
     return ERR_COLOR;
   }
 
-  errno = 0;
   char *ep;
   rgba_t tmp{(uint32_t)strtoul(str + 1, &ep, 16)};
-
-  // Some error checking is definitely good
-  if (errno) {
-    fprintf(stderr, "Invalid color specified\n");
-    return ERR_COLOR;
-  }
 
   int string_len = ep - (str + 1);
   switch (string_len) {

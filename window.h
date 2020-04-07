@@ -8,7 +8,6 @@
 #include "config.h"
 #include "font.h"
 #include "pixmap.h"
-#include "queue.h"
 #include "types.h"
 
 class BarWindow {

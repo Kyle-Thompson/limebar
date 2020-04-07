@@ -10,11 +10,8 @@
 #include <xcb/xproto.h>
 
 #include <cppcoro/generator.hpp>
-#include <iostream>
-#include <mutex>
 #include <numeric>
 #include <optional>
-#include <shared_mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -31,7 +28,6 @@ class X11 {
   class rdb_t;
 
   static X11& Instance();
-  static void init();
 
   // cannot be copied or moved
   X11(const X11&) = delete;
@@ -54,6 +50,7 @@ class X11 {
   // events
   // TODO: abstract this away from xcb_* details
   std::unique_ptr<xcb_generic_event_t, decltype(std::free)*> wait_for_event();
+  std::unique_ptr<xcb_generic_event_t, decltype(std::free)*> poll_for_event();
 
   // queries
   [[nodiscard]] auto get_windows() -> cppcoro::generator<xcb_window_t>;
@@ -151,7 +148,6 @@ class X11::font_t {
 
   Display* _display;
   XftFont* _xft_ft;
-  std::shared_mutex _mu;
   glyph_map_t _glyph_map;
 };
 

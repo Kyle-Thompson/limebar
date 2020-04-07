@@ -5,10 +5,7 @@
 #include <xcb/xcb_ewmh.h>
 #include <xcb/xcb_xrm.h>
 
-#include <cstdlib>
 #include <iostream>
-#include <mutex>
-#include <shared_mutex>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -94,14 +91,6 @@ X11&
 X11::Instance() {
   static X11 instance;
   return instance;
-}
-
-void
-X11::init() {
-  if (!XInitThreads()) {
-    std::cerr << "Failed to initialize threading for Xlib\n";
-    exit(EXIT_FAILURE);
-  }
 }
 
 void
@@ -245,6 +234,11 @@ X11::wait_for_event() {
   return {xcb_wait_for_event(_connection), std::free};
 }
 
+std::unique_ptr<xcb_generic_event_t, decltype(std::free)*>
+X11::poll_for_event() {
+  return {xcb_poll_for_event(_connection), std::free};
+}
+
 xcb_intern_atom_cookie_t
 X11::get_atom_by_name(const char* name) {
   return xcb_intern_atom(_connection, 0, strlen(name), name);
@@ -360,14 +354,10 @@ X11::font_t::draw_ucs2(XftDraw* draw, font_color_t* color, const ucs2& str,
 
 auto
 X11::font_t::get_glyph(uint16_t ch) -> glyph_map_itr {
-  auto itr = [this, ch] {
-    std::shared_lock lock{_mu};
-    return _glyph_map.find(ch);
-  }();
+  auto itr = [this, ch] { return _glyph_map.find(ch); }();
 
   if (itr == _glyph_map.end() &&
       XftCharExists(_display, _xft_ft, static_cast<FcChar32>(ch)) == True) {
-    std::unique_lock lock{_mu};
     return _glyph_map.emplace(std::make_pair(ch, create_glyph(ch))).first;
   }
   return itr;

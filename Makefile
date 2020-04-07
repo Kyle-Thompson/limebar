@@ -5,10 +5,12 @@ CC        = clang++
 STDLIB    = -stdlib=libc++
 LIBS      = $(foreach d, $(shell ls $(lib_dir)),-isystem ${lib_dir}$(d)/include)
 CFLAGS    = -std=c++20 -I/usr/include/freetype2
-LDFLAGS   = -lxcb -lxcb-xrm -lxcb-ewmh -lX11 -lX11-xcb -lXft -lfreetype -lfontconfig -lpthread
-CFDEBUG   = -Wall -g3
+LDFLAGS   = -lxcb -lxcb-xrm -lxcb-ewmh -lX11 -lX11-xcb -lXft -lfreetype -lfontconfig
+CFDEBUG   = -Wall -g
 CFWARN    = -Weverything -Wno-c++98-compat -Wno-c++98-compat-pedantic
-CFREL     = -O3 -flto
+CFREL     = -O3
+# enable if you have lto
+# CFREL    += -flto
 
 EXEC = limebar
 SRCS = $(shell find . -path ./lib -prune -o -name "*.cpp" -print)
@@ -33,15 +35,12 @@ warnings: CFLAGS += ${CFDEBUG} ${CFWARN}
 
 release: ${EXEC}
 release: CFLAGS += ${CFREL}
-release: LDFLAGS += -flto -fuse-ld=gold
+# enable if you have lto
+# release: LDFLAGS += -flto -fuse-ld=gold
 
 test_addr: ${EXEC}
 test_addr: CFLAGS += ${CFDEBUG} -fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls
 test_addr: LDFLAGS += -fsanitize=address
-
-test_thread: ${EXEC}
-test_thread: CFLAGS += ${CFDEBUG} -fsanitize=thread
-test_thread: LDFLAGS += -fsanitize=thread
 
 test_ub: ${EXEC}
 test_ub: CFLAGS += ${CFDEBUG} -fsanitize=undefined

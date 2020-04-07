@@ -2,8 +2,8 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
 #include <memory>
-#include <sstream>
 
 #include "../x.h"
 
@@ -12,7 +12,7 @@ mod_windows::mod_windows()
     : _conn(get_connection())
     , _current_desktop_atom(get_atom(_conn, "_NET_CURRENT_DESKTOP"))
     , _active_window_atom(get_atom(_conn, "_NET_ACTIVE_WINDOW"))
-    , _x(X11::Instance()) {
+    , _ds(DS::Instance()) {
   if (xcb_connection_has_error(_conn)) {
     std::cerr << "Cannot X connection for workspaces daemon.\n";
     exit(EXIT_FAILURE);
@@ -28,34 +28,39 @@ mod_windows::~mod_windows() {
   xcb_disconnect(_conn);
 }
 
-void
-mod_windows::trigger() {
+bool
+mod_windows::has_work() {
   while (true) {
     std::unique_ptr<xcb_generic_event_t, decltype(std::free) *> ev{
-        xcb_wait_for_event(_conn), std::free};
-    if (ev && (ev->response_type & 0x7F) == XCB_PROPERTY_NOTIFY) {
+        xcb_poll_for_event(_conn), std::free};
+    if (!ev) {
+      return false;
+    }
+    // TODO: can we filter in the display server to only return these values
+    // in the first place so we don't have to check every time?
+    if ((ev->response_type & 0x7F) == XCB_PROPERTY_NOTIFY) {
       auto atom =
           reinterpret_cast<xcb_property_notify_event_t *>(ev.get())->atom;
       if (atom == _active_window_atom || atom == _current_desktop_atom) {
-        return;
+        return true;
       }
     }
   }
 }
 
 void
-mod_windows::update() {
-  uint32_t current_workspace = _x.get_current_workspace();
-  xcb_window_t current_window = _x.get_active_window();
+mod_windows::do_work() {
+  uint32_t current_workspace = _ds.get_current_workspace();
+  xcb_window_t current_window = _ds.get_active_window();
 
   _segments.clear();
-  for (xcb_window_t window : _x.get_windows()) {
-    std::string title = _x.get_window_title(window);
+  for (xcb_window_t window : _ds.get_windows()) {
+    std::string title = _ds.get_window_title(window);
     if (title.empty()) {
       continue;
     }
 
-    auto workspace = _x.get_workspace_of_window(window);
+    auto workspace = _ds.get_workspace_of_window(window);
     if (!workspace.has_value() || workspace != current_workspace) {
       continue;
     }
@@ -66,7 +71,7 @@ mod_windows::update() {
                                                        : NORMAL_COLOR)}},
          .action = [this, window](uint8_t button) {
            if (button == 1) {
-             _x.activate_window(window);
+             _ds.activate_window(window);
            }
          }});
   }
