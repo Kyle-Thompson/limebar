@@ -251,6 +251,25 @@ X11::get_atom_by_name(const char* name) {
 }
 
 
+cppcoro::generator<xcb_window_t>
+X11::get_windows() {
+  xcb_ewmh_get_windows_reply_t clients{};
+  xcb_get_property_cookie_t cookie = xcb_ewmh_get_client_list(&_ewmh, 0);
+  xcb_ewmh_get_client_list_reply(&_ewmh, cookie, &clients, nullptr);
+  for (int i = 0; i < clients.windows_len; ++i) {
+    co_yield clients.windows[i];
+  }
+}
+
+xcb_window_t
+X11::get_active_window() {
+  // TODO: error checking
+  xcb_window_t active_window = 0;
+  xcb_get_property_cookie_t cookie = xcb_ewmh_get_active_window(&_ewmh, 0);
+  xcb_ewmh_get_active_window_reply(&_ewmh, cookie, &active_window, nullptr);
+  return active_window;
+}
+
 std::string
 X11::get_window_title(xcb_window_t win) {
   // TODO: error checking
@@ -265,27 +284,6 @@ X11::get_window_title(xcb_window_t win) {
   return {c_str + strlen(c_str) + 1 /* NULL byte */};
 }
 
-cppcoro::generator<xcb_window_t>
-X11::get_windows() {
-  xcb_ewmh_get_windows_reply_t clients{};
-  xcb_get_property_cookie_t cookie = xcb_ewmh_get_client_list(&_ewmh, 0);
-  xcb_ewmh_get_client_list_reply(&_ewmh, cookie, &clients, nullptr);
-  for (int i = 0; i < clients.windows_len; ++i) {
-    co_yield clients.windows[i];
-  }
-}
-
-
-xcb_window_t
-X11::get_active_window() {
-  // TODO: error checking
-  xcb_window_t active_window = 0;
-  xcb_get_property_cookie_t cookie = xcb_ewmh_get_active_window(&_ewmh, 0);
-  xcb_ewmh_get_active_window_reply(&_ewmh, cookie, &active_window, nullptr);
-  return active_window;
-}
-
-
 cppcoro::generator<std::string>
 X11::get_workspace_names() {
   xcb_ewmh_get_utf8_strings_reply_t names;
@@ -298,7 +296,6 @@ X11::get_workspace_names() {
   }
 }
 
-
 uint32_t
 X11::get_current_workspace() {
   // TODO: error checking
@@ -307,7 +304,6 @@ X11::get_current_workspace() {
   xcb_ewmh_get_current_desktop_reply(&_ewmh, cookie, &current_desktop, nullptr);
   return current_desktop;
 }
-
 
 std::optional<uint32_t>
 X11::get_workspace_of_window(xcb_window_t window) {

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cppcoro/generator.hpp>
 #include <X11/Xft/Xft.h>
 #include <X11/Xlib-xcb.h>
 #include <X11/Xlib.h>
@@ -10,6 +9,7 @@
 #include <xcb/xcb_xrm.h>
 #include <xcb/xproto.h>
 
+#include <cppcoro/generator.hpp>
 #include <iostream>
 #include <mutex>
 #include <numeric>
@@ -45,23 +45,24 @@ class X11 {
   void switch_desktop(uint8_t desktop);
 
   // resource creators
-  auto create_font_color(const rgba_t& rgb) -> font_color_t;
-  auto create_font(const char* pattern, int offset = 0) -> font_t;
-  auto create_window(rectangle_t dim, const rgba_t& rgb, bool reserve_space)
-      -> window_t;
-  auto create_resource_database() -> rdb_t;
+  [[nodiscard]] auto create_font_color(const rgba_t& rgb) -> font_color_t;
+  [[nodiscard]] auto create_font(const char* pattern, int offset = 0) -> font_t;
+  [[nodiscard]] auto create_window(rectangle_t dim, const rgba_t& rgb,
+                                   bool reserve_space) -> window_t;
+  [[nodiscard]] auto create_resource_database() -> rdb_t;
 
   // events
   // TODO: abstract this away from xcb_* details
   std::unique_ptr<xcb_generic_event_t, decltype(std::free)*> wait_for_event();
 
   // queries
-  auto get_windows() -> cppcoro::generator<xcb_window_t>;
-  auto get_active_window() -> xcb_window_t;  // TODO: what if no window is selected?
-  auto get_window_title(xcb_window_t win) -> std::string;
-  auto get_workspace_names() -> cppcoro::generator<std::string>;
-  auto get_current_workspace() -> uint32_t;
-  auto get_workspace_of_window(xcb_window_t window) -> std::optional<uint32_t>;
+  [[nodiscard]] auto get_windows() -> cppcoro::generator<xcb_window_t>;
+  [[nodiscard]] auto get_active_window() -> xcb_window_t;
+  [[nodiscard]] auto get_window_title(xcb_window_t win) -> std::string;
+  [[nodiscard]] auto get_workspace_names() -> cppcoro::generator<std::string>;
+  [[nodiscard]] auto get_current_workspace() -> uint32_t;
+  [[nodiscard]] auto get_workspace_of_window(xcb_window_t window)
+      -> std::optional<uint32_t>;
 
  private:
   X11();
