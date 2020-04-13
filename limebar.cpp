@@ -13,53 +13,35 @@
 #include "modules/workspaces.h"
 #include "task.h"
 
-
 int
 main() {
-  mod_fill space(" ");
-  mod_workspaces workspaces;
-  mod_fill sep("| ");
-  mod_windows windows;
-  mod_clock clock;
+  static mod_fill space(" ");
+  static mod_workspaces workspaces;
+  static mod_fill sep("| ");
+  static mod_windows windows;
+  static mod_clock clock;
 
-  auto left_section{section_wrapper(space, workspaces, sep, windows)};
-  auto middle_section{section_wrapper(clock)};
-  auto right_section{section_wrapper()};
+  constexpr auto builder =
+      BarBuilderHelper()
+          .bg_bar_color_from_rdb("background")
+          .fg_font_color_from_rdb("foreground")
+          .acc_font_color_from_rdb("color4")
+          .font_from_rdb("font")
+          .left(section_wrapper(space, workspaces, sep, windows))
+          .middle(section_wrapper(clock))
+          .right(section_wrapper());
 
-  auto& ds = DS::Instance();
-  auto rdb = ds.create_resource_database();
-
-  rgba_t bgc = rgba_t::parse(rdb.get<std::string>("background").c_str());
-  rgba_t fgc = rgba_t::parse(rdb.get<std::string>("foreground").c_str());
-  DS::font_color_t ft_fg = ds.create_font_color(fgc);
-  rgba_t acc = rgba_t::parse(rdb.get<std::string>("color4").c_str());
-  DS::font_color_t ft_acc = ds.create_font_color(acc);
-
-  DS::font_t ft = ds.create_font(rdb.get<std::string>("font").c_str());
-
-  Bar<decltype(left_section), decltype(middle_section), decltype(right_section)>
-      left_bar({.x = 0, .y = 0, .width = 1920, .height = 20},
-               {.background{bgc}, .foreground{ft_fg}, .fg_accent{ft_acc}},
-               {&ft}, left_section, middle_section, right_section);
-
-  Bar<decltype(left_section), decltype(middle_section), decltype(right_section)>
-      middle_bar({.x = 1920, .y = 0, .width = 1920, .height = 20},
-                 {.background{bgc}, .foreground{ft_fg}, .fg_accent{ft_acc}},
-                 {&ft}, left_section, middle_section, right_section);
-
-  Bar<decltype(left_section), decltype(middle_section), decltype(right_section)>
-      right_bar({.x = 3840, .y = 0, .width = 1920, .height = 20},
-                {.background{bgc}, .foreground{ft_fg}, .fg_accent{ft_acc}},
-                {&ft}, left_section, middle_section, right_section);
+  constexpr size_t W = 1920;
+  constexpr size_t H = 20;
+  Bar l = build(builder.area({.x = 0,     .y = 0, .width = W, .height = H}));
+  Bar m = build(builder.area({.x = W,     .y = 0, .width = W, .height = H}));
+  Bar r = build(builder.area({.x = W * 2, .y = 0, .width = W, .height = H}));
 
   std::tuple tasks{
-      ModuleTask(&workspaces, &left_bar, &middle_bar, &right_bar),
-      ModuleTask(&windows, &left_bar, &middle_bar, &right_bar),
-      ModuleTask(&clock, &left_bar, &middle_bar, &right_bar),
-      Task(left_bar.get_event_handler()),
-      Task(middle_bar.get_event_handler()),
-      Task(right_bar.get_event_handler()),
-  };
+      ModuleTask(&workspaces, &l, &m, &r), ModuleTask(&windows, &l, &m, &r),
+      ModuleTask(&clock, &l, &m, &r),      Task(l.get_event_handler()),
+      Task(m.get_event_handler()),         Task(r.get_event_handler())};
+
   while (true) {
     std::apply([](auto&... tasks) { ((tasks.work()), ...); }, tasks);
 

@@ -19,10 +19,10 @@ struct coordinate_t {
  * NOTE: {x,y} refers to the coordinate pair for the top left pixel.
  */
 struct rectangle_t {
-  int16_t x;
-  int16_t y;
-  uint16_t width;
-  uint16_t height;
+  int16_t x{0};
+  int16_t y{0};
+  uint16_t width{0};
+  uint16_t height{0};
 };
 
 struct area_t {
