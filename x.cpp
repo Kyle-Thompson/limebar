@@ -104,9 +104,10 @@ X11::activate_window(xcb_window_t window) {
 }
 
 void
-X11::switch_desktop(uint8_t desktop) {
+X11::switch_desktop(size_t desktop) {
   const xcb_timestamp_t timestamp{};
-  xcb_ewmh_request_change_current_desktop(&_ewmh, 0, desktop, timestamp);
+  xcb_ewmh_request_change_current_desktop(
+      &_ewmh, 0, static_cast<uint32_t>(desktop), timestamp);
   xcb_flush(_connection);
 }
 
@@ -132,7 +133,7 @@ X11::create_window(rectangle_t dim, const rgba_t& rgb, bool reserve_space) {
   const std::array<uint32_t, 5> value_list{
       *rgb.val(), *rgb.val(), FORCE_DOCK,
       XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS |
-          XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE,
+          XCB_EVENT_MASK_FOCUS_CHANGE,
       _colormap};
   const uint16_t border_width = 0;
   xcb_create_window(_connection, get_depth(), win._id, _screen->root, x, y,
@@ -241,7 +242,8 @@ X11::poll_for_event() {
 
 xcb_intern_atom_cookie_t
 X11::get_atom_by_name(const char* name) {
-  return xcb_intern_atom(_connection, 0, strlen(name), name);
+  return xcb_intern_atom(_connection, 0, static_cast<uint16_t>(strlen(name)),
+                         name);
 }
 
 
@@ -250,7 +252,7 @@ X11::get_windows() {
   xcb_ewmh_get_windows_reply_t clients{};
   xcb_get_property_cookie_t cookie = xcb_ewmh_get_client_list(&_ewmh, 0);
   xcb_ewmh_get_client_list_reply(&_ewmh, cookie, &clients, nullptr);
-  for (int i = 0; i < clients.windows_len; ++i) {
+  for (uint32_t i = 0; i < clients.windows_len; ++i) {
     co_yield clients.windows[i];
   }
 }
@@ -349,7 +351,8 @@ void
 X11::font_t::draw_ucs2(XftDraw* draw, font_color_t* color, const ucs2& str,
                        uint16_t height, size_t x) {
   const int y = static_cast<int>(height) / 2 + _height / 2 - _descent + _offset;
-  XftDrawString16(draw, color->get(), _xft_ft, x, y, str.data(), str.size());
+  XftDrawString16(draw, color->get(), _xft_ft, static_cast<int>(x), y,
+                  str.data(), static_cast<int>(str.size()));
 }
 
 auto
@@ -370,13 +373,13 @@ X11::font_t::has_glyph(uint16_t ch) {
 
 uint16_t
 X11::font_t::char_width(uint16_t ch) {
-  return get_glyph(ch)->second.info.xOff;
+  return static_cast<uint16_t>(get_glyph(ch)->second.info.xOff);
 }
 
 size_t
 X11::font_t::string_size(const ucs2& str) {
   return std::accumulate(
-      str.begin(), str.end(), 0,
+      str.begin(), str.end(), size_t{},
       [this](size_t size, uint16_t ch) { return size + char_width(ch); });
 }
 

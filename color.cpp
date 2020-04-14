@@ -1,22 +1,23 @@
 #include "color.h"
 
-#include <cstdlib>
 #include <iostream>
 
 rgba_t
 rgba_t::parse(const char *str) {
   static const rgba_t ERR_COLOR{0xffffffffU};
 
-  if (!str) return ERR_COLOR;
-
-  // Hex representation
-  if (str[0] != '#') {
-    fprintf(stderr, "Invalid color specified\n");
+  if (str == nullptr) {
     return ERR_COLOR;
   }
 
-  char *ep;
-  rgba_t tmp{(uint32_t)strtoul(str + 1, &ep, 16)};
+  // Hex representation
+  if (str[0] != '#') {
+    std::cerr << "Invalid color specified\n";
+    return ERR_COLOR;
+  }
+
+  char *ep = nullptr;
+  rgba_t tmp{static_cast<uint32_t>(strtoul(str + 1, &ep, 16))};
 
   int string_len = ep - (str + 1);
   switch (string_len) {

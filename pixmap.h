@@ -25,7 +25,7 @@ class SectionPixmap {
   void append(const SectionPixmap& rhs);
   void write(const segment_t& seg);
 
-  void click(size_t x, uint8_t button) const;
+  void click(int16_t x, uint8_t button) const;
 
  private:
   uint16_t _used;

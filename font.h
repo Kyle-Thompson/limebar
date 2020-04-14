@@ -36,9 +36,9 @@ class Fonts {
  private:
   std::unordered_map<uint16_t, Font*>::iterator add_char(uint16_t ch) {
     Font* font = [ch, this] {
-      for (auto* font : _fonts) {
-        if (font->has_glyph(ch)) {
-          return font;
+      for (auto* ft : _fonts) {
+        if (ft->has_glyph(ch)) {
+          return ft;
         }
       }
       std::cerr << "error: character " << ch << " could not be found.\n";

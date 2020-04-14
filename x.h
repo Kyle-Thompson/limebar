@@ -38,7 +38,7 @@ class X11 {
 
   // actions
   void activate_window(xcb_window_t window);
-  void switch_desktop(uint8_t desktop);
+  void switch_desktop(size_t desktop);
 
   // resource creators
   [[nodiscard]] auto create_font_color(const rgba_t& rgb) -> font_color_t;

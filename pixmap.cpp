@@ -7,7 +7,7 @@
 #include "pixmap.h"
 
 
-ucs2
+static ucs2
 utf8_to_ucs2(const std::string& text) {
   ucs2 str;
 
@@ -87,7 +87,7 @@ SectionPixmap::append(const SectionPixmap& rhs) {
 
 
 void
-SectionPixmap::click(size_t x, uint8_t button) const {
+SectionPixmap::click(int16_t x, uint8_t button) const {
   for (const auto& area : _areas) {
     if (x >= area.begin && x <= area.end) {
       area.action(button);
@@ -111,7 +111,8 @@ SectionPixmap::write(const segment_t& seg) {
       });
 
   const decltype(_used) total_size = ranges::accumulate(
-      strings, 0, [](decltype(total_size) cur, const StringContainer& p) {
+      strings, decltype(total_size){},
+      [](decltype(total_size) cur, const StringContainer& p) {
         return cur + std::get<2>(p);
       });
 

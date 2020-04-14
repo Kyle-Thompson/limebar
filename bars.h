@@ -85,7 +85,7 @@ class Bar<std::tuple<Left...>, std::tuple<Middle...>, std::tuple<Right...>> {
   template <typename Mod>
   void use(const DynamicModule<Mod>& mod);
 
-  void click(uint16_t x, uint8_t button) const;
+  void click(int16_t x, uint8_t button) const;
 
   class events_t {
    public:
@@ -111,7 +111,7 @@ class Bar<std::tuple<Left...>, std::tuple<Middle...>, std::tuple<Right...>> {
    private:
     Bar* _bar;
     DS& _ds;
-    uint16_t _event_x{0};
+    int16_t _event_x{0};
     uint8_t _event_button{0};
   };
 
@@ -124,7 +124,7 @@ class Bar<std::tuple<Left...>, std::tuple<Middle...>, std::tuple<Right...>> {
   Section<Left...> _left;
   Section<Middle...> _middle;
   Section<Right...> _right;
-  std::array<std::tuple<size_t, size_t, SectionPixmap*>, 3> _regions;
+  std::array<std::tuple<int16_t, int16_t, SectionPixmap*>, 3> _regions;
 };
 
 template <typename... Left, typename... Middle, typename... Right>
@@ -192,10 +192,10 @@ template <typename... Left, typename... Middle, typename... Right>
 template <typename Mod>
 void
 Bar<std::tuple<Left...>, std::tuple<Middle...>, std::tuple<Right...>>::use(
-    const DynamicModule<Mod>& mod) {
+    [[maybe_unused]] const DynamicModule<Mod>& mod) {
   _win.reset();
 
-  std::pair<size_t, size_t> p;
+  std::pair<uint16_t, uint16_t> p;
   p = _win.update_left(_left.collect());
   _regions[0] = {p.first, p.second, _left.get_pixmap()};
   p = _win.update_right(_right.collect());
@@ -209,7 +209,7 @@ Bar<std::tuple<Left...>, std::tuple<Middle...>, std::tuple<Right...>>::use(
 template <typename... Left, typename... Middle, typename... Right>
 void
 Bar<std::tuple<Left...>, std::tuple<Middle...>, std::tuple<Right...>>::click(
-    uint16_t x, uint8_t button) const {
+    int16_t x, uint8_t button) const {
   for (auto region : _regions) {
     if (x >= std::get<0>(region) && x <= std::get<1>(region)) {
       std::get<2>(region)->click(x - std::get<0>(region), button);

@@ -8,6 +8,8 @@ CFLAGS    = -std=c++20 -I/usr/include/freetype2
 LDFLAGS   = -lxcb -lxcb-xrm -lxcb-ewmh -lX11 -lX11-xcb -lXft -lfreetype -lfontconfig
 CFDEBUG   = -Wall -g
 CFWARN    = -Weverything -Wno-c++98-compat -Wno-c++98-compat-pedantic
+CFWARN   += -Wno-padded -Wno-c++20-compat
+CFWARN   += -Wno-exit-time-destructors -Wno-ctad-maybe-unsupported
 CFREL     = -O2
 # enable if you have lto
 # CFREL    += -flto

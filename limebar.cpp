@@ -43,7 +43,7 @@ main() {
       Task(m.get_event_handler()),         Task(r.get_event_handler())};
 
   while (true) {
-    std::apply([](auto&... tasks) { ((tasks.work()), ...); }, tasks);
+    std::apply([](auto&... task) { ((task.work()), ...); }, tasks);
 
     // TODO: apply a better backoff heuristic. This is temporary.
     std::this_thread::sleep_for(std::chrono::milliseconds(10));

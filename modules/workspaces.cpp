@@ -42,7 +42,7 @@ mod_workspaces::do_work() {
 
   _segments.clear();
   for (auto names = _ds.get_workspace_names();
-       const auto &[i, name] : names | ranges::views::enumerate) {
+       auto &&[i, name] : names | ranges::views::enumerate) {
     _segments.push_back(
         {.segments{{.str = name + ' ',
                     .color = (i == cur_desktop ? ACCENT_COLOR : NORMAL_COLOR)}},
