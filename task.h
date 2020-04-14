@@ -42,7 +42,7 @@ class Task {
   bool has_work() { return _task->has_work(); }
   void do_work() { _task->do_work(); }
   void update() {
-    std::apply([this](D*... d) { ((d->use(*_task)), ...); }, _downstream);
+    std::apply([=](D*... d) { ((d->use(*_task)), ...); }, _downstream);
   }
 
  private:
