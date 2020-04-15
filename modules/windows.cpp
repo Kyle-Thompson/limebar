@@ -66,7 +66,7 @@ mod_windows::do_work() {
     }
 
     _segments.push_back(
-        {.segments{{.str = title + ' ',
+        {.segments{{.str{title + ' '},
                     .color = (window == current_window ? ACCENT_COLOR
                                                        : NORMAL_COLOR)}},
          .action = [this, window](uint8_t button) {

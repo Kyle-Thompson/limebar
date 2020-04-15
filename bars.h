@@ -8,17 +8,9 @@
 #include <utility>  // pair
 
 #include "bar_color.h"
-#include "font.h"
 #include "modules/module.h"
 #include "pixmap.h"
 #include "window.h"
-
-
-template <typename... Mods>
-constexpr std::tuple<const Mods&...>
-section_wrapper(const Mods&... mods) {
-  return {mods...};
-}
 
 
 /** Section
@@ -32,7 +24,7 @@ section_wrapper(const Mods&... mods) {
 template <typename... Mods>
 class Section {
  public:
-  Section(BarWindow* win, const std::tuple<const Mods&...>& mods);
+  Section(BarWindow* win, std::tuple<const Mods&...> mods);
 
   const SectionPixmap& collect();
 
@@ -40,12 +32,11 @@ class Section {
 
  private:
   SectionPixmap _pixmap;
-  const std::tuple<const Mods&...>& _modules;
+  std::tuple<const Mods&...> _modules;
 };
 
 template <typename... Mods>
-Section<Mods...>::Section(BarWindow* win,
-                          const std::tuple<const Mods&...>& mods)
+Section<Mods...>::Section(BarWindow* win, std::tuple<const Mods&...> mods)
     : _pixmap(win->generate_mod_pixmap()), _modules(mods) {
 }
 
@@ -70,17 +61,17 @@ template <typename L, typename M, typename R>
 class Bar;
 
 template <typename... Left, typename... Middle, typename... Right>
-class Bar<std::tuple<Left...>, std::tuple<Middle...>, std::tuple<Right...>> {
+class Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
+          std::tuple<const Right&...>> {
  public:
-  Bar(rectangle_t&& d, BarColors&& colors, Fonts&& fonts,
+  Bar(rectangle_t&& d, BarColors&& colors,
       const std::tuple<const Left&...>& left,
       const std::tuple<const Middle&...>& middle,
       const std::tuple<const Right&...>& right);
 
-  template <typename... L, typename... M, typename... R>
   explicit Bar(
-      const BarBuilder<std::tuple<const L&...>, std::tuple<const M&...>,
-                       std::tuple<const R&...>>& builder);
+      const BarBuilder<std::tuple<const Left&...>, std::tuple<const Middle&...>,
+                       std::tuple<const Right&...>>& builder);
 
   template <typename Mod>
   void use(const DynamicModule<Mod>& mod);
@@ -118,26 +109,22 @@ class Bar<std::tuple<Left...>, std::tuple<Middle...>, std::tuple<Right...>> {
   events_t* get_event_handler() { return &_events; }
 
  private:
-  DS::font_t _font;  // temporary
   BarWindow _win;
   events_t _events;
-  Section<Left...> _left;
-  Section<Middle...> _middle;
-  Section<Right...> _right;
+  Section<const Left&...> _left;
+  Section<const Middle&...> _middle;
+  Section<const Right&...> _right;
   std::array<std::tuple<int16_t, int16_t, SectionPixmap*>, 3> _regions;
 };
 
 template <typename... Left, typename... Middle, typename... Right>
-Bar<std::tuple<Left...>, std::tuple<Middle...>, std::tuple<Right...>>::Bar(
-    rectangle_t&& d, BarColors&& colors, Fonts&& fonts,
-    const std::tuple<const Left&...>& left,
-    const std::tuple<const Middle&...>& middle,
-    const std::tuple<const Right&...>& right)
-    : _font([]() {  // TODO: REMOVE
-      auto& ds = DS::Instance();
-      return ds.create_font("GohuFont");
-    }())
-    , _win(std::move(colors), std::move(fonts), d)
+Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
+    std::tuple<const Right&...>>::Bar(rectangle_t&& d, BarColors&& colors,
+                                      const std::tuple<const Left&...>& left,
+                                      const std::tuple<const Middle&...>&
+                                          middle,
+                                      const std::tuple<const Right&...>& right)
+    : _win(std::move(colors), d)
     , _events(this)
     , _left(&_win, left)
     , _middle(&_win, middle)
@@ -145,20 +132,12 @@ Bar<std::tuple<Left...>, std::tuple<Middle...>, std::tuple<Right...>>::Bar(
 }
 
 template <typename... Left, typename... Middle, typename... Right>
-template <typename... L, typename... M, typename... R>
-Bar<std::tuple<Left...>, std::tuple<Middle...>, std::tuple<Right...>>::Bar(
-    const BarBuilder<std::tuple<const L&...>, std::tuple<const M&...>,
-                     std::tuple<const R&...>>& builder)
-    : _font([&builder]() -> DS::font_t {
-      auto& ds = DS::Instance();
-      auto rdb = ds.create_resource_database();
-
-      return ds.create_font(
-          builder._font.from_rdb
-              ? rdb.get<std::string>(builder._font.name).c_str()
-              : builder._font.name);
-    }())
-    , _win([this, &builder]() -> BarWindow {
+Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
+    std::tuple<const Right&...>>::
+    Bar(const BarBuilder<std::tuple<const Left&...>,
+                         std::tuple<const Middle&...>,
+                         std::tuple<const Right&...>>& builder)
+    : _win([&builder]() -> BarWindow {
       auto& ds = DS::Instance();
       auto rdb = ds.create_resource_database();
 
@@ -179,7 +158,7 @@ Bar<std::tuple<Left...>, std::tuple<Middle...>, std::tuple<Right...>>::Bar(
           .foreground = fg,
           .fg_accent = acc};
 
-      return BarWindow(std::move(bar_colors), {&_font}, builder._rect);
+      return BarWindow(std::move(bar_colors), builder._rect);
     }())
     , _events(this)
     , _left(&_win, builder._left)
@@ -191,8 +170,9 @@ Bar<std::tuple<Left...>, std::tuple<Middle...>, std::tuple<Right...>>::Bar(
 template <typename... Left, typename... Middle, typename... Right>
 template <typename Mod>
 void
-Bar<std::tuple<Left...>, std::tuple<Middle...>, std::tuple<Right...>>::use(
-    [[maybe_unused]] const DynamicModule<Mod>& mod) {
+Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
+    std::tuple<const Right&...>>::use([[maybe_unused]] const DynamicModule<Mod>&
+                                          mod) {
   _win.reset();
 
   std::pair<uint16_t, uint16_t> p;
@@ -208,8 +188,8 @@ Bar<std::tuple<Left...>, std::tuple<Middle...>, std::tuple<Right...>>::use(
 
 template <typename... Left, typename... Middle, typename... Right>
 void
-Bar<std::tuple<Left...>, std::tuple<Middle...>, std::tuple<Right...>>::click(
-    int16_t x, uint8_t button) const {
+Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
+    std::tuple<const Right&...>>::click(int16_t x, uint8_t button) const {
   for (auto region : _regions) {
     if (x >= std::get<0>(region) && x <= std::get<1>(region)) {
       std::get<2>(region)->click(x - std::get<0>(region), button);
@@ -233,7 +213,8 @@ struct lookup_value_t {
 
 
 template <typename... L, typename... M, typename... R>
-class BarBuilder<std::tuple<L...>, std::tuple<M...>, std::tuple<R...>> {
+class BarBuilder<std::tuple<const L&...>, std::tuple<const M&...>,
+                 std::tuple<const R&...>> {
  public:
   consteval BarBuilder() = default;
 
@@ -248,20 +229,18 @@ class BarBuilder<std::tuple<L...>, std::tuple<M...>, std::tuple<R...>> {
   consteval auto acc_font_color(const char* str) const;
   consteval auto acc_font_color_from_rdb(const char* str) const;
 
-  consteval auto font(const char* str) const;
-  consteval auto font_from_rdb(const char* str) const;
+  template <typename... Mods>
+  consteval auto left(const Mods&... tup) const;
 
   template <typename... Mods>
-  consteval auto left(std::tuple<const Mods&...> tup) const;
+  consteval auto middle(const Mods&... tup) const;
 
   template <typename... Mods>
-  consteval auto middle(std::tuple<const Mods&...> tup) const;
-
-  template <typename... Mods>
-  consteval auto right(std::tuple<const Mods&...> tup) const;
+  consteval auto right(const Mods&... tup) const;
 
  private:
-  friend class Bar<std::tuple<L...>, std::tuple<M...>, std::tuple<R...>>;
+  friend class Bar<std::tuple<const L&...>, std::tuple<const M&...>,
+                   std::tuple<const R&...>>;
   template <typename T>
   friend auto build(T t);
 
@@ -269,7 +248,6 @@ class BarBuilder<std::tuple<L...>, std::tuple<M...>, std::tuple<R...>> {
   lookup_value_t _bg;
   lookup_value_t _font_fg;
   lookup_value_t _font_acc;
-  lookup_value_t _font;
   std::tuple<const L&...> _left;
   std::tuple<const M&...> _middle;
   std::tuple<const R&...> _right;
@@ -277,7 +255,6 @@ class BarBuilder<std::tuple<L...>, std::tuple<M...>, std::tuple<R...>> {
  public:
   consteval explicit BarBuilder(rectangle_t rect, lookup_value_t bg,
                                 lookup_value_t font_fg, lookup_value_t font_acc,
-                                lookup_value_t font,
                                 std::tuple<const L&...> left,
                                 std::tuple<const M&...> middle,
                                 std::tuple<const R&...> right);
@@ -287,92 +264,84 @@ using BarBuilderHelper = BarBuilder<std::tuple<>, std::tuple<>, std::tuple<>>;
 
 
 template <typename... L, typename... M, typename... R>
-consteval BarBuilder<std::tuple<L...>, std::tuple<M...>, std::tuple<R...>>::
-    BarBuilder(rectangle_t rect, lookup_value_t bg, lookup_value_t font_fg,
-               lookup_value_t font_acc, lookup_value_t font,
-               std::tuple<const L&...> left, std::tuple<const M&...> middle,
-               std::tuple<const R&...> right)
+consteval BarBuilder<
+    std::tuple<const L&...>, std::tuple<const M&...>,
+    std::tuple<const R&...>>::BarBuilder(rectangle_t rect, lookup_value_t bg,
+                                         lookup_value_t font_fg,
+                                         lookup_value_t font_acc,
+                                         std::tuple<const L&...> left,
+                                         std::tuple<const M&...> middle,
+                                         std::tuple<const R&...> right)
     : _rect(rect)
     , _bg(bg)
     , _font_fg(font_fg)
     , _font_acc(font_acc)
-    , _font(font)
     , _left(left)
     , _middle(middle)
     , _right(right) {
 }
 
 
-#define BAR_BUILDER_FUNC \
-  template <typename... L, typename... M, typename... R> \
-  consteval auto \
-  BarBuilder<std::tuple<L...>, std::tuple<M...>, std::tuple<R...>>
+#define BAR_BUILDER_FUNC                                                      \
+  template <typename... L, typename... M, typename... R>                      \
+  consteval auto BarBuilder<std::tuple<const L&...>, std::tuple<const M&...>, \
+                            std::tuple<const R&...>>
 
 BAR_BUILDER_FUNC::area(rectangle_t rect) const {
-  return BarBuilder(rect, _bg, _font_fg, _font_acc, _font, _left, _middle,
-                    _right);
+  return BarBuilder(rect, _bg, _font_fg, _font_acc, _left, _middle, _right);
 }
 
 BAR_BUILDER_FUNC::bg_bar_color(const char* str) const {
   return BarBuilder(_rect, {.name = str, .from_rdb = false}, _font_fg,
-                    _font_acc, _font, _left, _middle, _right);
+                    _font_acc, _left, _middle, _right);
 }
 
 BAR_BUILDER_FUNC::bg_bar_color_from_rdb(const char* str) const {
   return BarBuilder(_rect, {.name = str, .from_rdb = true}, _font_fg, _font_acc,
-                    _font, _left, _middle, _right);
+                    _left, _middle, _right);
 }
 
 BAR_BUILDER_FUNC::fg_font_color(const char* str) const {
   return BarBuilder(_rect, _bg, {.name = str, .from_rdb = false}, _font_acc,
-                    _font, _left, _middle, _right);
+                    _left, _middle, _right);
 }
 
 BAR_BUILDER_FUNC::fg_font_color_from_rdb(const char* str) const {
   return BarBuilder(_rect, _bg, {.name = str, .from_rdb = true}, _font_acc,
-                    _font, _left, _middle, _right);
+                    _left, _middle, _right);
 }
 
 BAR_BUILDER_FUNC::acc_font_color(const char* str) const {
   return BarBuilder(_rect, _bg, _font_fg, {.name = str, .from_rdb = false},
-                    _font, _left, _middle, _right);
+                    _left, _middle, _right);
 }
 
 BAR_BUILDER_FUNC::acc_font_color_from_rdb(const char* str) const {
   return BarBuilder(_rect, _bg, _font_fg, {.name = str, .from_rdb = true},
-                    _font, _left, _middle, _right);
-}
-
-BAR_BUILDER_FUNC::font(const char* str) const {
-  return BarBuilder(_rect, _bg, _font_fg, _font_acc,
-                    {.name = str, .from_rdb = false}, _left, _middle, _right);
-}
-
-BAR_BUILDER_FUNC::font_from_rdb(const char* str) const {
-  return BarBuilder(_rect, _bg, _font_fg, _font_acc,
-                    {.name = str, .from_rdb = true}, _left, _middle, _right);
+                    _left, _middle, _right);
 }
 
 
-#define BAR_BUILDER_SECTION_FUNC \
-  template <typename... L, typename... M, typename... R> \
-  template <typename... Mods> \
-  consteval auto \
-  BarBuilder<std::tuple<L...>, std::tuple<M...>, std::tuple<R...>>
+#define BAR_BUILDER_SECTION_FUNC                                              \
+  template <typename... L, typename... M, typename... R>                      \
+  template <typename... Mods>                                                 \
+  consteval auto BarBuilder<std::tuple<const L&...>, std::tuple<const M&...>, \
+                            std::tuple<const R&...>>
 
-BAR_BUILDER_SECTION_FUNC::left(std::tuple<const Mods&...> tup) const {
+BAR_BUILDER_SECTION_FUNC::left(const Mods&... tup) const {
   return BarBuilder<std::tuple<const Mods&...>, std::tuple<const M&...>,
                     std::tuple<const R&...>>(_rect, _bg, _font_fg, _font_acc,
-                                             _font, tup, _middle, _right);
+                                             {tup...}, _middle, _right);
 }
 
-BAR_BUILDER_SECTION_FUNC::middle(std::tuple<const Mods&...> tup) const {
+BAR_BUILDER_SECTION_FUNC::middle(const Mods&... tup) const {
   return BarBuilder<std::tuple<const L&...>, std::tuple<const Mods&...>,
                     std::tuple<const R&...>>(_rect, _bg, _font_fg, _font_acc,
-                                             _font, _left, tup, _right);
+                                             _left, {tup...}, _right);
 }
 
-BAR_BUILDER_SECTION_FUNC::right(std::tuple<const Mods&...> tup) const {
-  return BarBuilder<std::tuple<L...>, std::tuple<M...>, std::tuple<Mods...>>(
-      _rect, _bg, _font_fg, _font_acc, _font, _left, _middle, tup);
+BAR_BUILDER_SECTION_FUNC::right(const Mods&... tup) const {
+  return BarBuilder<std::tuple<const L&...>, std::tuple<const M&...>,
+                    std::tuple<const Mods&...>>(_rect, _bg, _font_fg, _font_acc,
+                                                _left, _middle, {tup...});
 }

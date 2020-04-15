@@ -39,6 +39,6 @@ mod_clock::do_work() {
   *current_date.rbegin() = '\0';
 
   _segments[0] = {
-      .segments{{.str = current_time.data(), .color = ACCENT_COLOR},
-                {.str = current_date.data(), .color = NORMAL_COLOR}}};
+      .segments{{.str{current_time.data()}, .color = ACCENT_COLOR},
+                {.str{current_date.data()}, .color = NORMAL_COLOR}}};
 }

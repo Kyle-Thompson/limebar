@@ -5,7 +5,6 @@
 #include "bars.h"
 #include "color.h"
 #include "config.h"
-#include "font.h"
 #include "modules/clock.h"
 #include "modules/fill.h"
 #include "modules/module.h"
@@ -26,10 +25,8 @@ main() {
           .bg_bar_color_from_rdb("background")
           .fg_font_color_from_rdb("foreground")
           .acc_font_color_from_rdb("color4")
-          .font_from_rdb("font")
-          .left(section_wrapper(space, workspaces, sep, windows))
-          .middle(section_wrapper(clock))
-          .right(section_wrapper());
+          .left(space, workspaces, sep, windows)
+          .middle(clock);
 
   constexpr size_t W = 1920;
   constexpr size_t H = 20;
@@ -38,9 +35,12 @@ main() {
   Bar r = build(builder.area({.x = W * 2, .y = 0, .width = W, .height = H}));
 
   std::tuple tasks{
-      ModuleTask(&workspaces, &l, &m, &r), ModuleTask(&windows, &l, &m, &r),
-      ModuleTask(&clock, &l, &m, &r),      Task(l.get_event_handler()),
-      Task(m.get_event_handler()),         Task(r.get_event_handler())};
+      ModuleTask(&workspaces, &l, &m, &r),
+      ModuleTask(&windows, &l, &m, &r),
+      ModuleTask(&clock, &l, &m, &r),
+      Task(l.get_event_handler()),
+      Task(m.get_event_handler()),
+      Task(r.get_event_handler())};
 
   while (true) {
     std::apply([](auto&... task) { ((task.work()), ...); }, tasks);

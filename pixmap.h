@@ -5,13 +5,12 @@
 
 #include "bar_color.h"
 #include "config.h"
-#include "font.h"
 #include "types.h"
 
 class SectionPixmap {
  public:
-  SectionPixmap(DS::pixmap_t pixmap, BarColors* colors, Fonts* fonts,
-                uint16_t width, uint16_t height);
+  SectionPixmap(DS::pixmap_t pixmap, BarColors* colors, uint16_t width,
+                uint16_t height);
   ~SectionPixmap() = default;
   SectionPixmap(const SectionPixmap&) = delete;
   SectionPixmap(SectionPixmap&&) = delete;
@@ -32,7 +31,6 @@ class SectionPixmap {
   uint16_t _width, _height;
   DS& _ds;
   BarColors* _colors;
-  Fonts* _fonts;
   DS::pixmap_t _pixmap;
   XftDraw* _xft_draw;
   std::vector<area_t> _areas;

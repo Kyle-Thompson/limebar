@@ -57,13 +57,12 @@ utf8_to_ucs2(const std::string& text) {
 
 
 SectionPixmap::SectionPixmap(DS::pixmap_t pixmap, BarColors* colors,
-                             Fonts* fonts, uint16_t width, uint16_t height)
+                             uint16_t width, uint16_t height)
     : _used(0)
     , _width(width)
     , _height(height)
     , _ds(DS::Instance())
     , _colors(colors)
-    , _fonts(fonts)
     , _pixmap(std::move(pixmap))
     , _xft_draw(_pixmap.create_xft_draw()) {
 }
@@ -99,14 +98,14 @@ SectionPixmap::click(int16_t x, uint8_t button) const {
 
 void
 SectionPixmap::write(const segment_t& seg) {
-  using FontType = typename Fonts::Font;
+  using FontType = typename DS::font_t;
   using StringContainer = std::tuple<ucs2, FontType*, size_t>;
 
   const auto strings =
       seg.segments |
       ranges::views::transform([this](const auto& s) -> StringContainer {
         ucs2 str = utf8_to_ucs2(s.str);
-        FontType* font = _fonts->drawable_font(str[0]);
+        FontType* font = _ds.get_drawable_font(str[0]);
         return {str, font, font->string_size(str)};
       });
 

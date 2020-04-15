@@ -3,6 +3,7 @@
 #include <tuple>
 /* #include <concepts> */
 
+
 template <typename T>
 concept Taskable = requires(T t) {
   /* { t.has_work() } -> std::same_as<bool>; */
@@ -60,6 +61,5 @@ class ModuleTask : public Task<T, D...> {
  public:
   explicit ModuleTask(T* t, D*... d) : Task<T, D...>(t, d...) {
     Task<T, D...>::do_work();
-    Task<T, D...>::update();
   }
 };

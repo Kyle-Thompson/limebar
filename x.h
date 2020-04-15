@@ -16,13 +16,83 @@
 #include <vector>
 
 #include "color.h"
+#include "config_font.h"
 #include "types.h"
+
+class X11;
+
+
+class FontColor {
+ public:
+  ~FontColor();
+  FontColor(const FontColor& rhs) = default;
+  FontColor(FontColor&&) = default;
+  FontColor& operator=(const FontColor&) = default;
+  FontColor& operator=(FontColor&&) = default;
+
+  XftColor* get() { return &_color; }
+
+ private:
+  friend X11;
+  FontColor(X11* x, const rgba_t& rgb);
+
+  X11* _x;
+  XftColor _color;
+};
+
+
+class FontType {
+  // TODO: optimize for monospace fonts
+
+ public:
+  struct glyph_t {
+    FT_UInt id;
+    XGlyphInfo info;
+  };
+
+  ~FontType();
+  FontType(const FontType&) = delete;
+  FontType(FontType&&) = delete;
+  FontType& operator=(const FontType&) = delete;
+  FontType& operator=(FontType&&) = delete;
+
+  void draw_ucs2(XftDraw* draw, FontColor* color, const ucs2& str,
+                 uint16_t height, size_t x);
+
+  bool has_glyph(uint16_t ch);
+  size_t string_size(const ucs2& str);
+
+  [[nodiscard]] int descent() const { return _descent; }
+  [[nodiscard]] int height() const { return _height; }
+  [[nodiscard]] int offset() const { return _offset; }
+
+  void height(int h) { _height = h; }
+
+ private:
+  friend X11;
+  FontType(Display* dpy, const char* pattern, int offset = 0);
+
+  using glyph_map_t = std::unordered_map<uint16_t, glyph_t>;
+  using glyph_map_itr = glyph_map_t::const_iterator;
+
+  glyph_map_itr get_glyph(uint16_t ch);
+  glyph_t create_glyph(uint16_t ch);
+  uint16_t char_width(uint16_t ch);
+
+  int _descent{0};
+  int _height{0};
+  int _offset{0};
+
+  Display* _display;
+  XftFont* _xft_ft;
+  glyph_map_t _glyph_map;
+};
 
 
 class X11 {
  public:
-  class font_color_t;
-  class font_t;
+  using font_color_t = FontColor;
+  using font_t = FontType;
   class window_t;
   class pixmap_t;  // created through window_t
   class rdb_t;
@@ -61,7 +131,12 @@ class X11 {
   [[nodiscard]] auto get_workspace_of_window(xcb_window_t window)
       -> std::optional<uint32_t>;
 
+  // fonts
+  [[nodiscard]] auto get_drawable_font(uint16_t ch) -> font_t*;
+
  private:
+  friend font_color_t;
+  friend font_t;
   X11();
 
   // query internal X state
@@ -82,73 +157,12 @@ class X11 {
 
   Visual* _xlib_visual_ptr;
   xcb_visualid_t _xlib_visual;
-};
 
+  // fonts
+  std::array<font_t, FONTS.size()> _fonts;
+  std::unordered_map<uint16_t, font_t*> _chars;
 
-class X11::font_color_t {
- public:
-  ~font_color_t();
-  font_color_t(const font_color_t& rhs) = default;
-  font_color_t(font_color_t&&) = default;
-  font_color_t& operator=(const font_color_t&) = default;
-  font_color_t& operator=(font_color_t&&) = default;
-
-  XftColor* get() { return &_color; }
-
- private:
-  friend X11;
-  font_color_t(X11* x, const rgba_t& rgb);
-
-  X11* _x;
-  XftColor _color;
-};
-
-
-class X11::font_t {
-  // TODO: optimize for monospace fonts
-
- public:
-  struct glyph_t {
-    FT_UInt id;
-    XGlyphInfo info;
-  };
-
-  ~font_t();
-  font_t(const font_t&) = delete;
-  font_t(font_t&&) = delete;
-  font_t& operator=(const font_t&) = delete;
-  font_t& operator=(font_t&&) = delete;
-
-  void draw_ucs2(XftDraw* draw, font_color_t* color, const ucs2& str,
-                 uint16_t height, size_t x);
-
-  bool has_glyph(uint16_t ch);
-  size_t string_size(const ucs2& str);
-
-  [[nodiscard]] int descent() const { return _descent; }
-  [[nodiscard]] int height() const { return _height; }
-  [[nodiscard]] int offset() const { return _offset; }
-
-  void height(int h) { _height = h; }
-
- private:
-  friend X11;
-  font_t(Display* dpy, const char* pattern, int offset = 0);
-
-  using glyph_map_t = std::unordered_map<uint16_t, glyph_t>;
-  using glyph_map_itr = glyph_map_t::const_iterator;
-
-  glyph_map_itr get_glyph(uint16_t ch);
-  glyph_t create_glyph(uint16_t ch);
-  uint16_t char_width(uint16_t ch);
-
-  int _descent{0};
-  int _height{0};
-  int _offset{0};
-
-  Display* _display;
-  XftFont* _xft_ft;
-  glyph_map_t _glyph_map;
+  decltype(_chars)::iterator add_char(uint16_t ch);
 };
 
 

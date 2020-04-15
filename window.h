@@ -6,13 +6,12 @@
 
 #include "bar_color.h"
 #include "config.h"
-#include "font.h"
 #include "pixmap.h"
 #include "types.h"
 
 class BarWindow {
  public:
-  BarWindow(BarColors&& colors, Fonts&& fonts, rectangle_t rect);
+  BarWindow(BarColors&& colors, rectangle_t rect);
   ~BarWindow() = default;
 
   BarWindow(const BarWindow&) = delete;
@@ -38,8 +37,7 @@ class BarWindow {
   }
 
   [[nodiscard]] auto generate_mod_pixmap() {
-    return SectionPixmap(_window.create_pixmap(), &_colors, &_fonts, _width,
-                         _height);
+    return SectionPixmap(_window.create_pixmap(), &_colors, _width, _height);
   }
 
  private:
@@ -47,7 +45,6 @@ class BarWindow {
   DS::window_t _window;
   DS::pixmap_t _pixmap;
   BarColors _colors;
-  Fonts _fonts;
   uint16_t _width, _height;
   uint16_t _offset_left{0}, _offset_right{0};
 };

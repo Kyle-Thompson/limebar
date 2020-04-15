@@ -6,12 +6,14 @@
 #include <xcb/xcb_xrm.h>
 
 #include <iostream>
+#include <memory>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "color.h"
 #include "config.h"
+#include "types.h"
 
 enum {
   NET_WM_WINDOW_TYPE,
@@ -49,18 +51,27 @@ X11::get_xlib_visual() {
                      : ret_t(_screen->root_visual, DefaultVisual(_display, 0));
 }
 
-X11::X11() {
-  if (_display = XOpenDisplay(nullptr); _display == nullptr) {
-    std::cerr << "Couldnt open display\n";
-    exit(EXIT_FAILURE);
-  }
-
-  if (_connection = XGetXCBConnection(_display);
-      _connection == nullptr || xcb_connection_has_error(_connection) > 0) {
-    std::cerr << "Couldn't connect to X\n";
-    exit(EXIT_FAILURE);
-  }
-
+X11::X11()
+    : _display([] {
+      Display* display;
+      if (display = XOpenDisplay(nullptr); display == nullptr) {
+        std::cerr << "Couldnt open display\n";
+        exit(EXIT_FAILURE);
+      }
+      return display;
+    }())
+    , _connection([this] {
+      xcb_connection_t* connection;
+      if (connection = XGetXCBConnection(_display);
+          connection == nullptr || xcb_connection_has_error(connection) > 0) {
+        std::cerr << "Couldn't connect to X\n";
+        exit(EXIT_FAILURE);
+      }
+      return connection;
+    }())
+    , _fonts([this]<size_t... I>(std::index_sequence<I...>)->decltype(_fonts) {
+      return {((create_font(FONTS[I])), ...)};
+    }(std::make_index_sequence<FONTS.size()>{})) {
   auto* ewmh_cookie = xcb_ewmh_init_atoms(_connection, &_ewmh);
   if (xcb_ewmh_init_atoms_replies(&_ewmh, ewmh_cookie, nullptr) == 0) {
     std::cerr << "Couldn't initialize EWMH atoms\n";
@@ -116,11 +127,6 @@ X11::create_font_color(const rgba_t& rgb) {
   return font_color_t(this, rgb);
 }
 
-X11::font_t
-X11::create_font(const char* pattern, int offset) {
-  return font_t(_display, pattern, offset);
-}
-
 // TODO: refactor into multiple functions
 X11::window_t
 X11::create_window(rectangle_t dim, const rgba_t& rgb, bool reserve_space) {
@@ -130,11 +136,11 @@ X11::create_window(rectangle_t dim, const rgba_t& rgb, bool reserve_space) {
   const uint32_t value_mask = XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL |
                               XCB_CW_OVERRIDE_REDIRECT | XCB_CW_EVENT_MASK |
                               XCB_CW_COLORMAP;
-  const std::array<uint32_t, 5> value_list{
-      *rgb.val(), *rgb.val(), FORCE_DOCK,
-      XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS |
-          XCB_EVENT_MASK_FOCUS_CHANGE,
-      _colormap};
+  const std::array<uint32_t, 5> value_list{*rgb.val(), *rgb.val(), FORCE_DOCK,
+                                           XCB_EVENT_MASK_EXPOSURE |
+                                               XCB_EVENT_MASK_BUTTON_PRESS |
+                                               XCB_EVENT_MASK_FOCUS_CHANGE,
+                                           _colormap};
   const uint16_t border_width = 0;
   xcb_create_window(_connection, get_depth(), win._id, _screen->root, x, y,
                     width, height, border_width, XCB_WINDOW_CLASS_INPUT_OUTPUT,
@@ -311,7 +317,33 @@ X11::get_workspace_of_window(xcb_window_t window) {
 }
 
 
-X11::font_color_t::font_color_t(X11* x, const rgba_t& rgb)
+X11::font_t
+X11::create_font(const char* pattern, int offset) {
+  return font_t(_display, pattern, offset);
+}
+
+X11::font_t*
+X11::get_drawable_font(uint16_t ch) {
+  auto itr = _chars.find(ch);
+  return (itr == _chars.end() ? add_char(ch) : itr)->second;
+}
+
+auto
+X11::add_char(uint16_t ch) -> decltype(_chars)::iterator {
+  font_t& font = [ch, this]() -> font_t& {
+    for (auto& ft : _fonts) {
+      if (ft.has_glyph(ch)) {
+        return ft;
+      }
+    }
+    std::cerr << "error: character " << ch << " could not be found.\n";
+    return _fonts[0];  // TODO: print error and exit?
+  }();
+  return _chars.emplace(std::make_pair(ch, &font)).first;
+}
+
+
+FontColor::FontColor(X11* x, const rgba_t& rgb)
     : _x(x), _color([this, rgb] {
       XftColor color;
       // TODO: use XftColorAllocValue instead
@@ -323,12 +355,12 @@ X11::font_color_t::font_color_t(X11* x, const rgba_t& rgb)
     }()) {
 }
 
-X11::font_color_t::~font_color_t() {
+FontColor::~FontColor() {
   XftColorFree(_x->_display, _x->_xlib_visual_ptr, _x->_colormap, &_color);
 }
 
 
-X11::font_t::font_t(Display* dpy, const char* pattern, int offset)
+FontType::FontType(Display* dpy, const char* pattern, int offset)
     : _display(dpy), _xft_ft(XftFontOpenName(_display, 0, pattern)) {
   if (_xft_ft == nullptr) {
     std::cerr << "Could not load font " << pattern << "\n";
@@ -340,7 +372,7 @@ X11::font_t::font_t(Display* dpy, const char* pattern, int offset)
   this->_offset = offset;
 }
 
-X11::font_t::~font_t() {
+FontType::~FontType() {
   for (auto& [ch, glyph] : _glyph_map) {
     XftFontUnloadGlyphs(_display, _xft_ft, &glyph.id, 1);
   }
@@ -348,15 +380,15 @@ X11::font_t::~font_t() {
 }
 
 void
-X11::font_t::draw_ucs2(XftDraw* draw, font_color_t* color, const ucs2& str,
-                       uint16_t height, size_t x) {
+FontType::draw_ucs2(XftDraw* draw, FontColor* color, const ucs2& str,
+                    uint16_t height, size_t x) {
   const int y = static_cast<int>(height) / 2 + _height / 2 - _descent + _offset;
   XftDrawString16(draw, color->get(), _xft_ft, static_cast<int>(x), y,
                   str.data(), static_cast<int>(str.size()));
 }
 
 auto
-X11::font_t::get_glyph(uint16_t ch) -> glyph_map_itr {
+FontType::get_glyph(uint16_t ch) -> glyph_map_itr {
   auto itr = [this, ch] { return _glyph_map.find(ch); }();
 
   if (itr == _glyph_map.end() &&
@@ -367,24 +399,24 @@ X11::font_t::get_glyph(uint16_t ch) -> glyph_map_itr {
 }
 
 bool
-X11::font_t::has_glyph(uint16_t ch) {
+FontType::has_glyph(uint16_t ch) {
   return get_glyph(ch) != _glyph_map.end();
 }
 
 uint16_t
-X11::font_t::char_width(uint16_t ch) {
+FontType::char_width(uint16_t ch) {
   return static_cast<uint16_t>(get_glyph(ch)->second.info.xOff);
 }
 
 size_t
-X11::font_t::string_size(const ucs2& str) {
+FontType::string_size(const ucs2& str) {
   return std::accumulate(
       str.begin(), str.end(), size_t{},
       [this](size_t size, uint16_t ch) { return size + char_width(ch); });
 }
 
 auto
-X11::font_t::create_glyph(uint16_t ch) -> glyph_t {
+FontType::create_glyph(uint16_t ch) -> glyph_t {
   XGlyphInfo glyph_info;
   FT_UInt glyph_id = XftCharIndex(_display, _xft_ft, static_cast<FcChar32>(ch));
   XftFontLoadGlyphs(_display, _xft_ft, FcFalse, &glyph_id, 1);

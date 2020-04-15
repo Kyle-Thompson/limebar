@@ -44,7 +44,7 @@ mod_workspaces::do_work() {
   for (auto names = _ds.get_workspace_names();
        auto &&[i, name] : names | ranges::views::enumerate) {
     _segments.push_back(
-        {.segments{{.str = name + ' ',
+        {.segments{{.str{name + ' '},
                     .color = (i == cur_desktop ? ACCENT_COLOR : NORMAL_COLOR)}},
          .action = [desk = i, this](uint8_t button) {
            if (button == 1) {

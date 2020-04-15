@@ -42,7 +42,7 @@ struct text_segment_t {
   font_color_e color;
 
   // TODO
-  /* typename Fonts::Font* font; */
+  /* typename DS::font_t* font; */
   /* typename DS::font_color font_color; */
 };
 
