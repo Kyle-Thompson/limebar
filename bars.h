@@ -64,6 +64,8 @@ template <typename... Left, typename... Middle, typename... Right>
 class Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
           std::tuple<const Right&...>> {
  public:
+  class events_t;
+
   Bar(rectangle_t&& d, BarColors&& colors,
       const std::tuple<const Left&...>& left,
       const std::tuple<const Middle&...>& middle,
@@ -74,38 +76,8 @@ class Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
                        std::tuple<const Right&...>>& builder);
 
   void update();
-
   void click(int16_t x, uint8_t button) const;
-
-  class events_t {
-   public:
-    explicit events_t(Bar* bar) : _bar(bar), _ds(DS::Instance()) {}
-
-    bool has_work() {
-      while (auto event = _ds.poll_for_event()) {
-        // TODO: can we filter in the display server to only return these values
-        // in the first place so we don't have to check every time?
-        if ((event->response_type & 0x7F) == XCB_BUTTON_PRESS) {
-          auto* press =
-              reinterpret_cast<xcb_button_press_event_t*>(event.get());
-          _event_x = press->event_x;
-          _event_button = press->detail;
-          return true;
-        }
-      }
-      return false;
-    }
-
-    void do_work() { _bar->click(_event_x, _event_button); }
-
-   private:
-    Bar* _bar;
-    DS& _ds;
-    int16_t _event_x{0};
-    uint8_t _event_button{0};
-  };
-
-  events_t* get_event_handler() { return &_events; }
+  auto get_event_handler() -> events_t* { return &_events; }
 
  private:
   BarWindow _win;
@@ -194,6 +166,42 @@ Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
     }
   }
 }
+
+
+template <typename... Left, typename... Middle, typename... Right>
+class Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
+          std::tuple<const Right&...>>::events_t {
+ public:
+  explicit events_t(Bar* bar) : _bar(bar), _ds(DS::Instance()) {}
+  bool has_work();
+  void do_work() { _bar->click(_event_x, _event_button); }
+
+ private:
+  Bar* _bar;
+  DS& _ds;
+  int16_t _event_x{0};
+  uint8_t _event_button{0};
+};
+
+template <typename... Left, typename... Middle, typename... Right>
+bool
+Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
+    std::tuple<const Right&...>>::events_t::has_work() {
+  while (auto event = _ds.poll_for_event()) {
+    // TODO: can we filter in the display server to only return these values
+    // in the first place so we don't have to check every time?
+    if ((event->response_type & 0x7F) == XCB_BUTTON_PRESS) {
+      auto* press =
+          reinterpret_cast<xcb_button_press_event_t*>(event.get());
+      _event_x = press->event_x;
+      _event_button = press->detail;
+      return true;
+    }
+  }
+  return false;
+
+}
+
 
 template <typename B>
 auto
