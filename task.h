@@ -12,9 +12,9 @@ concept Taskable = requires(T t) {
   t.do_work();
 };
 
-template <typename T, typename U>
-concept Downstream = requires(T t, U u) {
-  t.use(u);
+template <typename T>
+concept Downstream = requires(T t) {
+  t.update();
 };
 
 
@@ -22,7 +22,7 @@ concept Downstream = requires(T t, U u) {
  * A greedy task meant for asynchronous use which immediately runs any work it
  * has and updates the downstream when there is no more work to do on itself.
  */
-template <Taskable T, Downstream<T>... D>
+template <Taskable T, Downstream... D>
 class Task {
  public:
   explicit Task(T* t, D*... d) : _task(t), _downstream(d...) {}
@@ -43,7 +43,7 @@ class Task {
   bool has_work() { return _task->has_work(); }
   void do_work() { _task->do_work(); }
   void update() {
-    std::apply([=](D*... d) { ((d->use(*_task)), ...); }, _downstream);
+    std::apply([](D*... d) { ((d->update()), ...); }, _downstream);
   }
 
  private:
@@ -56,7 +56,7 @@ class Task {
  * A specialization of Task that runs the task on construction. Useful for
  * modules to get their initial values.
  */
-template <Taskable T, Downstream<T>... D>
+template <Taskable T, Downstream... D>
 class ModuleTask : public Task<T, D...> {
  public:
   explicit ModuleTask(T* t, D*... d) : Task<T, D...>(t, d...) {

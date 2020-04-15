@@ -73,8 +73,7 @@ class Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
       const BarBuilder<std::tuple<const Left&...>, std::tuple<const Middle&...>,
                        std::tuple<const Right&...>>& builder);
 
-  template <typename Mod>
-  void use(const DynamicModule<Mod>& mod);
+  void update();
 
   void click(int16_t x, uint8_t button) const;
 
@@ -168,11 +167,9 @@ Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
 
 
 template <typename... Left, typename... Middle, typename... Right>
-template <typename Mod>
 void
 Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
-    std::tuple<const Right&...>>::use([[maybe_unused]] const DynamicModule<Mod>&
-                                          mod) {
+    std::tuple<const Right&...>>::update() {
   _win.reset();
 
   std::pair<uint16_t, uint16_t> p;

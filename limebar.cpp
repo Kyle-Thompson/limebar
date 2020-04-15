@@ -42,6 +42,10 @@ main() {
       Task(m.get_event_handler()),
       Task(r.get_event_handler())};
 
+  l.update();
+  m.update();
+  r.update();
+
   while (true) {
     std::apply([](auto&... task) { ((task.work()), ...); }, tasks);
 
