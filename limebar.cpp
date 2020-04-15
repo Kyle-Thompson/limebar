@@ -30,9 +30,9 @@ main() {
 
   constexpr size_t W = 1920;
   constexpr size_t H = 20;
-  Bar l = build(builder.area({.x = 0,     .y = 0, .width = W, .height = H}));
-  Bar m = build(builder.area({.x = W,     .y = 0, .width = W, .height = H}));
-  Bar r = build(builder.area({.x = W * 2, .y = 0, .width = W, .height = H}));
+  Bar l(builder.area({.x = 0,     .y = 0, .width = W, .height = H}));
+  Bar m(builder.area({.x = W,     .y = 0, .width = W, .height = H}));
+  Bar r(builder.area({.x = W * 2, .y = 0, .width = W, .height = H}));
 
   std::tuple tasks{
       ModuleTask(&workspaces, &l, &m, &r),

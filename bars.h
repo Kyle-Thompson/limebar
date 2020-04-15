@@ -35,10 +35,12 @@ class Section {
   std::tuple<const Mods&...> _modules;
 };
 
+
 template <typename... Mods>
 Section<Mods...>::Section(BarWindow* win, std::tuple<const Mods&...> mods)
     : _pixmap(win->generate_mod_pixmap()), _modules(mods) {
 }
+
 
 template <typename... Mods>
 const SectionPixmap&
@@ -53,6 +55,7 @@ Section<Mods...>::collect() {
 template <typename L, typename M, typename R>
 class BarBuilder;
 
+
 /** Bar
  * The Bar class maintains the three different sections and the window
  * displaying the bar itself. It will also draw each section into the bar.
@@ -65,11 +68,6 @@ class Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
           std::tuple<const Right&...>> {
  public:
   class events_t;
-
-  Bar(rectangle_t&& d, BarColors&& colors,
-      const std::tuple<const Left&...>& left,
-      const std::tuple<const Middle&...>& middle,
-      const std::tuple<const Right&...>& right);
 
   explicit Bar(
       const BarBuilder<std::tuple<const Left&...>, std::tuple<const Middle&...>,
@@ -88,19 +86,14 @@ class Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
   std::array<std::tuple<int16_t, int16_t, SectionPixmap*>, 3> _regions;
 };
 
+
+// template deduction guide
 template <typename... Left, typename... Middle, typename... Right>
-Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
-    std::tuple<const Right&...>>::Bar(rectangle_t&& d, BarColors&& colors,
-                                      const std::tuple<const Left&...>& left,
-                                      const std::tuple<const Middle&...>&
-                                          middle,
-                                      const std::tuple<const Right&...>& right)
-    : _win(std::move(colors), d)
-    , _events(this)
-    , _left(&_win, left)
-    , _middle(&_win, middle)
-    , _right(&_win, right) {
-}
+Bar(const BarBuilder<std::tuple<const Left&...>, std::tuple<const Middle&...>,
+                     std::tuple<const Right&...>>& builder)
+    -> Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
+           std::tuple<const Right&...>>;
+
 
 template <typename... Left, typename... Middle, typename... Right>
 Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
@@ -155,6 +148,7 @@ Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
   _win.render();
 }
 
+
 template <typename... Left, typename... Middle, typename... Right>
 void
 Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
@@ -191,23 +185,13 @@ Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
     // TODO: can we filter in the display server to only return these values
     // in the first place so we don't have to check every time?
     if ((event->response_type & 0x7F) == XCB_BUTTON_PRESS) {
-      auto* press =
-          reinterpret_cast<xcb_button_press_event_t*>(event.get());
+      auto* press = reinterpret_cast<xcb_button_press_event_t*>(event.get());
       _event_x = press->event_x;
       _event_button = press->detail;
       return true;
     }
   }
   return false;
-
-}
-
-
-template <typename B>
-auto
-build(B builder) {
-  return Bar<decltype(builder._left), decltype(builder._middle),
-             decltype(builder._right)>(builder);
 }
 
 
@@ -246,8 +230,6 @@ class BarBuilder<std::tuple<const L&...>, std::tuple<const M&...>,
  private:
   friend class Bar<std::tuple<const L&...>, std::tuple<const M&...>,
                    std::tuple<const R&...>>;
-  template <typename T>
-  friend auto build(T t);
 
   rectangle_t _rect;
   lookup_value_t _bg;
