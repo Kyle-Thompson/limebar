@@ -21,7 +21,6 @@ class SectionPixmap {
   [[nodiscard]] const DS::pixmap_t& pixmap() const { return _pixmap; }
 
   void clear();
-  void append(const SectionPixmap& rhs);
   void write(const segment_t& seg);
 
   void click(int16_t x, uint8_t button) const;

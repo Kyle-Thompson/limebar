@@ -18,8 +18,6 @@
  * stores the modules in a given section and collects their current values into
  * one representation of the state of the section at the time which it was
  * called.
- *
- * TODO: how to verify that Mods is a tuple?
  */
 template <typename... Mods>
 class Section {
@@ -162,6 +160,9 @@ Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
 }
 
 
+/** events_t
+ * A taskable class to handle user interactions with the bar.
+ */
 template <typename... Left, typename... Middle, typename... Right>
 class Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
           std::tuple<const Right&...>>::events_t {
@@ -201,6 +202,9 @@ struct lookup_value_t {
 };
 
 
+/** BarBuilder
+ * A helper class to build Bars in a declarative style.
+ */
 template <typename... L, typename... M, typename... R>
 class BarBuilder<std::tuple<const L&...>, std::tuple<const M&...>,
                  std::tuple<const R&...>> {

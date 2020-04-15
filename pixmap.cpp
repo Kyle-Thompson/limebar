@@ -68,6 +68,9 @@ SectionPixmap::SectionPixmap(DS::pixmap_t pixmap, BarColors* colors,
 }
 
 
+/** clear
+ * Reset the class to its original state.
+ */
 void
 SectionPixmap::clear() {
   _used = 0;
@@ -76,15 +79,9 @@ SectionPixmap::clear() {
 }
 
 
-void
-SectionPixmap::append(const SectionPixmap& rhs) {
-  // TODO: figure out what the right type is to use for _used
-  _pixmap.copy_from(rhs._pixmap, {0, 0}, {static_cast<int16_t>(_used), 0},
-                    rhs.size(), _height);
-  _used += rhs._used;
-}
-
-
+/** click
+ * Run the action for the range containing x in _areas.
+ */
 void
 SectionPixmap::click(int16_t x, uint8_t button) const {
   for (const auto& area : _areas) {
@@ -96,6 +93,11 @@ SectionPixmap::click(int16_t x, uint8_t button) const {
 }
 
 
+/** write
+ * Given a segment, write its contents to the underlying pixelmap and add the
+ * corresponding action to the vector of areas iff the entire segment can be
+ * written.
+ */
 void
 SectionPixmap::write(const segment_t& seg) {
   using FontType = typename DS::font_t;
@@ -133,6 +135,9 @@ SectionPixmap::write(const segment_t& seg) {
 }
 
 
+/** pipe operator
+ * write() the segments from a generator one at a time.
+ */
 void
 operator|(cppcoro::generator<const segment_t&> generator,
           SectionPixmap& pixmap) {

@@ -9,6 +9,9 @@
 #include "pixmap.h"
 #include "types.h"
 
+/** BarWindow
+ * An abstraction for a window that is exclusively used for a status bar.
+ */
 class BarWindow {
  public:
   BarWindow(BarColors&& colors, rectangle_t rect);
