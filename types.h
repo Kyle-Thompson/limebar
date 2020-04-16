@@ -31,8 +31,10 @@ struct area_t {
 };
 
 struct padding_t {
-  uint8_t size;
-  bool pad_ends;
+  uint8_t start = 0;
+  uint8_t end = 0;
+  uint8_t inter_module = 0;  // between distinct modules
+  uint8_t intra_module = 0;  // between segments within a module
 };
 
 enum font_color_e { NORMAL_COLOR, ACCENT_COLOR };
@@ -49,6 +51,4 @@ struct text_segment_t {
 struct segment_t {
   std::vector<text_segment_t> segments;
   std::optional<std::function<void(uint8_t)>> action;
-
-  /* padding_t padding; */
 };

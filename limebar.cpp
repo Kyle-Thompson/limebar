@@ -14,18 +14,18 @@
 
 int
 main() {
-  static mod_fill space(" ");
   static mod_workspaces workspaces;
-  static mod_fill sep("| ");
+  static mod_fill sep("|");
   static mod_windows windows;
   static mod_clock clock;
 
   constexpr auto builder =
       BarBuilderHelper()
+          .padding({.start = 6, .end = 6, .inter_module = 0, .intra_module = 3})
           .bg_bar_color_from_rdb("background")
           .fg_font_color_from_rdb("foreground")
           .acc_font_color_from_rdb("color4")
-          .left(space, workspaces, sep, windows)
+          .left(workspaces, sep, windows)
           .middle(clock);
 
   constexpr size_t W = 1920;

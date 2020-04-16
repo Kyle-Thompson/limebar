@@ -21,7 +21,11 @@ class SectionPixmap {
   [[nodiscard]] const DS::pixmap_t& pixmap() const { return _pixmap; }
 
   void clear();
-  void write(const segment_t& seg);
+  void write(const segment_t& seg, uint8_t padding = 0);
+  void pad(uint8_t padding);
+
+  /* auto with_padding(uint8_t padding) */
+  /*     -> std::function<void(const segment_t&)>; */
 
   void click(int16_t x, uint8_t button) const;
 

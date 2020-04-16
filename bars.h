@@ -22,21 +22,24 @@
 template <typename... Mods>
 class Section {
  public:
-  Section(BarWindow* win, std::tuple<const Mods&...> mods);
+  Section(padding_t padding, BarWindow* win, std::tuple<const Mods&...> mods);
 
   const SectionPixmap& collect();
 
   SectionPixmap* get_pixmap() { return &_pixmap; }
 
  private:
+  // TODO have a text_segment_t divider
+  padding_t _padding;
   SectionPixmap _pixmap;
   std::tuple<const Mods&...> _modules;
 };
 
 
 template <typename... Mods>
-Section<Mods...>::Section(BarWindow* win, std::tuple<const Mods&...> mods)
-    : _pixmap(win->generate_mod_pixmap()), _modules(mods) {
+Section<Mods...>::Section(padding_t padding, BarWindow* win,
+                          std::tuple<const Mods&...> mods)
+    : _padding(padding), _pixmap(win->generate_mod_pixmap()), _modules(mods) {
 }
 
 
@@ -44,8 +47,21 @@ template <typename... Mods>
 const SectionPixmap&
 Section<Mods...>::collect() {
   _pixmap.clear();
-  std::apply([this](const auto&... mod) { ((mod.get() | _pixmap), ...); },
-             _modules);
+  _pixmap.pad(_padding.start);
+  std::apply(
+      [this, i = 0](const auto&... mod) {
+        (([&] {
+           for (const auto& m : mod.get()) {
+             _pixmap.write(m, _padding.intra_module);
+           }
+           if (i < sizeof...(mod) - 1) {
+             _pixmap.pad(_padding.inter_module);
+           }
+         }()),
+         ...);
+      },
+      _modules);
+  _pixmap.pad(_padding.end);
   return _pixmap;
 }
 
@@ -123,9 +139,9 @@ Bar<std::tuple<const Left&...>, std::tuple<const Middle&...>,
       return BarWindow(std::move(bar_colors), builder._rect);
     }())
     , _events(this)
-    , _left(&_win, builder._left)
-    , _middle(&_win, builder._middle)
-    , _right(&_win, builder._right) {
+    , _left(builder._padding, &_win, builder._left)
+    , _middle(builder._padding, &_win, builder._middle)
+    , _right(builder._padding, &_win, builder._right) {
 }
 
 
@@ -212,6 +228,7 @@ class BarBuilder<std::tuple<const L&...>, std::tuple<const M&...>,
   consteval BarBuilder() = default;
 
   consteval auto area(rectangle_t rect) const;
+  consteval auto padding(padding_t padding) const;
 
   consteval auto bg_bar_color(const char* str) const;
   consteval auto bg_bar_color_from_rdb(const char* str) const;
@@ -236,6 +253,7 @@ class BarBuilder<std::tuple<const L&...>, std::tuple<const M&...>,
                    std::tuple<const R&...>>;
 
   rectangle_t _rect;
+  padding_t _padding;
   lookup_value_t _bg;
   lookup_value_t _font_fg;
   lookup_value_t _font_acc;
@@ -244,12 +262,24 @@ class BarBuilder<std::tuple<const L&...>, std::tuple<const M&...>,
   std::tuple<const R&...> _right;
 
  public:
-  consteval explicit BarBuilder(rectangle_t rect, lookup_value_t bg,
-                                lookup_value_t font_fg, lookup_value_t font_acc,
+  consteval explicit BarBuilder(rectangle_t rect, padding_t padding,
+                                lookup_value_t bg, lookup_value_t font_fg,
+                                lookup_value_t font_acc,
                                 std::tuple<const L&...> left,
                                 std::tuple<const M&...> middle,
                                 std::tuple<const R&...> right);
 };
+
+
+// template deduction guide
+// TODO: this currently doesn't work
+/* template <typename... L, typename... M, typename... R> */
+/* BarBuilder(rectangle_t rect, padding_t padding, lookup_value_t bg, */
+/*            lookup_value_t font_fg, lookup_value_t font_acc, */
+/*            std::tuple<const L&...> left, std::tuple<const M&...> middle, */
+/*            std::tuple<const R&...> right) */
+/*     -> BarBuilder<std::tuple<const L&...>, std::tuple<const M&...>, */
+/*                   std::tuple<const R&...>>; */
 
 using BarBuilderHelper = BarBuilder<std::tuple<>, std::tuple<>, std::tuple<>>;
 
@@ -257,13 +287,15 @@ using BarBuilderHelper = BarBuilder<std::tuple<>, std::tuple<>, std::tuple<>>;
 template <typename... L, typename... M, typename... R>
 consteval BarBuilder<
     std::tuple<const L&...>, std::tuple<const M&...>,
-    std::tuple<const R&...>>::BarBuilder(rectangle_t rect, lookup_value_t bg,
+    std::tuple<const R&...>>::BarBuilder(rectangle_t rect, padding_t padding,
+                                         lookup_value_t bg,
                                          lookup_value_t font_fg,
                                          lookup_value_t font_acc,
                                          std::tuple<const L&...> left,
                                          std::tuple<const M&...> middle,
                                          std::tuple<const R&...> right)
     : _rect(rect)
+    , _padding(padding)
     , _bg(bg)
     , _font_fg(font_fg)
     , _font_acc(font_acc)
@@ -279,37 +311,43 @@ consteval BarBuilder<
                             std::tuple<const R&...>>
 
 BAR_BUILDER_FUNC::area(rectangle_t rect) const {
-  return BarBuilder(rect, _bg, _font_fg, _font_acc, _left, _middle, _right);
+  return BarBuilder(rect, _padding, _bg, _font_fg, _font_acc, _left, _middle,
+                    _right);
+}
+
+BAR_BUILDER_FUNC::padding(padding_t padding) const {
+  return BarBuilder(_rect, padding, _bg, _font_fg, _font_acc, _left, _middle,
+                    _right);
 }
 
 BAR_BUILDER_FUNC::bg_bar_color(const char* str) const {
-  return BarBuilder(_rect, {.name = str, .from_rdb = false}, _font_fg,
+  return BarBuilder(_rect, _padding, {.name = str, .from_rdb = false}, _font_fg,
                     _font_acc, _left, _middle, _right);
 }
 
 BAR_BUILDER_FUNC::bg_bar_color_from_rdb(const char* str) const {
-  return BarBuilder(_rect, {.name = str, .from_rdb = true}, _font_fg, _font_acc,
-                    _left, _middle, _right);
+  return BarBuilder(_rect, _padding, {.name = str, .from_rdb = true}, _font_fg,
+                    _font_acc, _left, _middle, _right);
 }
 
 BAR_BUILDER_FUNC::fg_font_color(const char* str) const {
-  return BarBuilder(_rect, _bg, {.name = str, .from_rdb = false}, _font_acc,
-                    _left, _middle, _right);
+  return BarBuilder(_rect, _padding, _bg, {.name = str, .from_rdb = false},
+                    _font_acc, _left, _middle, _right);
 }
 
 BAR_BUILDER_FUNC::fg_font_color_from_rdb(const char* str) const {
-  return BarBuilder(_rect, _bg, {.name = str, .from_rdb = true}, _font_acc,
-                    _left, _middle, _right);
+  return BarBuilder(_rect, _padding, _bg, {.name = str, .from_rdb = true},
+                    _font_acc, _left, _middle, _right);
 }
 
 BAR_BUILDER_FUNC::acc_font_color(const char* str) const {
-  return BarBuilder(_rect, _bg, _font_fg, {.name = str, .from_rdb = false},
-                    _left, _middle, _right);
+  return BarBuilder(_rect, _padding, _bg, _font_fg,
+                    {.name = str, .from_rdb = false}, _left, _middle, _right);
 }
 
 BAR_BUILDER_FUNC::acc_font_color_from_rdb(const char* str) const {
-  return BarBuilder(_rect, _bg, _font_fg, {.name = str, .from_rdb = true},
-                    _left, _middle, _right);
+  return BarBuilder(_rect, _padding, _bg, _font_fg,
+                    {.name = str, .from_rdb = true}, _left, _middle, _right);
 }
 
 
@@ -321,18 +359,18 @@ BAR_BUILDER_FUNC::acc_font_color_from_rdb(const char* str) const {
 
 BAR_BUILDER_SECTION_FUNC::left(const Mods&... tup) const {
   return BarBuilder<std::tuple<const Mods&...>, std::tuple<const M&...>,
-                    std::tuple<const R&...>>(_rect, _bg, _font_fg, _font_acc,
-                                             {tup...}, _middle, _right);
+                    std::tuple<const R&...>>(
+      _rect, _padding, _bg, _font_fg, _font_acc, {tup...}, _middle, _right);
 }
 
 BAR_BUILDER_SECTION_FUNC::middle(const Mods&... tup) const {
   return BarBuilder<std::tuple<const L&...>, std::tuple<const Mods&...>,
-                    std::tuple<const R&...>>(_rect, _bg, _font_fg, _font_acc,
-                                             _left, {tup...}, _right);
+                    std::tuple<const R&...>>(
+      _rect, _padding, _bg, _font_fg, _font_acc, _left, {tup...}, _right);
 }
 
 BAR_BUILDER_SECTION_FUNC::right(const Mods&... tup) const {
   return BarBuilder<std::tuple<const L&...>, std::tuple<const M&...>,
-                    std::tuple<const Mods&...>>(_rect, _bg, _font_fg, _font_acc,
-                                                _left, _middle, {tup...});
+                    std::tuple<const Mods&...>>(
+      _rect, _padding, _bg, _font_fg, _font_acc, _left, _middle, {tup...});
 }

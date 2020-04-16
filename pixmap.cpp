@@ -79,27 +79,13 @@ SectionPixmap::clear() {
 }
 
 
-/** click
- * Run the action for the range containing x in _areas.
- */
-void
-SectionPixmap::click(int16_t x, uint8_t button) const {
-  for (const auto& area : _areas) {
-    if (x >= area.begin && x <= area.end) {
-      area.action(button);
-      break;
-    }
-  }
-}
-
-
 /** write
  * Given a segment, write its contents to the underlying pixelmap and add the
  * corresponding action to the vector of areas iff the entire segment can be
  * written.
  */
 void
-SectionPixmap::write(const segment_t& seg) {
+SectionPixmap::write(const segment_t& seg, uint8_t padding) {
   using FontType = typename DS::font_t;
   using StringContainer = std::tuple<ucs2, FontType*, size_t>;
 
@@ -111,7 +97,7 @@ SectionPixmap::write(const segment_t& seg) {
         return {str, font, font->string_size(str)};
       });
 
-  const decltype(_used) total_size = ranges::accumulate(
+  const decltype(_used) total_size = (padding * 2) + ranges::accumulate(
       strings, decltype(total_size){},
       [](decltype(total_size) cur, const StringContainer& p) {
         return cur + std::get<2>(p);
@@ -125,12 +111,49 @@ SectionPixmap::write(const segment_t& seg) {
     const uint16_t end = _used + total_size;
     _areas.push_back({.begin = _used, .end = end, .action = *seg.action});
   }
+  _used += padding;
   for (auto&& [string, text_seg] : ranges::views::zip(strings, seg.segments)) {
     const auto& [str, font, size] = string;
     FontColor* color = text_seg.color == NORMAL_COLOR ? &_colors->foreground
                                                       : &_colors->fg_accent;
     font->draw_ucs2(_xft_draw, color, str, _height, _used);
     _used += size;
+  }
+  _used += padding;
+}
+
+
+/** pad
+ * Insert `padding` extra space in pixels to the pixmap.
+ */
+void
+SectionPixmap::pad(uint8_t padding) {
+  _used = std::min<decltype(_used)>(_used + padding, _width);
+}
+
+
+/** with_padding
+ * Wrapper which returns a function that will call write with a given amount of
+ * padding around the sides of the segment_t.
+ */
+/* std::function<void(const segment_t&)> */
+/* SectionPixmap::with_padding(uint8_t padding) { */
+/*   return [padding, this](const segment_t& seg) { */
+/*     write(seg, padding); */
+/*   }; */
+/* } */
+
+
+/** click
+ * Run the action for the range containing x in _areas.
+ */
+void
+SectionPixmap::click(int16_t x, uint8_t button) const {
+  for (const auto& area : _areas) {
+    if (x >= area.begin && x <= area.end) {
+      area.action(button);
+      break;
+    }
   }
 }
 
